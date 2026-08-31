@@ -1,1112 +1,2402 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   Archive,
   ArrowDownUp,
-  Bell,
   BriefcaseBusiness,
-  CalendarDays,
-  Check,
-  ChevronDown,
+  Building2,
   CircleHelp,
-  Clock3,
   Command,
+  Download,
   FileText,
   Filter,
   FolderOpen,
   Inbox,
-  Kanban,
   ListFilter,
+  LogOut,
   Mail,
   MoreHorizontal,
-  Moon,
   Paperclip,
+  Pencil,
   Plus,
   Search,
   Settings2,
   SlidersHorizontal,
-  Sparkles,
-  Sun,
   Target,
-  Timer,
-  UserRound,
+  Trash2,
+  Upload,
   X,
 } from "lucide-react";
+import { useRouter } from "nlite/navigation";
+import {
+  ApplicationFields,
+  CompanyMark,
+  NativeSelectField,
+  PriorityBadge,
+  StageBadge,
+} from "@/components/workspace-fields";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Command as CommandPalette,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Kbd } from "@/components/ui/kbd";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarSeparator,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { signOut } from "@/lib/auth-client";
+import {
+  emptyFormValues,
+  formatCompensation,
+  formatDisplayDate,
+  formValuesToApplicationPatch,
+  isPriority,
+  isReplyStatus,
+  isSortKey,
+  isStage,
+  nextStepSummary,
+  priorities,
+  replyStatuses,
+  screenTitles,
+  sortLabels,
+  sources,
+  stages,
+  userInitials,
+  valuesFromApplication,
+  workModes,
+  type Application,
+  type ApplicationFormValues,
+  type Company,
+  type CoverLetter,
+  type Priority,
+  type ReplyStatus,
+  type Resume,
+  type SavedView,
+  type Screen,
+  type SortKey,
+  type Source,
+  type Stage,
+  type WorkMode,
+  type WorkspaceUser,
+} from "@/lib/domain";
+import {
+  bulkApplicationsRequest,
+  createApplicationRequest,
+  createCompanyRequest,
+  createCoverTextRequest,
+  createViewRequest,
+  deleteApplicationRequest,
+  deleteCompanyRequest,
+  deleteCoverRequest,
+  deleteResumeRequest,
+  deleteViewRequest,
+  fetchWorkspace,
+  patchApplicationRequest,
+  patchCompanyRequest,
+  patchCoverRequest,
+  patchResumeRequest,
+  uploadCoverRequest,
+  uploadResumeRequest,
+} from "@/lib/workspace-api";
 import { cn } from "@/lib/utils";
 
-type Variant = "applications" | "pipeline" | "weekly";
-type Application = {
-  id: number;
-  company: string;
-  role: string;
-  stage: string;
-  date: string;
-  priority: "High" | "Medium" | "Low";
-  location: string;
-  logo: string;
-  color: string;
-  contact: string;
-  next: string;
-  compensation: string;
-  resume: string;
-  tags: string[];
-};
+type Density = "comfortable" | "compact";
 
-const applications: Application[] = [
-  {
-    id: 1,
-    company: "Vercel",
-    role: "Product Designer",
-    stage: "Interview",
-    date: "Aug 28, 2024",
-    priority: "High",
-    location: "Remote · US",
-    logo: "▲",
-    color: "bg-foreground text-background",
-    contact: "Maya Chen · Talent",
-    next: "Portfolio review · Tomorrow",
-    compensation: "$180k – $210k + equity",
-    resume: "Product Design · v4",
-    tags: ["Design systems", "B2B SaaS"],
-  },
-  {
-    id: 2,
-    company: "Linear",
-    role: "Senior Product Designer",
-    stage: "Applied",
-    date: "Aug 26, 2024",
-    priority: "High",
-    location: "San Francisco, CA",
-    logo: "L",
-    color: "bg-foreground text-background",
-    contact: "No contact yet",
-    next: "Follow up · Sep 3",
-    compensation: "$170k – $205k + equity",
-    resume: "Product Design · v4",
-    tags: ["Developer tools", "Systems"],
-  },
-  {
-    id: 3,
-    company: "Notion",
-    role: "Product Designer, Growth",
-    stage: "Screening",
-    date: "Aug 23, 2024",
-    priority: "Medium",
-    location: "New York · Hybrid",
-    logo: "N",
-    color: "bg-muted text-foreground",
-    contact: "Jordan Patel · Recruiter",
-    next: "Recruiter call · Sep 5",
-    compensation: "$160k – $190k + equity",
-    resume: "Growth Design · v2",
-    tags: ["Growth", "Consumer"],
-  },
-  {
-    id: 4,
-    company: "Stripe",
-    role: "Staff Product Designer",
-    stage: "Offer",
-    date: "Aug 15, 2024",
-    priority: "High",
-    location: "Remote · US",
-    logo: "S",
-    color: "bg-foreground text-background",
-    contact: "Alex Rivera · Hiring manager",
-    next: "Review offer · Sep 2",
-    compensation: "$210k – $240k + equity",
-    resume: "Staff Portfolio · v1",
-    tags: ["Fintech", "Platform"],
-  },
-  {
-    id: 5,
-    company: "Figma",
-    role: "Product Designer",
-    stage: "Rejected",
-    date: "Aug 12, 2024",
-    priority: "Low",
-    location: "San Francisco, CA",
-    logo: "F",
-    color: "bg-muted text-foreground",
-    contact: "Taylor Kim · Talent",
-    next: "Archive",
-    compensation: "$175k – $200k + equity",
-    resume: "Product Design · v3",
-    tags: ["Collaboration", "Design tools"],
-  },
-  {
-    id: 6,
-    company: "Arc",
-    role: "Senior Designer",
-    stage: "Wishlist",
-    date: "Aug 08, 2024",
-    priority: "Medium",
-    location: "Remote · US",
-    logo: "A",
-    color: "bg-muted text-foreground",
-    contact: "No contact yet",
-    next: "Tailor application · Sep 6",
-    compensation: "$150k – $180k",
-    resume: "Product Design · v4",
-    tags: ["Future of work"],
-  },
-];
+function isDensity(value: string | null): value is Density {
+  return value === "comfortable" || value === "compact";
+}
 
-const stages = ["Wishlist", "Applied", "Screening", "Interview", "Offer"];
+const densityListeners = new Set<() => void>();
 
-function Logo({ item, large = false }: { item: Application; large?: boolean }) {
+function readDensity(): Density {
+  const stored = window.localStorage.getItem("trackr-density");
+  return isDensity(stored) ? stored : "comfortable";
+}
+
+function subscribeDensity(onStoreChange: () => void) {
+  densityListeners.add(onStoreChange);
+  return () => {
+    densityListeners.delete(onStoreChange);
+  };
+}
+
+function writeDensity(value: Density) {
+  window.localStorage.setItem("trackr-density", value);
+  for (const listener of densityListeners) listener();
+}
+
+function relativeFollowUp(iso: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const date = new Date(`${iso}T00:00:00`);
+  const diff = Math.round((date.getTime() - today.getTime()) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  if (diff === -1) return "Yesterday";
+  return formatDisplayDate(iso);
+}
+
+function computeStats(applications: Application[], companies: Company[]) {
+  const active = applications.filter((item) => !item.archived);
+  const inProgress = active.filter(
+    (item) => item.stage === "Screening" || item.stage === "Interview" || item.stage === "Offer",
+  );
+  const applied = active.filter((item) => item.stage !== "Wishlist");
+  const replied = applied.filter((item) => item.replyStatus === "Replied");
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = active
+    .filter((item) => item.nextStepDate && item.nextStepDate >= today)
+    .sort((a, b) => a.nextStepDate.localeCompare(b.nextStepDate))[0];
+  const company = upcoming ? companies.find((c) => c.id === upcoming.companyId) : undefined;
+  const rate = applied.length === 0 ? 0 : Math.round((replied.length / applied.length) * 100);
+  return [
+    {
+      label: "Active applications",
+      value: String(active.length),
+      hint: `${applications.length} total including archive`,
+    },
+    {
+      label: "In progress",
+      value: String(inProgress.length),
+      hint: active.length
+        ? `${Math.round((inProgress.length / active.length) * 100)}% of active`
+        : "No active roles",
+    },
+    {
+      label: "Response rate",
+      value: applied.length ? `${rate}%` : "—",
+      hint: `${replied.length} replied of ${applied.length} sent`,
+    },
+    {
+      label: "Next follow-up",
+      value: upcoming ? relativeFollowUp(upcoming.nextStepDate) : "None",
+      hint: upcoming
+        ? `${company?.name ?? "Unknown"}${upcoming.reminderTime !== "None" ? ` · ${upcoming.reminderTime}` : ""}`
+        : "No dated next step",
+    },
+  ];
+}
+
+function StatStrip({
+  applications,
+  companies,
+}: {
+  applications: Application[];
+  companies: Company[];
+}) {
+  const stats = computeStats(applications, companies);
   return (
-    <div
-      className={cn(
-        "flex shrink-0 items-center justify-center rounded-lg font-semibold",
-        large ? "size-11 text-lg" : "size-9 text-sm",
-        item.color,
-      )}
-    >
-      {item.logo}
+    <div className="mx-4 mb-1 grid grid-cols-2 overflow-hidden rounded-xl border border-foreground/12 bg-background md:mx-7 md:grid-cols-4">
+      {stats.map((stat, i) => (
+        <div
+          key={stat.label}
+          className={cn(
+            "px-4 py-4 md:px-5",
+            i % 2 === 0 && "border-r border-foreground/10",
+            i < 2 && "border-b border-foreground/10 md:border-b-0",
+            i < 3 && "md:border-r md:border-foreground/10",
+          )}
+        >
+          <p className="text-xs text-muted-foreground">{stat.label}</p>
+          <p className="mt-1 text-xl font-semibold tracking-tight">{stat.value}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">{stat.hint}</p>
+        </div>
+      ))}
     </div>
   );
 }
 
-function Badge({
-  children,
-  tone = "neutral",
+function AppSidebar({
+  screen,
+  setScreen,
+  applicationCount,
+  user,
 }: {
-  children: React.ReactNode;
-  tone?: "neutral" | "green" | "amber" | "red";
+  screen: Screen;
+  setScreen: (s: Screen) => void;
+  applicationCount: number;
+  user: WorkspaceUser;
 }) {
+  const router = useRouter();
+
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium",
-        tone === "green" && "border-foreground/15 bg-foreground/10",
-        tone === "amber" && "border-foreground/10 bg-muted",
-        tone === "red" && "border-foreground/10 bg-muted",
-        tone === "neutral" && "border-border bg-muted/60",
-      )}
-    >
-      {children}
-    </span>
+    <Sidebar>
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg">
+              <div className="flex size-7 items-center justify-center rounded-md bg-foreground text-background">
+                <Target className="size-4" />
+              </div>
+              <span className="font-semibold tracking-tight">Trackr</span>
+              <Badge variant="outline" className="ml-auto font-mono text-[10px]">
+                PRO
+              </Badge>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={screen === "applications"}
+                  onClick={() => setScreen("applications")}
+                >
+                  <Inbox />
+                  Applications
+                  <SidebarMenuBadge>{applicationCount}</SidebarMenuBadge>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Library</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {(
+                [
+                  ["companies", Building2, "Companies"],
+                  ["resumes", FileText, "Resumes"],
+                  ["cover-letters", FolderOpen, "Cover letters"],
+                  ["archive", Archive, "Archive"],
+                ] as const
+              ).map(([id, Icon, label]) => (
+                <SidebarMenuItem key={id}>
+                  <SidebarMenuButton isActive={screen === id} onClick={() => setScreen(id)}>
+                    <Icon />
+                    {label}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={() => router.push("/settings")}>
+              <Settings2 />
+              Settings
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={() => router.push("/help")}>
+              <CircleHelp />
+              Help center
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+        <SidebarSeparator />
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-sidebar-accent">
+            <Avatar size="sm">
+              <AvatarFallback>{userInitials(user.name)}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{user.name}</p>
+              <p className="truncate text-xs text-muted-foreground">{user.title || user.email}</p>
+            </div>
+            <MoreHorizontal className="ml-auto size-4 text-muted-foreground" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="start" className="w-56">
+            <div className="px-1.5 py-1.5 text-xs font-medium text-muted-foreground">
+              {user.email}
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push("/settings")}>
+              <Settings2 />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/help")}>
+              <CircleHelp />
+              Help center
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => {
+                void signOut({
+                  fetchOptions: {
+                    onSuccess: () => {
+                      router.push("/sign-in");
+                    },
+                  },
+                });
+              }}
+            >
+              <LogOut />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarFooter>
+    </Sidebar>
   );
 }
 
-function Sidebar({ variant, setVariant }: { variant: Variant; setVariant: (v: Variant) => void }) {
+function Header({ screen, onSearch }: { screen: Screen; onSearch: () => void }) {
   return (
-    <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-sidebar px-3 py-4 lg:flex">
-      <div className="flex items-center gap-2 px-2 pb-7">
-        <div className="flex size-7 items-center justify-center rounded-md bg-foreground text-background">
-          <Target className="size-4" />
-        </div>
-        <span className="font-semibold tracking-tight">Trackr</span>
-        <span className="ml-auto rounded-md border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-          PRO
-        </span>
-      </div>
-      <div className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-        Workspace
-      </div>
-      <nav className="flex flex-col gap-1">
-        {[
-          ["applications", Inbox, "Applications", "12"],
-          ["pipeline", Kanban, "Pipeline", ""],
-          ["weekly", CalendarDays, "Weekly plan", ""],
-        ].map(([id, Icon, label, count]) => (
-          <button
-            key={id as string}
-            onClick={() => setVariant(id as Variant)}
-            className={cn(
-              "flex items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors hover:bg-accent",
-              variant === id && "bg-accent font-medium",
-            )}
-          >
-            <Icon className="size-4 text-muted-foreground" />
-            <span>{label as string}</span>
-            {count && (
-              <span className="ml-auto font-mono text-[11px] text-muted-foreground">
-                {count as string}
-              </span>
-            )}
-          </button>
-        ))}
-      </nav>
-      <div className="mb-2 mt-8 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-        Library
-      </div>
-      <nav className="flex flex-col gap-1">
-        <button className="flex items-center gap-3 rounded-md px-2.5 py-2 text-sm hover:bg-accent">
-          <FileText className="size-4 text-muted-foreground" />
-          Resumes
-        </button>
-        <button className="flex items-center gap-3 rounded-md px-2.5 py-2 text-sm hover:bg-accent">
-          <FolderOpen className="size-4 text-muted-foreground" />
-          Cover letters
-        </button>
-        <button className="flex items-center gap-3 rounded-md px-2.5 py-2 text-sm hover:bg-accent">
-          <Archive className="size-4 text-muted-foreground" />
-          Archive
-        </button>
-      </nav>
-      <div className="mt-auto flex flex-col gap-1 border-t border-border pt-3">
-        <button className="flex items-center gap-3 rounded-md px-2.5 py-2 text-sm hover:bg-accent">
-          <Settings2 className="size-4 text-muted-foreground" />
-          Settings
-        </button>
-        <button className="flex items-center gap-3 rounded-md px-2.5 py-2 text-sm hover:bg-accent">
-          <CircleHelp className="size-4 text-muted-foreground" />
-          Help center
-        </button>
-        <div className="mt-3 flex items-center gap-2 rounded-md bg-accent/60 p-2">
-          <div className="flex size-7 items-center justify-center rounded-full bg-muted text-xs font-semibold">
-            AS
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-xs font-medium">Alex Smith</p>
-            <p className="truncate text-[11px] text-muted-foreground">Product designer</p>
-          </div>
-          <MoreHorizontal className="ml-auto size-4 text-muted-foreground" />
-        </div>
-      </div>
-    </aside>
-  );
-}
-
-function Header({
-  variant,
-  dark,
-  setDark,
-  onAdd,
-}: {
-  variant: Variant;
-  dark: boolean;
-  setDark: (v: boolean) => void;
-  onAdd: () => void;
-}) {
-  return (
-    <header className="flex h-14 items-center justify-between border-b border-border px-4 md:px-7">
-      <div className="flex items-center gap-2 lg:hidden">
-        <div className="flex size-7 items-center justify-center rounded-md bg-foreground text-background">
-          <Target className="size-4" />
-        </div>
-        <span className="font-semibold">Trackr</span>
-      </div>
+    <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4 md:px-6">
+      <SidebarTrigger className="-ml-1" />
       <div className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex">
         <span>Workspace</span>
         <span>/</span>
-        <span className="text-foreground">
-          {variant === "applications"
-            ? "Applications"
-            : variant === "pipeline"
-              ? "Pipeline"
-              : "Weekly plan"}
-        </span>
+        <span className="text-foreground">{screenTitles[screen]}</span>
       </div>
-      <div className="flex items-center gap-2">
-        <button className="hidden items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-accent md:flex">
-          <Command className="size-3.5" />
-          Quick search{" "}
-          <kbd className="rounded border border-border px-1 font-mono text-[10px]">⌘ K</kbd>
-        </button>
-        <button
-          aria-label="Toggle theme"
-          onClick={() => setDark(!dark)}
-          className="rounded-md p-2 text-muted-foreground hover:bg-accent"
-        >
-          {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
-        </button>
-        <button
-          onClick={onAdd}
-          className="flex items-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-xs font-medium text-background transition-transform hover:scale-[1.02]"
-        >
-          <Plus className="size-3.5" />
-          Add application
-        </button>
+      <div className="ml-auto flex items-center gap-2">
+        <Button variant="outline" className="hidden md:inline-flex" onClick={onSearch}>
+          <Command />
+          Quick search
+          <Kbd>⌘K</Kbd>
+        </Button>
       </div>
     </header>
   );
 }
 
-function StatStrip() {
-  return (
-    <div className="grid grid-cols-2 border-b border-border md:grid-cols-4">
-      <div className="border-r border-border px-4 py-4 md:px-6">
-        <p className="text-xs text-muted-foreground">Active applications</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight">12</p>
-        <p className="mt-1 text-[11px] text-muted-foreground">+3 this week</p>
-      </div>
-      <div className="border-r border-border px-4 py-4 md:px-6">
-        <p className="text-xs text-muted-foreground">In progress</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight">8</p>
-        <p className="mt-1 text-[11px] text-muted-foreground">67% of active</p>
-      </div>
-      <div className="border-r border-border px-4 py-4 md:px-6">
-        <p className="text-xs text-muted-foreground">Response rate</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight">42%</p>
-        <p className="mt-1 text-[11px] text-muted-foreground">+8% vs last month</p>
-      </div>
-      <div className="px-4 py-4 md:px-6">
-        <p className="text-xs text-muted-foreground">Next follow-up</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight">Tomorrow</p>
-        <p className="mt-1 text-[11px] text-muted-foreground">Vercel · 9:00 AM</p>
-      </div>
-    </div>
-  );
-}
-
-function FilterBar({
-  query,
-  setQuery,
-  filter,
-  setFilter,
-  selected,
-  setSelected,
+function DetailDrawer({
+  item,
+  company,
+  companies,
+  resumes,
+  coverLetters,
+  open,
+  onOpenChange,
+  onPatch,
+  onDelete,
+  onCreateCompany,
+  onUploadResume,
+  onCreateCoverText,
+  onUploadCover,
 }: {
-  query: string;
-  setQuery: (v: string) => void;
-  filter: string;
-  setFilter: (v: string) => void;
-  selected: number[];
-  setSelected: (v: number[]) => void;
+  item: Application;
+  company: Company | undefined;
+  companies: Company[];
+  resumes: Resume[];
+  coverLetters: CoverLetter[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onPatch: (id: string, patch: Partial<Application>) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  onCreateCompany: (name: string) => Promise<string>;
+  onUploadResume: (file: File) => Promise<string>;
+  onCreateCoverText: (name: string, body: string) => Promise<string>;
+  onUploadCover: (file: File) => Promise<string>;
 }) {
+  const [draft, setDraft] = useState(() => valuesFromApplication(item));
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  function setValues(patch: Partial<ApplicationFormValues>) {
+    setDraft((current) => ({ ...current, ...patch }));
+  }
+
+  function flashSaved() {
+    setSavedFlash(true);
+    window.setTimeout(() => setSavedFlash(false), 1200);
+  }
+
+  function patchImmediate(patch: Partial<Application>) {
+    void onPatch(item.id, patch).then(flashSaved);
+  }
+
+  function saveAll() {
+    const patch = formValuesToApplicationPatch(draft);
+    if (!patch) return;
+    void onPatch(item.id, patch).then(flashSaved);
+  }
+
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3 md:px-6">
-      <div className="relative min-w-[180px] flex-1 md:max-w-xs">
-        <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search applications..."
-          className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-xs outline-none ring-offset-background focus:ring-2 focus:ring-ring"
-        />
-      </div>
-      <button className="flex h-8 items-center gap-2 rounded-md border border-border px-2.5 text-xs hover:bg-accent">
-        <Filter className="size-3.5 text-muted-foreground" />
-        Filters{filter !== "All" && <Badge>{filter}</Badge>}
-      </button>
-      <select
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-        aria-label="Filter by stage"
-        className="h-8 rounded-md border border-border bg-background px-2.5 text-xs outline-none"
-      >
-        <option>All</option>
-        {stages.map((s) => (
-          <option key={s}>{s}</option>
-        ))}
-        <option>Rejected</option>
-      </select>
-      <button className="flex h-8 items-center gap-2 rounded-md border border-border px-2.5 text-xs text-muted-foreground hover:bg-accent">
-        <ArrowDownUp className="size-3.5" />
-        Sort: Recent
-      </button>
-      <button className="ml-auto hidden h-8 items-center gap-2 rounded-md border border-border px-2.5 text-xs text-muted-foreground hover:bg-accent md:flex">
-        <ListFilter className="size-3.5" />
-        Saved views
-        <ChevronDown className="size-3" />
-      </button>
-      {selected.length > 0 && (
-        <button
-          onClick={() => setSelected([])}
-          className="flex h-8 items-center gap-1 rounded-md bg-accent px-2.5 text-xs"
-        >
-          {selected.length} selected <X className="size-3" />
-        </button>
-      )}
-    </div>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-2xl">
+        <SheetHeader className="shrink-0 border-b">
+          <SheetTitle className="flex items-center gap-2">
+            Application details
+            {savedFlash && <span className="text-xs font-normal text-muted-foreground">Saved</span>}
+          </SheetTitle>
+          <SheetDescription>
+            {company?.name ?? "Unknown"} · {item.role}
+          </SheetDescription>
+        </SheetHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="flex items-start gap-3 px-4 pt-4">
+            {company && <CompanyMark logo={company.logo} color={company.color} large />}
+            <div className="min-w-0">
+              <p className="font-semibold">{company?.name ?? "Unknown"}</p>
+              <p className="text-sm text-muted-foreground">{draft.role}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 px-4 pt-4">
+            <Field>
+              <FieldLabel>Status</FieldLabel>
+              <NativeSelectField
+                value={draft.stage}
+                onChange={(stage) => {
+                  setValues({ stage });
+                  patchImmediate({ stage });
+                }}
+                options={stages}
+                guard={isStage}
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Priority</FieldLabel>
+              <NativeSelectField
+                value={draft.priority}
+                onChange={(priority) => {
+                  setValues({ priority });
+                  patchImmediate({ priority });
+                }}
+                options={priorities}
+                guard={isPriority}
+              />
+            </Field>
+            <Field className="col-span-2">
+              <FieldLabel>Reply status</FieldLabel>
+              <NativeSelectField
+                value={draft.replyStatus}
+                onChange={(replyStatus) => {
+                  setValues({ replyStatus });
+                  patchImmediate({ replyStatus });
+                }}
+                options={replyStatuses}
+                guard={isReplyStatus}
+              />
+            </Field>
+          </div>
+          <div className="p-4">
+            <ApplicationFields
+              companies={companies}
+              resumes={resumes}
+              coverLetters={coverLetters}
+              values={draft}
+              setValues={(patch) => {
+                setValues(patch);
+                const immediateKeys = [
+                  "workMode",
+                  "companyId",
+                  "resumeId",
+                  "coverLetterId",
+                  "replyStatus",
+                  "source",
+                  "jobType",
+                  "reminderTime",
+                ] as const;
+                const immediate: Partial<Application> = {};
+                for (const key of immediateKeys) {
+                  if (key in patch) {
+                    Object.assign(immediate, { [key]: patch[key] });
+                  }
+                }
+                if (Object.keys(immediate).length > 0) patchImmediate(immediate);
+              }}
+              onCreateCompany={onCreateCompany}
+              onUploadResume={onUploadResume}
+              onCreateCoverText={onCreateCoverText}
+              onUploadCover={onUploadCover}
+            />
+          </div>
+        </div>
+        <SheetFooter className="shrink-0 border-t">
+          <p className="mr-auto text-xs text-muted-foreground">
+            Applied {formatDisplayDate(item.appliedDate)}
+            {formatCompensation(item) !== "—" && ` · ${formatCompensation(item)}`}
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (window.confirm("Delete this application?")) void onDelete(item.id);
+            }}
+          >
+            Delete
+          </Button>
+          <Button onClick={saveAll}>Save changes</Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 
-function ApplicationsView({ onAdd }: { onAdd: () => void }) {
+function ApplicationsView({
+  applications,
+  companies,
+  resumes,
+  coverLetters,
+  savedViews,
+  year,
+  setYear,
+  density,
+  setDensity,
+  onAdd,
+  onPatch,
+  onDelete,
+  onBulk,
+  onCreateCompany,
+  onUploadResume,
+  onCreateCoverText,
+  onUploadCover,
+  onSaveView,
+  onDeleteView,
+  onApplyView,
+}: {
+  applications: Application[];
+  companies: Company[];
+  resumes: Resume[];
+  coverLetters: CoverLetter[];
+  savedViews: SavedView[];
+  year: string;
+  setYear: (year: string) => void;
+  density: Density;
+  setDensity: (density: Density) => void;
+  onAdd: () => void;
+  onPatch: (id: string, patch: Partial<Application>) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  onBulk: (ids: string[], action: "archive" | "delete") => Promise<void>;
+  onCreateCompany: (name: string) => Promise<string>;
+  onUploadResume: (file: File) => Promise<string>;
+  onCreateCoverText: (name: string, body: string) => Promise<string>;
+  onUploadCover: (file: File) => Promise<string>;
+  onSaveView: (view: Omit<SavedView, "id">) => Promise<void>;
+  onDeleteView: (id: string) => Promise<void>;
+  onApplyView: (view: SavedView) => void;
+}) {
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("All");
-  const [selected, setSelected] = useState<number[]>([]);
-  const [active, setActive] = useState(applications[0]);
-  const filtered = useMemo(
-    () =>
-      applications.filter(
-        (a) =>
-          (filter === "All" || a.stage === filter) &&
-          `${a.company} ${a.role}`.toLowerCase().includes(query.toLowerCase()),
-      ),
-    [filter, query],
+  const [filter, setFilter] = useState<"All" | Stage>("All");
+  const [sort, setSort] = useState<SortKey>("recent");
+  const [selectedPriorities, setSelectedPriorities] = useState<Priority[]>([]);
+  const [selectedReplies, setSelectedReplies] = useState<ReplyStatus[]>([]);
+  const [selectedModes, setSelectedModes] = useState<WorkMode[]>([]);
+  const [selectedSources, setSelectedSources] = useState<Source[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [viewName, setViewName] = useState("");
+  const [savingView, setSavingView] = useState(false);
+
+  const companyById = useMemo(
+    () => Object.fromEntries(companies.map((c) => [c.id, c])),
+    [companies],
   );
+
+  const years = useMemo(() => {
+    const values = new Set(
+      applications
+        .map((item) => item.appliedDate.slice(0, 4))
+        .filter((value) => value.length === 4),
+    );
+    return [...values].sort().reverse();
+  }, [applications]);
+
+  const extraFilterCount =
+    selectedPriorities.length +
+    selectedReplies.length +
+    selectedModes.length +
+    selectedSources.length;
+
+  const filtered = useMemo(() => {
+    const rows = applications.filter((a) => {
+      const company = companyById[a.companyId];
+      const hay = `${company?.name ?? ""} ${a.role} ${a.tags.join(" ")}`.toLowerCase();
+      if (filter !== "All" && a.stage !== filter) return false;
+      if (year !== "all" && a.appliedDate.slice(0, 4) !== year) return false;
+      if (selectedPriorities.length > 0 && !selectedPriorities.includes(a.priority)) return false;
+      if (selectedReplies.length > 0 && !selectedReplies.includes(a.replyStatus)) return false;
+      if (selectedModes.length > 0 && !selectedModes.includes(a.workMode)) return false;
+      if (selectedSources.length > 0 && !selectedSources.includes(a.source)) return false;
+      return hay.includes(query.toLowerCase());
+    });
+    const priorityRank: Record<Priority, number> = { High: 0, Medium: 1, Low: 2 };
+    const stageRank = Object.fromEntries(stages.map((stage, index) => [stage, index]));
+    rows.sort((a, b) => {
+      if (sort === "company") {
+        return (companyById[a.companyId]?.name ?? "").localeCompare(
+          companyById[b.companyId]?.name ?? "",
+        );
+      }
+      if (sort === "stage") return (stageRank[a.stage] ?? 0) - (stageRank[b.stage] ?? 0);
+      if (sort === "priority") return priorityRank[a.priority] - priorityRank[b.priority];
+      return b.appliedDate.localeCompare(a.appliedDate) || b.createdAt.localeCompare(a.createdAt);
+    });
+    return rows;
+  }, [
+    applications,
+    companyById,
+    filter,
+    query,
+    selectedModes,
+    selectedPriorities,
+    selectedReplies,
+    selectedSources,
+    sort,
+    year,
+  ]);
+
+  const active = applications.find((a) => a.id === activeId) ?? null;
+  const currentYear = new Date().getFullYear().toString();
+
+  function toggleFilter<T extends string>(list: T[], value: T, setList: (next: T[]) => void) {
+    setList(list.includes(value) ? list.filter((item) => item !== value) : [...list, value]);
+  }
+
   return (
     <>
       <div className="flex items-end justify-between px-4 pb-5 pt-7 md:px-7">
         <div>
           <p className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <BriefcaseBusiness className="size-3.5" />
-            Job search / 2024
+            Job search /
+            <Select
+              value={year}
+              onValueChange={(value) => {
+                if (value) setYear(value);
+              }}
+            >
+              <SelectTrigger
+                size="sm"
+                className="h-6 w-auto border-none bg-transparent px-1 shadow-none"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All years</SelectItem>
+                {!years.includes(currentYear) && (
+                  <SelectItem value={currentYear}>{currentYear}</SelectItem>
+                )}
+                {years.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {value}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Applications</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="md:text-xl">Applications</h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">
             Your command center for every opportunity.
           </p>
         </div>
         <div className="hidden items-center gap-2 md:flex">
-          <button className="rounded-md border border-border p-2 text-muted-foreground hover:bg-accent">
-            <SlidersHorizontal className="size-4" />
-          </button>
-          <button
-            onClick={onAdd}
-            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-accent"
-          >
-            <Plus className="size-3.5" /> New entry
-          </button>
-        </div>
-      </div>
-      <StatStrip />
-      <FilterBar {...{ query, setQuery, filter, setFilter, selected, setSelected }} />
-      <div className="flex min-h-[500px] flex-col xl:flex-row">
-        <div className="min-w-0 flex-1 overflow-hidden">
-          <div className="hidden grid-cols-[28px_minmax(180px,1.4fr)_minmax(120px,1fr)_100px_110px_90px] gap-3 border-b border-border px-6 py-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground md:grid">
-            <span></span>
-            <span>Company / role</span>
-            <span>Stage</span>
-            <span>Applied</span>
-            <span>Next step</span>
-            <span>Priority</span>
-          </div>
-          <div className="flex flex-col">
-            {filtered.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActive(item)}
-                className={cn(
-                  "grid grid-cols-[28px_1fr_auto] items-center gap-3 border-b border-border px-4 py-3.5 text-left transition-colors hover:bg-accent/50 md:grid-cols-[28px_minmax(180px,1.4fr)_minmax(120px,1fr)_100px_110px_90px] md:px-6",
-                  active.id === item.id && "bg-accent/40",
-                )}
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button variant="outline" size="icon" />}>
+              <SlidersHorizontal />
+              <span className="sr-only">View options</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-44">
+              <DropdownMenuRadioGroup
+                value={density}
+                onValueChange={(value) => {
+                  if (isDensity(value)) setDensity(value);
+                }}
               >
-                <input
-                  type="checkbox"
-                  checked={selected.includes(item.id)}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    setSelected(
-                      e.target.checked
-                        ? [...selected, item.id]
-                        : selected.filter((id) => id !== item.id),
-                    );
-                  }}
-                  aria-label={`Select ${item.company}`}
-                  className="size-3.5 accent-foreground"
-                />
-                <div className="flex min-w-0 items-center gap-3">
-                  <Logo item={item} />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{item.company}</p>
-                    <p className="truncate text-xs text-muted-foreground">{item.role}</p>
-                  </div>
+                <div className="px-1.5 py-1 text-xs font-medium text-muted-foreground">
+                  Row density
                 </div>
-                <div className="hidden md:block">
-                  <Badge
-                    tone={
-                      item.stage === "Offer"
-                        ? "green"
-                        : item.stage === "Rejected"
-                          ? "red"
-                          : "neutral"
-                    }
-                  >
-                    {item.stage}
-                  </Badge>
-                </div>
-                <span className="hidden text-xs text-muted-foreground md:block">
-                  {item.date.replace(", 2024", "")}
-                </span>
-                <span className="hidden truncate text-xs text-muted-foreground md:block">
-                  {item.next.split(" · ")[0]}
-                </span>
-                <span className="hidden text-xs md:block">
-                  <Badge tone={item.priority === "High" ? "amber" : "neutral"}>
-                    {item.priority}
-                  </Badge>
-                </span>
-                <div className="flex items-center gap-2 md:hidden">
-                  <Badge>{item.stage}</Badge>
-                  <MoreHorizontal className="size-4 text-muted-foreground" />
-                </div>
-              </button>
-            ))}
-          </div>
-          {filtered.length === 0 && (
-            <div className="flex flex-col items-center gap-2 py-20 text-center">
-              <Search className="size-6 text-muted-foreground" />
-              <p className="text-sm font-medium">No applications found</p>
-              <p className="text-xs text-muted-foreground">Try a different search or filter.</p>
-            </div>
-          )}
+                <DropdownMenuRadioItem value="comfortable">Comfortable</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="compact">Compact</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="outline" onClick={onAdd}>
+            <Plus /> New entry
+          </Button>
         </div>
-        <Inspector item={active} />
       </div>
+      <StatStrip applications={applications} companies={companies} />
+      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3 md:px-6">
+        <div className="relative min-w-[180px] flex-1 md:max-w-xs">
+          <Search className="absolute top-2.5 left-2.5 size-3.5 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search applications..."
+            className="pl-8"
+            aria-label="Search applications"
+          />
+        </div>
+        <Popover>
+          <PopoverTrigger render={<Button variant="outline" />}>
+            <Filter />
+            Filters
+            {extraFilterCount > 0 && <Badge variant="secondary">{extraFilterCount}</Badge>}
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-80">
+            <PopoverHeader>
+              <PopoverTitle>Filters</PopoverTitle>
+            </PopoverHeader>
+            <div className="flex flex-col gap-3 text-sm">
+              <div>
+                <p className="mb-1 text-xs text-muted-foreground">Priority</p>
+                <div className="flex flex-wrap gap-1">
+                  {priorities.map((priority) => (
+                    <Button
+                      key={priority}
+                      size="xs"
+                      variant={selectedPriorities.includes(priority) ? "default" : "outline"}
+                      onClick={() =>
+                        toggleFilter(selectedPriorities, priority, setSelectedPriorities)
+                      }
+                    >
+                      {priority}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-1 text-xs text-muted-foreground">Reply</p>
+                <div className="flex flex-wrap gap-1">
+                  {replyStatuses.map((status) => (
+                    <Button
+                      key={status}
+                      size="xs"
+                      variant={selectedReplies.includes(status) ? "default" : "outline"}
+                      onClick={() => toggleFilter(selectedReplies, status, setSelectedReplies)}
+                    >
+                      {status}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-1 text-xs text-muted-foreground">Work mode</p>
+                <div className="flex flex-wrap gap-1">
+                  {workModes.map((mode) => (
+                    <Button
+                      key={mode}
+                      size="xs"
+                      variant={selectedModes.includes(mode) ? "default" : "outline"}
+                      onClick={() => toggleFilter(selectedModes, mode, setSelectedModes)}
+                    >
+                      {mode}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-1 text-xs text-muted-foreground">Source</p>
+                <div className="flex flex-wrap gap-1">
+                  {sources.map((source) => (
+                    <Button
+                      key={source}
+                      size="xs"
+                      variant={selectedSources.includes(source) ? "default" : "outline"}
+                      onClick={() => toggleFilter(selectedSources, source, setSelectedSources)}
+                    >
+                      {source}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              {extraFilterCount > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setSelectedPriorities([]);
+                    setSelectedReplies([]);
+                    setSelectedModes([]);
+                    setSelectedSources([]);
+                  }}
+                >
+                  Clear extra filters
+                </Button>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+        <Select
+          value={filter}
+          onValueChange={(value) => {
+            if (value === "All" || isStage(value)) setFilter(value);
+          }}
+        >
+          <SelectTrigger aria-label="Filter by stage">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All</SelectItem>
+            {stages.map((s) => (
+              <SelectItem key={s} value={s}>
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button variant="outline" className="text-muted-foreground" />}
+          >
+            <ArrowDownUp />
+            Sort: {sortLabels[sort]}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuRadioGroup
+              value={sort}
+              onValueChange={(value) => {
+                if (isSortKey(value)) setSort(value);
+              }}
+            >
+              {Object.entries(sortLabels).map(([key, label]) => (
+                <DropdownMenuRadioItem key={key} value={key}>
+                  {label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="outline"
+                className="ml-auto hidden text-muted-foreground md:inline-flex"
+              />
+            }
+          >
+            <ListFilter />
+            Saved views
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-64">
+            {savedViews.length === 0 && (
+              <p className="px-2 py-1.5 text-xs text-muted-foreground">No saved views yet.</p>
+            )}
+            {savedViews.map((view) => (
+              <DropdownMenuItem
+                key={view.id}
+                onClick={() => {
+                  setQuery(view.query);
+                  setFilter(view.stage);
+                  setSort(view.sort);
+                  setSelectedPriorities(view.priorities);
+                  setSelectedReplies(view.replyStatuses);
+                  setSelectedModes(view.workModes);
+                  setSelectedSources(view.sources);
+                  setYear(view.year);
+                  onApplyView(view);
+                }}
+              >
+                <span className="min-w-0 flex-1 truncate">{view.name}</span>
+                <button
+                  type="button"
+                  aria-label={`Delete ${view.name}`}
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void onDeleteView(view.id);
+                  }}
+                >
+                  <X className="size-3.5" />
+                </button>
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            {savingView ? (
+              <div className="flex gap-1 p-1">
+                <Input
+                  value={viewName}
+                  onChange={(e) => setViewName(e.target.value)}
+                  placeholder="View name"
+                  className="h-7"
+                />
+                <Button
+                  size="xs"
+                  disabled={!viewName.trim()}
+                  onClick={() => {
+                    void onSaveView({
+                      name: viewName.trim(),
+                      query,
+                      stage: filter,
+                      sort,
+                      priorities: selectedPriorities,
+                      replyStatuses: selectedReplies,
+                      workModes: selectedModes,
+                      sources: selectedSources,
+                      year,
+                    }).then(() => {
+                      setViewName("");
+                      setSavingView(false);
+                    });
+                  }}
+                >
+                  Save
+                </Button>
+              </div>
+            ) : (
+              <DropdownMenuItem onClick={() => setSavingView(true)}>
+                <Plus />
+                Save current view
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {selected.length > 0 && (
+          <div className="flex items-center gap-1">
+            <Button variant="secondary" onClick={() => void onBulk(selected, "archive")}>
+              Archive {selected.length}
+            </Button>
+            <Button variant="outline" onClick={() => void onBulk(selected, "delete")}>
+              Delete
+            </Button>
+            <Button variant="ghost" onClick={() => setSelected([])}>
+              {selected.length} selected <X />
+            </Button>
+          </div>
+        )}
+      </div>
+      <Table>
+        <TableHeader className="hidden md:table-header-group">
+          <TableRow>
+            <TableHead className="w-10 pl-4 pr-0" />
+            <TableHead>Company / role</TableHead>
+            <TableHead>Stage</TableHead>
+            <TableHead>Applied</TableHead>
+            <TableHead>Next step</TableHead>
+            <TableHead>Priority</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {filtered.map((item) => {
+            const company = companyById[item.companyId];
+            return (
+              <TableRow
+                key={item.id}
+                data-state={activeId === item.id ? "selected" : undefined}
+                className={density === "compact" ? "[&>td]:py-1.5" : undefined}
+              >
+                <TableCell className="w-10 pl-4 pr-0">
+                  <Checkbox
+                    className="after:inset-0"
+                    checked={selected.includes(item.id)}
+                    onCheckedChange={(checked) => {
+                      setSelected(
+                        checked ? [...selected, item.id] : selected.filter((id) => id !== item.id),
+                      );
+                    }}
+                    aria-label={`Select ${company?.name ?? "application"}`}
+                  />
+                </TableCell>
+                <TableCell className="cursor-pointer" onClick={() => setActiveId(item.id)}>
+                  <div className="flex min-w-0 items-center gap-3">
+                    {company && <CompanyMark logo={company.logo} color={company.color} />}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{company?.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{item.role}</p>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell
+                  className="hidden cursor-pointer md:table-cell"
+                  onClick={() => setActiveId(item.id)}
+                >
+                  <StageBadge stage={item.stage} />
+                </TableCell>
+                <TableCell
+                  className="hidden cursor-pointer text-muted-foreground md:table-cell"
+                  onClick={() => setActiveId(item.id)}
+                >
+                  {formatDisplayDate(item.appliedDate)}
+                </TableCell>
+                <TableCell
+                  className="hidden max-w-[140px] cursor-pointer truncate text-muted-foreground md:table-cell"
+                  onClick={() => setActiveId(item.id)}
+                >
+                  {nextStepSummary(item)}
+                </TableCell>
+                <TableCell
+                  className="hidden cursor-pointer md:table-cell"
+                  onClick={() => setActiveId(item.id)}
+                >
+                  <PriorityBadge priority={item.priority} />
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+      {filtered.length === 0 && (
+        <div className="flex flex-col items-center gap-2 py-20 text-center">
+          <Search className="size-6 text-muted-foreground" />
+          <p className="text-sm font-medium">No applications found</p>
+          <p className="text-xs text-muted-foreground">Try a different search or filter.</p>
+        </div>
+      )}
+      {active && (
+        <DetailDrawer
+          key={active.id}
+          item={active}
+          company={companyById[active.companyId]}
+          companies={companies}
+          resumes={resumes}
+          coverLetters={coverLetters}
+          open
+          onOpenChange={(open) => {
+            if (!open) setActiveId(null);
+          }}
+          onPatch={onPatch}
+          onDelete={async (id) => {
+            await onDelete(id);
+            setActiveId(null);
+          }}
+          onCreateCompany={onCreateCompany}
+          onUploadResume={onUploadResume}
+          onCreateCoverText={onCreateCoverText}
+          onUploadCover={onUploadCover}
+        />
+      )}
     </>
   );
 }
 
-function Inspector({ item }: { item: Application }) {
-  return (
-    <aside className="hidden w-[340px] shrink-0 border-l border-border bg-muted/20 xl:block">
-      <div className="flex items-center justify-between border-b border-border px-5 py-3">
-        <span className="text-xs font-medium">Application details</span>
-        <button className="rounded p-1 text-muted-foreground hover:bg-accent">
-          <MoreHorizontal className="size-4" />
-        </button>
-      </div>
-      <div className="flex flex-col gap-5 p-5">
-        <div className="flex items-start gap-3">
-          <Logo item={item} large />
-          <div>
-            <h2 className="font-semibold">{item.company}</h2>
-            <p className="text-sm text-muted-foreground">{item.role}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{item.location}</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Badge tone={item.stage === "Offer" ? "green" : "neutral"}>{item.stage}</Badge>
-          <Badge tone="amber">{item.priority} priority</Badge>
-        </div>
-        <div className="grid grid-cols-2 gap-3 border-y border-border py-4">
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Applied</p>
-            <p className="mt-1 text-xs font-medium">{item.date}</p>
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Compensation
-            </p>
-            <p className="mt-1 text-xs font-medium">{item.compensation}</p>
-          </div>
-        </div>
-        <div>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Next step
-          </p>
-          <div className="flex items-center gap-2 rounded-md border border-border bg-background p-2.5">
-            <Timer className="size-4 text-muted-foreground" />
-            <div>
-              <p className="text-xs font-medium">{item.next.split(" · ")[0]}</p>
-              <p className="text-[11px] text-muted-foreground">{item.next.split(" · ")[1]}</p>
-            </div>
-            <button className="ml-auto rounded p-1 text-muted-foreground hover:bg-accent">
-              <Bell className="size-3.5" />
-            </button>
-          </div>
-        </div>
-        <div>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Contact
-          </p>
-          <div className="flex items-center gap-2 text-xs">
-            <UserRound className="size-4 text-muted-foreground" />
-            {item.contact}
-          </div>
-        </div>
-        <div>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Materials used
-          </p>
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-xs">
-              <FileText className="size-4 text-muted-foreground" />
-              {item.resume}
-              <Check className="ml-auto size-3.5 text-muted-foreground" />
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <Mail className="size-4 text-muted-foreground" />
-              Cover letter · Product-led
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {item.tags.map((tag) => (
-            <Badge key={tag}>{tag}</Badge>
-          ))}
-        </div>
-        <button className="mt-1 flex w-full items-center justify-center gap-2 rounded-md border border-border py-2 text-xs font-medium hover:bg-accent">
-          <Paperclip className="size-3.5" />
-          View job description
-        </button>
-      </div>
-    </aside>
-  );
-}
+function CompaniesView({
+  companies,
+  onCreate,
+  onPatch,
+  onDelete,
+}: {
+  companies: Company[];
+  onCreate: (name: string, extra?: { website?: string }) => Promise<string>;
+  onPatch: (id: string, patch: Record<string, unknown>) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newWebsite, setNewWebsite] = useState("");
+  const [savingCreate, setSavingCreate] = useState(false);
+  const active = companies.find((c) => c.id === activeId) ?? null;
+  const [draft, setDraft] = useState({ name: "", website: "", location: "", logo: "" });
 
-function PipelineView() {
-  return (
-    <div className="px-4 pb-8 pt-7 md:px-7">
-      <div className="mb-6 flex items-end justify-between">
-        <div>
-          <p className="mb-2 text-xs font-medium text-muted-foreground">A visual overview</p>
-          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Pipeline</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Move opportunities forward, one step at a time.
-          </p>
-        </div>
-        <Badge>12 active</Badge>
-      </div>
-      <div className="flex gap-3 overflow-x-auto pb-4">
-        {[...stages, "Rejected"].map((stage) => (
-          <div
-            key={stage}
-            className="min-w-[240px] flex-1 rounded-lg border border-border bg-muted/20 p-2"
-          >
-            <div className="flex items-center justify-between px-2 py-2">
-              <span className="text-xs font-semibold">{stage}</span>
-              <span className="font-mono text-[11px] text-muted-foreground">
-                {applications.filter((a) => a.stage === stage).length}
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {applications
-                .filter((a) => a.stage === stage)
-                .map((item) => (
-                  <button
-                    key={item.id}
-                    className="rounded-md border border-border bg-background p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2">
-                        <Logo item={item} />
-                        <div>
-                          <p className="text-xs font-medium">{item.company}</p>
-                          <p className="text-[11px] text-muted-foreground">{item.role}</p>
-                        </div>
-                      </div>
-                      <MoreHorizontal className="size-3.5 text-muted-foreground" />
-                    </div>
-                    <div className="mt-3 flex items-center justify-between">
-                      <span className="text-[11px] text-muted-foreground">{item.next}</span>
-                      <Badge tone={item.priority === "High" ? "amber" : "neutral"}>
-                        {item.priority}
-                      </Badge>
-                    </div>
-                  </button>
-                ))}
-            </div>
-            {stage === "Wishlist" && (
-              <button className="mt-2 flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-border py-2 text-xs text-muted-foreground hover:bg-accent">
-                <Plus className="size-3.5" />
-                Add to wishlist
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+  function resetCreate() {
+    setNewName("");
+    setNewWebsite("");
+    setCreating(false);
+  }
 
-function WeeklyView() {
-  const days = ["Mon 26", "Tue 27", "Wed 28", "Thu 29", "Fri 30"];
-  const tasks = [
-    { day: 0, time: "09:00", title: "Portfolio review", company: "Vercel", type: "Interview" },
-    {
-      day: 1,
-      time: "11:30",
-      title: "Follow up with recruiter",
-      company: "Linear",
-      type: "Follow-up",
-    },
-    { day: 2, time: "14:00", title: "Tailor application", company: "Arc", type: "Application" },
-    { day: 3, time: "10:00", title: "Recruiter call", company: "Notion", type: "Interview" },
-  ];
   return (
     <div className="px-4 pb-8 pt-7 md:px-7">
       <div className="mb-6 flex items-end justify-between">
         <div>
           <p className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <Sparkles className="size-3.5" />
-            Week 35 · Aug 26 – Sep 1
+            <Building2 className="size-3.5" />
+            Library
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Weekly plan</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            A calm view of what moves your search forward.
+          <h1 className="md:text-xl">Companies</h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Reuse companies across applications without retyping.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge>4 focus blocks</Badge>
-          <button className="rounded-md border border-border p-2 text-muted-foreground hover:bg-accent">
-            <CalendarDays className="size-4" />
-          </button>
-        </div>
+        <Popover
+          open={creating}
+          onOpenChange={(open) => {
+            setCreating(open);
+            if (!open) {
+              setNewName("");
+              setNewWebsite("");
+            }
+          }}
+        >
+          <PopoverTrigger render={<Button variant="outline" />}>
+            <Plus /> Add company
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-80 gap-3 p-3">
+            <PopoverHeader>
+              <PopoverTitle>Add company</PopoverTitle>
+              <PopoverDescription>Name and optional website URL.</PopoverDescription>
+            </PopoverHeader>
+            <FieldGroup className="gap-3">
+              <Field>
+                <FieldLabel>Name</FieldLabel>
+                <Input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Acme Inc."
+                />
+              </Field>
+              <Field>
+                <FieldLabel>Website</FieldLabel>
+                <Input
+                  value={newWebsite}
+                  onChange={(e) => setNewWebsite(e.target.value)}
+                  placeholder="https://acme.com"
+                  type="url"
+                />
+              </Field>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={resetCreate}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={!newName.trim() || savingCreate}
+                  onClick={() => {
+                    setSavingCreate(true);
+                    void onCreate(newName.trim(), {
+                      website: newWebsite.trim() || undefined,
+                    })
+                      .then(resetCreate)
+                      .finally(() => setSavingCreate(false));
+                  }}
+                >
+                  Add
+                </Button>
+              </div>
+            </FieldGroup>
+          </PopoverContent>
+        </Popover>
       </div>
-      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div className="rounded-lg border border-border p-4">
-          <p className="text-xs text-muted-foreground">Weekly focus</p>
-          <p className="mt-2 text-lg font-semibold">Build momentum</p>
-          <p className="mt-1 text-xs text-muted-foreground">2 interviews · 1 application</p>
-        </div>
-        <div className="rounded-lg border border-border p-4">
-          <p className="text-xs text-muted-foreground">Time invested</p>
-          <p className="mt-2 text-lg font-semibold">6h 20m</p>
-          <p className="mt-1 text-xs text-muted-foreground">of 8h weekly goal</p>
-        </div>
-        <div className="rounded-lg border border-border p-4">
-          <p className="text-xs text-muted-foreground">Tasks complete</p>
-          <p className="mt-2 text-lg font-semibold">8 / 12</p>
-          <p className="mt-1 text-xs text-muted-foreground">67% this week</p>
-        </div>
-        <div className="rounded-lg border border-border p-4">
-          <p className="text-xs text-muted-foreground">Streak</p>
-          <p className="mt-2 text-lg font-semibold">12 days</p>
-          <p className="mt-1 text-xs text-muted-foreground">Keep showing up</p>
-        </div>
-      </div>
-      <div className="overflow-hidden rounded-lg border border-border">
-        <div className="grid grid-cols-5 border-b border-border">
-          {days.map((day, i) => (
-            <div
-              key={day}
-              className={cn(
-                "border-r border-border px-3 py-3 last:border-0",
-                i === 2 && "bg-accent/50",
-              )}
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Company</TableHead>
+            <TableHead>Location</TableHead>
+            <TableHead>Website</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {companies.map((c) => (
+            <TableRow
+              key={c.id}
+              className="cursor-pointer"
+              onClick={() => {
+                setActiveId(c.id);
+                setDraft({
+                  name: c.name,
+                  website: c.website,
+                  location: c.location,
+                  logo: c.logo,
+                });
+              }}
             >
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                {day.split(" ")[0]}
-              </p>
-              <p
-                className={cn(
-                  "mt-1 text-sm font-semibold",
-                  i === 2 && "underline decoration-2 underline-offset-4",
-                )}
-              >
-                {day.split(" ")[1]}
-              </p>
-            </div>
-          ))}
-        </div>
-        <div className="grid min-h-[330px] grid-cols-5 bg-[linear-gradient(to_bottom,transparent_49px,var(--border)_50px)] bg-[size:100%_50px]">
-          {days.map((day, i) => (
-            <div key={day} className="border-r border-border p-2 last:border-0">
-              {tasks
-                .filter((t) => t.day === i)
-                .map((task) => (
-                  <button
-                    key={task.title}
-                    className="mb-2 w-full rounded-md border border-border bg-background p-2.5 text-left shadow-sm hover:bg-accent"
+              <TableCell>
+                <div className="flex items-center gap-3">
+                  <CompanyMark logo={c.logo} color={c.color} />
+                  <span className="font-medium">{c.name}</span>
+                </div>
+              </TableCell>
+              <TableCell className="text-muted-foreground">{c.location || "—"}</TableCell>
+              <TableCell>
+                {c.website ? (
+                  <a
+                    href={c.website}
+                    className="text-muted-foreground hover:text-foreground"
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(event) => event.stopPropagation()}
                   >
-                    <div className="mb-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                      <Clock3 className="size-3" />
-                      {task.time}
-                    </div>
-                    <p className="text-xs font-medium">{task.title}</p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">{task.company}</p>
-                    <span className="mt-2 inline-block text-[10px] text-muted-foreground">
-                      {task.type}
-                    </span>
-                  </button>
-                ))}
-            </div>
+                    {c.website}
+                  </a>
+                ) : (
+                  "—"
+                )}
+              </TableCell>
+            </TableRow>
           ))}
-        </div>
-      </div>
+        </TableBody>
+      </Table>
+      {companies.length === 0 && (
+        <p className="py-12 text-center text-sm text-muted-foreground">
+          No companies yet. Add one here or while creating an application.
+        </p>
+      )}
+      <Sheet
+        open={active !== null}
+        onOpenChange={(open) => {
+          if (!open) setActiveId(null);
+        }}
+      >
+        <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-md">
+          <SheetHeader className="border-b">
+            <SheetTitle>Edit company</SheetTitle>
+            <SheetDescription>Shared across every application for this company.</SheetDescription>
+          </SheetHeader>
+          {active && (
+            <div className="flex flex-1 flex-col gap-4 p-4">
+              <Field>
+                <FieldLabel>Name</FieldLabel>
+                <Input
+                  value={draft.name}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                />
+              </Field>
+              <Field>
+                <FieldLabel>Logo letter</FieldLabel>
+                <Input
+                  value={draft.logo}
+                  onChange={(e) => setDraft({ ...draft, logo: e.target.value })}
+                />
+              </Field>
+              <Field>
+                <FieldLabel>Location</FieldLabel>
+                <Input
+                  value={draft.location}
+                  onChange={(e) => setDraft({ ...draft, location: e.target.value })}
+                />
+              </Field>
+              <Field>
+                <FieldLabel>Website</FieldLabel>
+                <Input
+                  type="url"
+                  value={draft.website}
+                  onChange={(e) => setDraft({ ...draft, website: e.target.value })}
+                />
+              </Field>
+            </div>
+          )}
+          <SheetFooter className="border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (active && window.confirm("Delete this company?")) void onDelete(active.id);
+              }}
+            >
+              Delete
+            </Button>
+            <Button
+              onClick={() => {
+                if (!active) return;
+                void onPatch(active.id, draft).then(() => setActiveId(null));
+              }}
+            >
+              Save
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
 
-function AddModal({ close }: { close: () => void }) {
-  const field =
-    "h-9 rounded-md border border-border bg-background px-3 text-sm font-normal outline-none transition focus:ring-2 focus:ring-ring";
-  const area =
-    "min-h-24 rounded-md border border-border bg-background px-3 py-2 text-sm font-normal outline-none transition focus:ring-2 focus:ring-ring";
-  const label = "flex flex-col gap-1.5 text-xs font-medium";
+function ResumesView({
+  resumes,
+  applications,
+  companies,
+  onUpload,
+  onRename,
+  onDelete,
+}: {
+  resumes: Resume[];
+  applications: Application[];
+  companies: Company[];
+  onUpload: (file: File) => Promise<string>;
+  onRename: (id: string, name: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const active = resumes.find((r) => r.id === activeId) ?? null;
+  const companyById = useMemo(
+    () => Object.fromEntries(companies.map((c) => [c.id, c])),
+    [companies],
+  );
+  const usedBy = active ? applications.filter((a) => a.resumeId === active.id) : [];
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4 backdrop-blur-sm">
-      <dialog
-        open
-        aria-labelledby="add-application-title"
-        className="m-0 flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-border bg-background p-0 shadow-xl"
-      >
-        <div className="flex items-start justify-between border-b border-border px-5 py-4">
-          <div>
-            <h2 id="add-application-title" className="text-lg font-semibold">
-              Add application
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Capture every detail while it is fresh.
-            </p>
-          </div>
-          <button
-            aria-label="Close dialog"
-            onClick={close}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-accent"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-        <div className="overflow-y-auto px-5 py-5">
-          <div className="flex flex-col gap-7">
-            <section>
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Role & company
-              </h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className={cn(label, "sm:col-span-2")}>
-                  Company name
-                  <input autoFocus placeholder="e.g. Acme Inc." className={field} />
-                </label>
-                <label className={cn(label, "sm:col-span-2")}>
-                  Role / job title
-                  <input placeholder="e.g. Senior Product Designer" className={field} />
-                </label>
-                <label className={label}>
-                  Source
-                  <select className={field}>
-                    <option>Company website</option>
-                    <option>LinkedIn</option>
-                    <option>Referral</option>
-                    <option>Recruiter</option>
-                    <option>Job board</option>
-                    <option>Networking</option>
-                  </select>
-                </label>
-                <label className={label}>
-                  Job type
-                  <select className={field}>
-                    <option>Full-time</option>
-                    <option>Part-time</option>
-                    <option>Contract</option>
-                    <option>Freelance</option>
-                    <option>Internship</option>
-                  </select>
-                </label>
-              </div>
-            </section>
-            <section>
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Location & links
-              </h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className={label}>
-                  Location
-                  <input placeholder="City, State or country" className={field} />
-                </label>
-                <label className={label}>
-                  Work mode
-                  <select className={field}>
-                    <option>Remote</option>
-                    <option>Hybrid</option>
-                    <option>On-site</option>
-                    <option>Flexible</option>
-                  </select>
-                </label>
-                <label className={cn(label, "sm:col-span-2")}>
-                  Job posting URL
-                  <input type="url" placeholder="https://..." className={field} />
-                </label>
-                <label className={cn(label, "sm:col-span-2")}>
-                  Company website
-                  <input type="url" placeholder="https://company.com" className={field} />
-                </label>
-              </div>
-            </section>
-            <section>
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Status & timing
-              </h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className={label}>
-                  Status
-                  <select className={field}>
-                    <option>Wishlist</option>
-                    <option>Applied</option>
-                    <option>Screening</option>
-                    <option>Interview</option>
-                    <option>Offer</option>
-                    <option>Rejected</option>
-                    <option>Withdrawn</option>
-                  </select>
-                </label>
-                <label className={label}>
-                  Priority
-                  <select className={field}>
-                    <option>Medium</option>
-                    <option>High</option>
-                    <option>Low</option>
-                  </select>
-                </label>
-                <label className={label}>
-                  Reply status
-                  <select className={field}>
-                    <option>No reply yet</option>
-                    <option>Replied</option>
-                    <option>Follow-up needed</option>
-                    <option>Rejected</option>
-                  </select>
-                </label>
-                <label className={label}>
-                  Applied date
-                  <input type="date" className={field} />
-                </label>
-                <label className={label}>
-                  Next step date
-                  <input type="date" className={field} />
-                </label>
-                <label className={label}>
-                  Reminder time
-                  <select className={field}>
-                    <option>None</option>
-                    <option>09:00 AM</option>
-                    <option>12:00 PM</option>
-                    <option>05:00 PM</option>
-                  </select>
-                </label>
-              </div>
-            </section>
-            <section>
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Compensation
-              </h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className={label}>
-                  Minimum compensation
-                  <input placeholder="$160,000" className={field} />
-                </label>
-                <label className={label}>
-                  Maximum compensation
-                  <input placeholder="$190,000" className={field} />
-                </label>
-                <label className={label}>
-                  Currency
-                  <select className={field}>
-                    <option>USD</option>
-                    <option>EUR</option>
-                    <option>GBP</option>
-                    <option>CAD</option>
-                  </select>
-                </label>
-                <label className={label}>
-                  Equity / bonus
-                  <input placeholder="e.g. Equity + 15% bonus" className={field} />
-                </label>
-              </div>
-            </section>
-            <section>
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Materials & outreach
-              </h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className={label}>
-                  Resume used
-                  <select className={field}>
-                    <option>Product Design · v4</option>
-                    <option>Growth Design · v2</option>
-                    <option>Staff Portfolio · v1</option>
-                    <option>Other / upload new</option>
-                  </select>
-                </label>
-                <label className={label}>
-                  Cover letter
-                  <select className={field}>
-                    <option>Product-led companies · v2</option>
-                    <option>General design · v1</option>
-                    <option>No cover letter</option>
-                    <option>Other / upload new</option>
-                  </select>
-                </label>
-                <label className={cn(label, "sm:col-span-2")}>
-                  Message sent
-                  <textarea
-                    placeholder="Paste the message or introduction you sent..."
-                    className={area}
-                  />
-                </label>
-              </div>
-            </section>
-            <section>
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Job description & notes
-              </h3>
-              <div className="flex flex-col gap-4">
-                <label className={label}>
-                  Job description
-                  <textarea
-                    placeholder="Paste the full job description here..."
-                    className="min-h-32 rounded-md border border-border bg-background px-3 py-2 text-sm font-normal outline-none transition focus:ring-2 focus:ring-ring"
-                  />
-                </label>
-                <label className={label}>
-                  Notes
-                  <textarea
-                    placeholder="Interview prep, research, concerns, follow-ups..."
-                    className={area}
-                  />
-                </label>
-              </div>
-            </section>
-            <section>
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Primary contact
-              </h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className={label}>
-                  Contact name
-                  <input placeholder="e.g. Maya Chen" className={field} />
-                </label>
-                <label className={label}>
-                  Contact role
-                  <input placeholder="Recruiter, hiring manager..." className={field} />
-                </label>
-                <label className={label}>
-                  Email
-                  <input type="email" placeholder="name@company.com" className={field} />
-                </label>
-                <label className={label}>
-                  LinkedIn / contact URL
-                  <input type="url" placeholder="https://linkedin.com/in/..." className={field} />
-                </label>
-                <label className={cn(label, "sm:col-span-2")}>
-                  Contact notes
-                  <textarea
-                    placeholder="How you met, what they care about, last touchpoint..."
-                    className={area}
-                  />
-                </label>
-              </div>
-            </section>
-          </div>
-        </div>
-        <div className="flex items-center justify-between border-t border-border px-5 py-4">
-          <p className="hidden text-xs text-muted-foreground sm:block">
-            You can add more details later.
+    <div className="px-4 pb-8 pt-7 md:px-7">
+      <div className="mb-6 flex items-end justify-between">
+        <div>
+          <h1 className="md:text-xl">Resumes</h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Open any resume to see the file and where it is used.
           </p>
-          <div className="ml-auto flex gap-2">
-            <button
-              onClick={close}
-              className="rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-accent"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={close}
-              className="rounded-md bg-foreground px-3 py-2 text-xs font-medium text-background hover:opacity-90"
-            >
-              Save application
-            </button>
-          </div>
         </div>
-      </dialog>
+        <Button variant="outline" onClick={() => fileRef.current?.click()}>
+          <Upload /> Upload resume
+        </Button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".pdf,.doc,.docx"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void onUpload(file);
+            e.target.value = "";
+          }}
+        />
+      </div>
+      <div className="flex flex-col gap-2">
+        {resumes.map((r) => {
+          const count = applications.filter((a) => a.resumeId === r.id).length;
+          return (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => {
+                setActiveId(r.id);
+                setName(r.name);
+              }}
+              className="flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors hover:bg-accent/50"
+            >
+              <FileText className="size-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">{r.name}</p>
+                <p className="text-xs text-muted-foreground">{r.fileName}</p>
+              </div>
+              <Badge variant="secondary">
+                {count} {count === 1 ? "application" : "applications"}
+              </Badge>
+            </button>
+          );
+        })}
+      </div>
+      {resumes.length === 0 && (
+        <p className="py-12 text-center text-sm text-muted-foreground">
+          Upload a PDF or Word resume to attach it to applications.
+        </p>
+      )}
+      <Sheet
+        open={active !== null}
+        onOpenChange={(open) => {
+          if (!open) setActiveId(null);
+        }}
+      >
+        <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-xl">
+          <SheetHeader className="border-b">
+            <SheetTitle>{active?.name ?? "Resume"}</SheetTitle>
+            <SheetDescription>Full resume details</SheetDescription>
+          </SheetHeader>
+          {active && (
+            <ScrollArea className="min-h-0 flex-1">
+              <div className="flex flex-col gap-5 p-4">
+                <Field>
+                  <FieldLabel>Name</FieldLabel>
+                  <Input value={name} onChange={(e) => setName(e.target.value)} />
+                </Field>
+                <div className="flex items-start gap-3 rounded-lg border p-3">
+                  <FileText className="mt-0.5 size-5 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <p className="font-medium">{active.fileName}</p>
+                    <a
+                      href={`/api/resumes/${active.id}/file`}
+                      className="mt-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <Download className="size-3.5" />
+                      Open file
+                    </a>
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Used in applications
+                  </p>
+                  {usedBy.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Not attached to any application yet.
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {usedBy.map((app) => {
+                        const company = companyById[app.companyId];
+                        return (
+                          <div
+                            key={app.id}
+                            className="flex items-center gap-3 rounded-lg border px-3 py-2"
+                          >
+                            {company && <CompanyMark logo={company.logo} color={company.color} />}
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">
+                                {company?.name ?? "Unknown"}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">{app.role}</p>
+                            </div>
+                            <StageBadge stage={app.stage} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </ScrollArea>
+          )}
+          <SheetFooter className="border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (active && window.confirm("Delete this resume?")) void onDelete(active.id);
+              }}
+            >
+              Delete
+            </Button>
+            <Button
+              onClick={() => {
+                if (active) void onRename(active.id, name);
+              }}
+            >
+              Save
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
-export default function JobHuntWorkspace() {
-  const [variant, setVariant] = useState<Variant>("applications");
-  const [dark, setDark] = useState(true);
-  const [modal, setModal] = useState(false);
+
+function CoverLettersView({
+  coverLetters,
+  applications,
+  companies,
+  onCreateText,
+  onUpload,
+  onPatch,
+  onDelete,
+}: {
+  coverLetters: CoverLetter[];
+  applications: Application[];
+  companies: Company[];
+  onCreateText: (name: string, body: string) => Promise<string>;
+  onUpload: (file: File) => Promise<string>;
+  onPatch: (id: string, patch: Record<string, unknown>) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [writing, setWriting] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [draftBody, setDraftBody] = useState("");
+  const active = coverLetters.find((c) => c.id === activeId) ?? null;
+  const [editName, setEditName] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const companyById = useMemo(
+    () => Object.fromEntries(companies.map((c) => [c.id, c])),
+    [companies],
+  );
+  const usedBy = active ? applications.filter((a) => a.coverLetterId === active.id) : [];
+
   return (
-    <div className={cn(dark && "dark", "min-h-screen bg-background text-foreground")}>
-      <div className="flex min-h-screen">
-        <Sidebar variant={variant} setVariant={setVariant} />
-        <div className="min-w-0 flex-1">
-          <Header variant={variant} dark={dark} setDark={setDark} onAdd={() => setModal(true)} />
-          <main>
-            {variant === "applications" && <ApplicationsView onAdd={() => setModal(true)} />}
-            {variant === "pipeline" && <PipelineView />}
-            {variant === "weekly" && <WeeklyView />}
-          </main>
+    <div className="px-4 pb-8 pt-7 md:px-7">
+      <div className="mb-6 flex items-end justify-between gap-2">
+        <div>
+          <h1 className="md:text-xl">Cover letters</h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Open any letter to read the full text or file details.
+          </p>
         </div>
+        <div className="flex gap-2">
+          <Popover
+            open={writing}
+            onOpenChange={(open) => {
+              setWriting(open);
+              if (!open) {
+                setDraftName("");
+                setDraftBody("");
+              }
+            }}
+          >
+            <PopoverTrigger render={<Button variant="outline" />}>
+              <Pencil /> Write
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] gap-3 p-3">
+              <PopoverHeader>
+                <PopoverTitle>Write cover letter</PopoverTitle>
+                <PopoverDescription>Save reusable letter text.</PopoverDescription>
+              </PopoverHeader>
+              <FieldGroup className="gap-3">
+                <Field>
+                  <FieldLabel>Name</FieldLabel>
+                  <Input
+                    value={draftName}
+                    onChange={(e) => setDraftName(e.target.value)}
+                    placeholder="General product roles"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>Text</FieldLabel>
+                  <Textarea
+                    value={draftBody}
+                    onChange={(e) => setDraftBody(e.target.value)}
+                    className="min-h-36"
+                    placeholder="Write your letter…"
+                  />
+                </Field>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setDraftName("");
+                      setDraftBody("");
+                      setWriting(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    disabled={!draftName.trim() || !draftBody.trim()}
+                    onClick={() => {
+                      void onCreateText(draftName.trim(), draftBody.trim()).then(() => {
+                        setDraftName("");
+                        setDraftBody("");
+                        setWriting(false);
+                      });
+                    }}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </FieldGroup>
+            </PopoverContent>
+          </Popover>
+          <Button variant="outline" onClick={() => fileRef.current?.click()}>
+            <Upload /> Upload
+          </Button>
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".pdf,.doc,.docx,.txt"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void onUpload(file);
+            e.target.value = "";
+          }}
+        />
       </div>
-      {modal && <AddModal close={() => setModal(false)} />}
+      <div className="flex flex-col gap-2">
+        {coverLetters.map((c) => {
+          const count = applications.filter((a) => a.coverLetterId === c.id).length;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => {
+                setActiveId(c.id);
+                setEditName(c.name);
+                setEditBody(c.kind === "text" ? c.body : "");
+              }}
+              className="flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors hover:bg-accent/50"
+            >
+              {c.kind === "file" ? (
+                <Paperclip className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              ) : (
+                <Mail className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">{c.name}</p>
+                <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                  {c.kind === "file" ? c.fileName : c.body}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <Badge variant="secondary">{c.kind === "file" ? "File" : "Text"}</Badge>
+                <span className="text-[11px] text-muted-foreground">
+                  {count} {count === 1 ? "use" : "uses"}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      {coverLetters.length === 0 && !writing && (
+        <p className="py-12 text-center text-sm text-muted-foreground">
+          Write a letter or upload a file to reuse it across applications.
+        </p>
+      )}
+      <Sheet
+        open={active !== null}
+        onOpenChange={(open) => {
+          if (!open) setActiveId(null);
+        }}
+      >
+        <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-xl">
+          <SheetHeader className="border-b">
+            <SheetTitle>{active?.name ?? "Cover letter"}</SheetTitle>
+            <SheetDescription>
+              {active?.kind === "file" ? "Uploaded file" : "Full letter text"}
+            </SheetDescription>
+          </SheetHeader>
+          {active && (
+            <ScrollArea className="min-h-0 flex-1">
+              <div className="flex flex-col gap-5 p-4">
+                <Field>
+                  <FieldLabel>Name</FieldLabel>
+                  <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+                </Field>
+                <div className="rounded-lg border p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    {active.kind === "file" ? (
+                      <Paperclip className="size-4 text-muted-foreground" />
+                    ) : (
+                      <Mail className="size-4 text-muted-foreground" />
+                    )}
+                    <Badge variant="secondary">{active.kind === "file" ? "File" : "Text"}</Badge>
+                  </div>
+                  {active.kind === "file" ? (
+                    <div>
+                      <p className="font-medium">{active.fileName}</p>
+                      <a
+                        href={`/api/cover-letters/${active.id}/file`}
+                        className="mt-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <Download className="size-3.5" />
+                        Open file
+                      </a>
+                    </div>
+                  ) : (
+                    <Textarea
+                      value={editBody}
+                      onChange={(e) => setEditBody(e.target.value)}
+                      className="min-h-40"
+                    />
+                  )}
+                </div>
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Used in applications
+                  </p>
+                  {usedBy.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Not attached to any application yet.
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {usedBy.map((app) => {
+                        const company = companyById[app.companyId];
+                        return (
+                          <div
+                            key={app.id}
+                            className="flex items-center gap-3 rounded-lg border px-3 py-2"
+                          >
+                            {company && <CompanyMark logo={company.logo} color={company.color} />}
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">
+                                {company?.name ?? "Unknown"}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">{app.role}</p>
+                            </div>
+                            <StageBadge stage={app.stage} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </ScrollArea>
+          )}
+          <SheetFooter className="border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (active && window.confirm("Delete this cover letter?")) void onDelete(active.id);
+              }}
+            >
+              <Trash2 />
+              Delete
+            </Button>
+            <Button
+              onClick={() => {
+                if (!active) return;
+                void onPatch(active.id, {
+                  name: editName,
+                  body: active.kind === "text" ? editBody : undefined,
+                });
+              }}
+            >
+              Save
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
+  );
+}
+
+function ArchiveView({
+  applications,
+  companies,
+  resumes,
+  coverLetters,
+  onPatch,
+  onDelete,
+  onCreateCompany,
+  onUploadResume,
+  onCreateCoverText,
+  onUploadCover,
+  onRestore,
+}: {
+  applications: Application[];
+  companies: Company[];
+  resumes: Resume[];
+  coverLetters: CoverLetter[];
+  onPatch: (id: string, patch: Partial<Application>) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  onCreateCompany: (name: string) => Promise<string>;
+  onUploadResume: (file: File) => Promise<string>;
+  onCreateCoverText: (name: string, body: string) => Promise<string>;
+  onUploadCover: (file: File) => Promise<string>;
+  onRestore: (ids: string[]) => Promise<void>;
+}) {
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const companyById = useMemo(
+    () => Object.fromEntries(companies.map((c) => [c.id, c])),
+    [companies],
+  );
+  const active = applications.find((a) => a.id === activeId) ?? null;
+
+  if (applications.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 px-4 py-24 text-center">
+        <Archive className="size-8 text-muted-foreground" />
+        <h1>Archive</h1>
+        <p className="text-sm text-muted-foreground">
+          Closed and withdrawn applications land here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 pb-8 pt-7 md:px-7">
+      <div className="mb-6">
+        <h1 className="md:text-xl">Archive</h1>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Closed and withdrawn applications land here.
+        </p>
+      </div>
+      <div className="flex flex-col gap-2">
+        {applications.map((item) => {
+          const company = companyById[item.companyId];
+          return (
+            <div key={item.id} className="flex items-center gap-3 rounded-lg border px-4 py-3">
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                onClick={() => setActiveId(item.id)}
+              >
+                {company && <CompanyMark logo={company.logo} color={company.color} />}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{company?.name ?? "Unknown"}</p>
+                  <p className="truncate text-xs text-muted-foreground">{item.role}</p>
+                </div>
+                <StageBadge stage={item.stage} />
+              </button>
+              <Button variant="outline" onClick={() => void onRestore([item.id])}>
+                Restore
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+      {active && (
+        <DetailDrawer
+          key={active.id}
+          item={active}
+          company={companyById[active.companyId]}
+          companies={companies}
+          resumes={resumes}
+          coverLetters={coverLetters}
+          open
+          onOpenChange={(open) => {
+            if (!open) setActiveId(null);
+          }}
+          onPatch={onPatch}
+          onDelete={async (id) => {
+            await onDelete(id);
+            setActiveId(null);
+          }}
+          onCreateCompany={onCreateCompany}
+          onUploadResume={onUploadResume}
+          onCreateCoverText={onCreateCoverText}
+          onUploadCover={onUploadCover}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddModal({
+  open,
+  onOpenChange,
+  companies,
+  resumes,
+  coverLetters,
+  onCreateCompany,
+  onUploadResume,
+  onCreateCoverText,
+  onUploadCover,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  companies: Company[];
+  resumes: Resume[];
+  coverLetters: CoverLetter[];
+  onCreateCompany: (name: string) => Promise<string>;
+  onUploadResume: (file: File) => Promise<string>;
+  onCreateCoverText: (name: string, body: string) => Promise<string>;
+  onUploadCover: (file: File) => Promise<string>;
+  onSave: (data: ApplicationFormValues) => Promise<void>;
+}) {
+  const [values, setValuesState] = useState(() => emptyFormValues(resumes));
+  const [saving, setSaving] = useState(false);
+  const canSave = Boolean(values.companyId && values.role.trim() && values.resumeId);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (next) setValuesState(emptyFormValues(resumes));
+      }}
+    >
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+        <DialogHeader className="shrink-0 border-b p-4 pr-12">
+          <DialogTitle>Add application</DialogTitle>
+          <DialogDescription>Pick existing library items or create them inline.</DialogDescription>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <ApplicationFields
+            companies={companies}
+            resumes={resumes}
+            coverLetters={coverLetters}
+            values={values}
+            setValues={(patch) => setValuesState((current) => ({ ...current, ...patch }))}
+            onCreateCompany={onCreateCompany}
+            onUploadResume={onUploadResume}
+            onCreateCoverText={onCreateCoverText}
+            onUploadCover={onUploadCover}
+          />
+        </div>
+        <DialogFooter className="m-0 shrink-0 rounded-none border-t sm:justify-between">
+          <p className="hidden text-xs text-muted-foreground sm:block">
+            Company, resume, and cover letter stay in your library.
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!canSave || saving}
+              onClick={() => {
+                setSaving(true);
+                void onSave(values)
+                  .then(() => onOpenChange(false))
+                  .finally(() => setSaving(false));
+              }}
+            >
+              Save application
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default function JobHuntWorkspace({ user: initialUser }: { user: WorkspaceUser }) {
+  const [screen, setScreen] = useState<Screen>("applications");
+  const [modal, setModal] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [user, setUser] = useState(initialUser);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [resumes, setResumes] = useState<Resume[]>([]);
+  const [coverLetters, setCoverLetters] = useState<CoverLetter[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [year, setYear] = useState("all");
+  const density = useSyncExternalStore(subscribeDensity, readDensity, (): Density => "comfortable");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    void fetchWorkspace()
+      .then((payload) => {
+        setUser(payload.user);
+        setCompanies(payload.companies);
+        setResumes(payload.resumes);
+        setCoverLetters(payload.coverLetters);
+        setApplications(payload.applications);
+        setSavedViews(payload.savedViews);
+      })
+      .catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : "Could not load workspace");
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen((open) => !open);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  function fail(cause: unknown) {
+    setError(cause instanceof Error ? cause.message : "Something went wrong");
+  }
+
+  async function createCompany(name: string, extra?: { website?: string; location?: string }) {
+    const company = await createCompanyRequest(name, extra);
+    setCompanies((prev) => [company, ...prev]);
+    return company.id;
+  }
+
+  async function uploadResume(file: File) {
+    const resume = await uploadResumeRequest(file);
+    setResumes((prev) => [resume, ...prev]);
+    return resume.id;
+  }
+
+  async function createCoverText(name: string, body: string) {
+    const letter = await createCoverTextRequest(name, body);
+    setCoverLetters((prev) => [letter, ...prev]);
+    return letter.id;
+  }
+
+  async function uploadCover(file: File) {
+    const letter = await uploadCoverRequest(file);
+    setCoverLetters((prev) => [letter, ...prev]);
+    return letter.id;
+  }
+
+  async function patchApplication(id: string, patch: Partial<Application>) {
+    const updated = await patchApplicationRequest(id, patch);
+    setApplications((prev) => prev.map((item) => (item.id === id ? updated : item)));
+  }
+
+  const activeApplications = applications.filter((item) => !item.archived);
+  const archivedApplications = applications.filter((item) => item.archived);
+
+  return (
+    <SidebarProvider className="h-svh overflow-hidden">
+      <AppSidebar
+        screen={screen}
+        setScreen={setScreen}
+        applicationCount={activeApplications.length}
+        user={user}
+      />
+      <SidebarInset className="min-h-0 overflow-hidden">
+        <Header screen={screen} onSearch={() => setSearchOpen(true)} />
+        {error && (
+          <div className="flex items-center justify-between border-b bg-destructive/10 px-4 py-2 text-sm text-destructive">
+            <span>{error}</span>
+            <Button size="xs" variant="ghost" onClick={() => setError(null)}>
+              Dismiss
+            </Button>
+          </div>
+        )}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {loading ? (
+            <p className="px-7 py-12 text-sm text-muted-foreground">Loading workspace…</p>
+          ) : (
+            <>
+              {screen === "applications" && (
+                <ApplicationsView
+                  applications={activeApplications}
+                  companies={companies}
+                  resumes={resumes}
+                  coverLetters={coverLetters}
+                  savedViews={savedViews}
+                  year={year}
+                  setYear={setYear}
+                  density={density}
+                  setDensity={writeDensity}
+                  onAdd={() => setModal(true)}
+                  onPatch={async (id, patch) => {
+                    try {
+                      await patchApplication(id, patch);
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onDelete={async (id) => {
+                    try {
+                      await deleteApplicationRequest(id);
+                      setApplications((prev) => prev.filter((item) => item.id !== id));
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onBulk={async (ids, action) => {
+                    try {
+                      await bulkApplicationsRequest(ids, action);
+                      if (action === "delete") {
+                        setApplications((prev) => prev.filter((item) => !ids.includes(item.id)));
+                      } else {
+                        setApplications((prev) =>
+                          prev.map((item) =>
+                            ids.includes(item.id) ? { ...item, archived: true } : item,
+                          ),
+                        );
+                      }
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onCreateCompany={async (name) => {
+                    try {
+                      return await createCompany(name);
+                    } catch (cause) {
+                      fail(cause);
+                      throw cause;
+                    }
+                  }}
+                  onUploadResume={async (file) => {
+                    try {
+                      return await uploadResume(file);
+                    } catch (cause) {
+                      fail(cause);
+                      throw cause;
+                    }
+                  }}
+                  onCreateCoverText={async (name, body) => {
+                    try {
+                      return await createCoverText(name, body);
+                    } catch (cause) {
+                      fail(cause);
+                      throw cause;
+                    }
+                  }}
+                  onUploadCover={async (file) => {
+                    try {
+                      return await uploadCover(file);
+                    } catch (cause) {
+                      fail(cause);
+                      throw cause;
+                    }
+                  }}
+                  onSaveView={async (view) => {
+                    try {
+                      const saved = await createViewRequest(view);
+                      setSavedViews((prev) => [saved, ...prev]);
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onDeleteView={async (id) => {
+                    try {
+                      await deleteViewRequest(id);
+                      setSavedViews((prev) => prev.filter((view) => view.id !== id));
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onApplyView={(view) => setYear(view.year)}
+                />
+              )}
+              {screen === "companies" && (
+                <CompaniesView
+                  companies={companies}
+                  onCreate={async (name, extra) => {
+                    try {
+                      return await createCompany(name, extra);
+                    } catch (cause) {
+                      fail(cause);
+                      throw cause;
+                    }
+                  }}
+                  onPatch={async (id, patch) => {
+                    try {
+                      const company = await patchCompanyRequest(id, patch);
+                      setCompanies((prev) => prev.map((item) => (item.id === id ? company : item)));
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onDelete={async (id) => {
+                    try {
+                      await deleteCompanyRequest(id);
+                      setCompanies((prev) => prev.filter((item) => item.id !== id));
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                />
+              )}
+              {screen === "resumes" && (
+                <ResumesView
+                  resumes={resumes}
+                  applications={applications}
+                  companies={companies}
+                  onUpload={async (file) => {
+                    try {
+                      return await uploadResume(file);
+                    } catch (cause) {
+                      fail(cause);
+                      throw cause;
+                    }
+                  }}
+                  onRename={async (id, name) => {
+                    try {
+                      const resume = await patchResumeRequest(id, { name });
+                      setResumes((prev) => prev.map((item) => (item.id === id ? resume : item)));
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onDelete={async (id) => {
+                    try {
+                      await deleteResumeRequest(id);
+                      setResumes((prev) => prev.filter((item) => item.id !== id));
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                />
+              )}
+              {screen === "cover-letters" && (
+                <CoverLettersView
+                  coverLetters={coverLetters}
+                  applications={applications}
+                  companies={companies}
+                  onCreateText={async (name, body) => {
+                    try {
+                      return await createCoverText(name, body);
+                    } catch (cause) {
+                      fail(cause);
+                      throw cause;
+                    }
+                  }}
+                  onUpload={async (file) => {
+                    try {
+                      return await uploadCover(file);
+                    } catch (cause) {
+                      fail(cause);
+                      throw cause;
+                    }
+                  }}
+                  onPatch={async (id, patch) => {
+                    try {
+                      const letter = await patchCoverRequest(id, patch);
+                      setCoverLetters((prev) =>
+                        prev.map((item) => (item.id === id ? letter : item)),
+                      );
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onDelete={async (id) => {
+                    try {
+                      await deleteCoverRequest(id);
+                      setCoverLetters((prev) => prev.filter((item) => item.id !== id));
+                      setApplications((prev) =>
+                        prev.map((item) =>
+                          item.coverLetterId === id ? { ...item, coverLetterId: null } : item,
+                        ),
+                      );
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                />
+              )}
+              {screen === "archive" && (
+                <ArchiveView
+                  applications={archivedApplications}
+                  companies={companies}
+                  resumes={resumes}
+                  coverLetters={coverLetters}
+                  onPatch={async (id, patch) => {
+                    try {
+                      await patchApplication(id, patch);
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onDelete={async (id) => {
+                    try {
+                      await deleteApplicationRequest(id);
+                      setApplications((prev) => prev.filter((item) => item.id !== id));
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onCreateCompany={createCompany}
+                  onUploadResume={uploadResume}
+                  onCreateCoverText={createCoverText}
+                  onUploadCover={uploadCover}
+                  onRestore={async (ids) => {
+                    try {
+                      await bulkApplicationsRequest(ids, "unarchive");
+                      setApplications((prev) =>
+                        prev.map((item) =>
+                          ids.includes(item.id) ? { ...item, archived: false } : item,
+                        ),
+                      );
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                />
+              )}
+            </>
+          )}
+        </div>
+      </SidebarInset>
+      <AddModal
+        open={modal}
+        onOpenChange={setModal}
+        companies={companies}
+        resumes={resumes}
+        coverLetters={coverLetters}
+        onCreateCompany={createCompany}
+        onUploadResume={uploadResume}
+        onCreateCoverText={createCoverText}
+        onUploadCover={uploadCover}
+        onSave={async (data) => {
+          const patch = formValuesToApplicationPatch(data);
+          if (!patch) return;
+          try {
+            const created = await createApplicationRequest(patch);
+            setApplications((prev) => [created, ...prev]);
+          } catch (cause) {
+            fail(cause);
+            throw cause;
+          }
+        }}
+      />
+      <CommandDialog
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        title="Quick search"
+        className="sm:max-w-xl"
+      >
+        <CommandPalette className="min-h-80">
+          <CommandInput placeholder="Search applications, companies, resumes..." />
+          <CommandList className="max-h-96">
+            <CommandEmpty>No matches.</CommandEmpty>
+            <CommandGroup heading="Go to">
+              {(
+                [
+                  ["applications", "Applications"],
+                  ["companies", "Companies"],
+                  ["resumes", "Resumes"],
+                  ["cover-letters", "Cover letters"],
+                  ["archive", "Archive"],
+                ] as const
+              ).map(([id, label]) => (
+                <CommandItem
+                  key={id}
+                  onSelect={() => {
+                    setScreen(id);
+                    setSearchOpen(false);
+                  }}
+                >
+                  {label}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandGroup heading="Applications">
+              {applications.slice(0, 12).map((item) => {
+                const company = companies.find((c) => c.id === item.companyId);
+                return (
+                  <CommandItem
+                    key={item.id}
+                    value={`${company?.name ?? ""} ${item.role}`}
+                    onSelect={() => {
+                      setScreen(item.archived ? "archive" : "applications");
+                      setSearchOpen(false);
+                    }}
+                  >
+                    {company?.name ?? "Unknown"} · {item.role}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+            <CommandGroup heading="Companies">
+              {companies.slice(0, 8).map((company) => (
+                <CommandItem
+                  key={company.id}
+                  value={company.name}
+                  onSelect={() => {
+                    setScreen("companies");
+                    setSearchOpen(false);
+                  }}
+                >
+                  {company.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </CommandPalette>
+      </CommandDialog>
+    </SidebarProvider>
   );
 }

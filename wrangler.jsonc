@@ -1,0 +1,29 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "trackr",
+  "compatibility_date": "2026-08-30",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+  },
+  "vars": {
+    "BETTER_AUTH_URL": "http://localhost:5173",
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "trackr",
+      // Placeholder for local D1. Replace with the id from `wrangler d1 create trackr` before deploy.
+      "database_id": "00000000-0000-4000-8000-000000000001",
+      "migrations_dir": "drizzle",
+      "migrations_pattern": "drizzle/*.sql",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "trackr-files",
+    },
+  ],
+}

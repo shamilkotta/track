@@ -1,4 +1,10 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": [".next/**", "pnpm-lock.yaml"]
+  "ignorePatterns": [
+    ".nlite/**",
+    ".next/**",
+    "pnpm-lock.yaml",
+    "worker-configuration.d.ts",
+    "drizzle/**"
+  ]
 }

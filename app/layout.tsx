@@ -1,5 +1,6 @@
-import { Analytics } from "@vercel/analytics/next";
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "nlite";
+import { ThemeProvider } from "@/components/theme-provider";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -24,14 +25,10 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-icon.png",
   },
-};
-
-export const viewport: Viewport = {
-  colorScheme: "light dark",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "white" },
-    { media: "(prefers-color-scheme: dark)", color: "black" },
-  ],
+  other: {
+    "color-scheme": "light dark",
+    "theme-color": "white",
+  },
 };
 
 export default function RootLayout({
@@ -40,11 +37,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="bg-background">
-      <body className="antialiased">
-        {children}
-        {process.env.NODE_ENV === "production" && <Analytics />}
-      </body>
-    </html>
+    <ThemeProvider>
+      <TooltipProvider>{children}</TooltipProvider>
+    </ThemeProvider>
   );
 }

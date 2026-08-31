@@ -8,8 +8,15 @@ __v0_jsx-dev-runtime.ts
 
 # Environment variables
 .env*.local
+.dev.vars
+
+# Cloudflare local state
+.wrangler/
 
 # Common ignores
 node_modules
+.nlite/
 .next/
 .DS_Store
+
+.pnpm-store/

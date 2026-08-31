@@ -28,7 +28,7 @@ export default function HelpPage() {
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-2xl flex-col px-4 py-10">
       <div className="mb-8">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/applications" className="flex items-center gap-2">
           <div className="flex size-7 items-center justify-center rounded-md bg-foreground text-background">
             <Target className="size-4" />
           </div>
@@ -56,7 +56,7 @@ export default function HelpPage() {
           </div>
         ))}
       </section>
-      <Link href="/" className="mt-10 text-sm underline-offset-4 hover:underline">
+      <Link href="/applications" className="mt-10 text-sm underline-offset-4 hover:underline">
         Back to workspace
       </Link>
     </div>

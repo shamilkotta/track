@@ -23,7 +23,7 @@ export function SettingsScreen({ user }: { user: WorkspaceUser }) {
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-lg flex-col px-4 py-10">
       <div className="mb-8">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/applications" className="flex items-center gap-2">
           <div className="flex size-7 items-center justify-center rounded-md bg-foreground text-background">
             <Target className="size-4" />
           </div>
@@ -119,7 +119,7 @@ export function SettingsScreen({ user }: { user: WorkspaceUser }) {
       {message && <p className="mt-4 text-sm text-muted-foreground">{message}</p>}
 
       <div className="mt-auto flex gap-2 pt-10">
-        <Button size="lg" variant="outline" onClick={() => router.push("/")}>
+        <Button size="lg" variant="outline" onClick={() => router.push("/applications")}>
           Back to workspace
         </Button>
         <Button

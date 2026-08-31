@@ -199,6 +199,15 @@ export function isScreen(value: unknown): value is Screen {
   );
 }
 
+export function screenPath(screen: Screen) {
+  return `/${screen}`;
+}
+
+export function screenFromPathname(pathname: string): Screen {
+  const segment = pathname.split("/").filter(Boolean)[0];
+  return isScreen(segment) ? segment : "applications";
+}
+
 export function isClosedStage(value: Stage): boolean {
   return closedStages.some((s) => s === value);
 }

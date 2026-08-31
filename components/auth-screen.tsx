@@ -39,7 +39,7 @@ export function AuthScreen({ mode }: { mode: "sign-in" | "sign-up" }) {
         setError(result.error.message ?? "Could not continue");
         return;
       }
-      router.push("/");
+      router.push("/applications");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not continue");
     } finally {

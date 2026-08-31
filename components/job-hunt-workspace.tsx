@@ -28,7 +28,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useRouter } from "nlite/navigation";
+import { usePathname, useRouter } from "nlite/navigation";
 import {
   ApplicationFields,
   CompanyMark,
@@ -133,6 +133,8 @@ import {
   priorities,
   replyStatuses,
   screenTitles,
+  screenFromPathname,
+  screenPath,
   sortLabels,
   sources,
   stages,
@@ -283,12 +285,10 @@ function StatStrip({
 
 function AppSidebar({
   screen,
-  setScreen,
   applicationCount,
   user,
 }: {
   screen: Screen;
-  setScreen: (s: Screen) => void;
   applicationCount: number;
   user: WorkspaceUser;
 }) {
@@ -319,7 +319,7 @@ function AppSidebar({
               <SidebarMenuItem>
                 <SidebarMenuButton
                   isActive={screen === "applications"}
-                  onClick={() => setScreen("applications")}
+                  onClick={() => router.push(screenPath("applications"))}
                 >
                   <Inbox />
                   Applications
@@ -342,7 +342,10 @@ function AppSidebar({
                 ] as const
               ).map(([id, Icon, label]) => (
                 <SidebarMenuItem key={id}>
-                  <SidebarMenuButton isActive={screen === id} onClick={() => setScreen(id)}>
+                  <SidebarMenuButton
+                    isActive={screen === id}
+                    onClick={() => router.push(screenPath(id))}
+                  >
                     <Icon />
                     {label}
                   </SidebarMenuButton>
@@ -1154,10 +1157,6 @@ function CompaniesView({
     <div className="px-4 pb-8 pt-7 md:px-7">
       <div className="mb-6 flex items-end justify-between">
         <div>
-          <p className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <Building2 className="size-3.5" />
-            Library
-          </p>
           <h1 className="md:text-xl">Companies</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Reuse companies across applications without retyping.
@@ -1445,7 +1444,7 @@ function ResumesView({
                   <div className="min-w-0">
                     <p className="font-medium">{active.fileName}</p>
                     <a
-                      href={`/api/resumes/${active.id}/file`}
+                      href={`/resumes/${active.id}/file`}
                       className="mt-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
                       target="_blank"
                       rel="noreferrer"
@@ -1705,7 +1704,7 @@ function CoverLettersView({
                     <div>
                       <p className="font-medium">{active.fileName}</p>
                       <a
-                        href={`/api/cover-letters/${active.id}/file`}
+                        href={`/cover-letters/${active.id}/file`}
                         className="mt-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
                         target="_blank"
                         rel="noreferrer"
@@ -1967,7 +1966,9 @@ function AddModal({
 }
 
 export default function JobHuntWorkspace({ user: initialUser }: { user: WorkspaceUser }) {
-  const [screen, setScreen] = useState<Screen>("applications");
+  const pathname = usePathname();
+  const router = useRouter();
+  const screen = screenFromPathname(pathname);
   const [modal, setModal] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [user, setUser] = useState(initialUser);
@@ -2048,7 +2049,6 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
     <SidebarProvider className="h-svh overflow-hidden">
       <AppSidebar
         screen={screen}
-        setScreen={setScreen}
         applicationCount={activeApplications.length}
         user={user}
       />
@@ -2355,7 +2355,7 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                 <CommandItem
                   key={id}
                   onSelect={() => {
-                    setScreen(id);
+                    router.push(screenPath(id));
                     setSearchOpen(false);
                   }}
                 >
@@ -2371,7 +2371,7 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                     key={item.id}
                     value={`${company?.name ?? ""} ${item.role}`}
                     onSelect={() => {
-                      setScreen(item.archived ? "archive" : "applications");
+                      router.push(screenPath(item.archived ? "archive" : "applications"));
                       setSearchOpen(false);
                     }}
                   >
@@ -2386,7 +2386,7 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                   key={company.id}
                   value={company.name}
                   onSelect={() => {
-                    setScreen("companies");
+                    router.push(screenPath("companies"));
                     setSearchOpen(false);
                   }}
                 >

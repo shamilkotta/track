@@ -8,14 +8,13 @@
     "head_sampling_rate": 1,
   },
   "vars": {
-    "BETTER_AUTH_URL": "http://localhost:5173",
+    "BETTER_AUTH_URL": "https://trackr.shamilkotta.workers.dev",
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "trackr",
-      // Placeholder for local D1. Replace with the id from `wrangler d1 create trackr` before deploy.
-      "database_id": "00000000-0000-4000-8000-000000000001",
+      "database_id": "1b19c01e-a058-44c7-bd91-427396f67243",
       "migrations_dir": "drizzle",
       "migrations_pattern": "drizzle/*.sql",
     },

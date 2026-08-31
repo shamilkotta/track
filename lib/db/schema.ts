@@ -184,6 +184,46 @@ export const applications = sqliteTable(
   ],
 );
 
+export const leads = sqliteTable(
+  "leads",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    companyId: text("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    personName: text("person_name").notNull(),
+    personRole: text("person_role").notNull().default(""),
+    platform: text("platform").notNull(),
+    companyWebsite: text("company_website").notNull().default(""),
+    profileUrl: text("profile_url").notNull().default(""),
+    leadUrl: text("lead_url").notNull().default(""),
+    status: text("status").notNull(),
+    priority: text("priority").notNull(),
+    sentDate: text("sent_date").notNull().default(""),
+    nextStepDate: text("next_step_date").notNull().default(""),
+    nextStepLabel: text("next_step_label").notNull().default(""),
+    reminderTime: text("reminder_time").notNull().default("None"),
+    message: text("message").notNull().default(""),
+    resumeId: text("resume_id").references(() => resumes.id, { onDelete: "set null" }),
+    coverLetterId: text("cover_letter_id").references(() => coverLetters.id, {
+      onDelete: "set null",
+    }),
+    notes: text("notes").notNull().default(""),
+    tags: text("tags").notNull().default("[]"),
+    archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("leads_userId_idx").on(table.userId),
+    index("leads_user_archived_idx").on(table.userId, table.archived),
+    index("leads_companyId_idx").on(table.companyId),
+  ],
+);
+
 export const savedViews = sqliteTable(
   "saved_views",
   {
@@ -213,6 +253,7 @@ export const userRelations = relations(user, ({ many }) => ({
   resumes: many(resumes),
   coverLetters: many(coverLetters),
   applications: many(applications),
+  leads: many(leads),
   savedViews: many(savedViews),
 }));
 
@@ -227,16 +268,19 @@ export const accountRelations = relations(account, ({ one }) => ({
 export const companiesRelations = relations(companies, ({ one, many }) => ({
   user: one(user, { fields: [companies.userId], references: [user.id] }),
   applications: many(applications),
+  leads: many(leads),
 }));
 
 export const resumesRelations = relations(resumes, ({ one, many }) => ({
   user: one(user, { fields: [resumes.userId], references: [user.id] }),
   applications: many(applications),
+  leads: many(leads),
 }));
 
 export const coverLettersRelations = relations(coverLetters, ({ one, many }) => ({
   user: one(user, { fields: [coverLetters.userId], references: [user.id] }),
   applications: many(applications),
+  leads: many(leads),
 }));
 
 export const applicationsRelations = relations(applications, ({ one }) => ({
@@ -245,6 +289,16 @@ export const applicationsRelations = relations(applications, ({ one }) => ({
   resume: one(resumes, { fields: [applications.resumeId], references: [resumes.id] }),
   coverLetter: one(coverLetters, {
     fields: [applications.coverLetterId],
+    references: [coverLetters.id],
+  }),
+}));
+
+export const leadsRelations = relations(leads, ({ one }) => ({
+  user: one(user, { fields: [leads.userId], references: [user.id] }),
+  company: one(companies, { fields: [leads.companyId], references: [companies.id] }),
+  resume: one(resumes, { fields: [leads.resumeId], references: [resumes.id] }),
+  coverLetter: one(coverLetters, {
+    fields: [leads.coverLetterId],
     references: [coverLetters.id],
   }),
 }));

@@ -28,6 +28,8 @@ import {
   currencies,
   isCurrency,
   isJobType,
+  isLeadPlatform,
+  isLeadStatus,
   isPriority,
   isReminderTime,
   isReplyStatus,
@@ -35,6 +37,8 @@ import {
   isStage,
   isWorkMode,
   jobTypes,
+  leadPlatforms,
+  leadStatuses,
   priorities,
   reminderTimes,
   replyStatuses,
@@ -46,6 +50,9 @@ import {
   type CoverLetter,
   type Currency,
   type JobType,
+  type LeadFormValues,
+  type LeadPlatform,
+  type LeadStatus,
   type Priority,
   type ReminderTime,
   type ReplyStatus,
@@ -61,6 +68,7 @@ type CompanyOption =
   | { kind: "create"; id: string; label: string; name: string };
 
 type ResumeOption =
+  | { kind: "none"; id: "none"; label: string }
   | { kind: "resume"; id: string; label: string; resume: Resume }
   | { kind: "upload"; id: "upload"; label: string };
 
@@ -100,6 +108,18 @@ export function StageBadge({ stage }: { stage: Stage }) {
 
 export function PriorityBadge({ priority }: { priority: Priority }) {
   return <Badge variant={priority === "High" ? "outline" : "secondary"}>{priority}</Badge>;
+}
+
+export function LeadStatusBadge({ status }: { status: LeadStatus }) {
+  const variant =
+    status === "Converted"
+      ? "default"
+      : status === "Closed"
+        ? "destructive"
+        : status === "Replied" || status === "Meeting booked"
+          ? "outline"
+          : "secondary";
+  return <Badge variant={variant}>{status}</Badge>;
 }
 
 export function NativeSelectField<T extends string>({
@@ -222,15 +242,18 @@ export function ResumePicker({
   value,
   onChange,
   onUpload,
+  optional = false,
 }: {
   resumes: Resume[];
   value: string | null;
-  onChange: (id: string) => void;
+  onChange: (id: string | null) => void;
   onUpload: (file: File) => Promise<string>;
+  optional?: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const items = useMemo<ResumeOption[]>(
     () => [
+      ...(optional ? [{ kind: "none" as const, id: "none" as const, label: "No resume" }] : []),
       ...resumes.map((resume) => ({
         kind: "resume" as const,
         id: resume.id,
@@ -239,10 +262,12 @@ export function ResumePicker({
       })),
       { kind: "upload", id: "upload", label: "Upload new resume" },
     ],
-    [resumes],
+    [optional, resumes],
   );
   const selectedItem: ResumeOption | null =
-    items.find((item) => item.kind === "resume" && item.id === value) ?? null;
+    optional && value === null
+      ? (items.find((item) => item.kind === "none") ?? null)
+      : (items.find((item) => item.kind === "resume" && item.id === value) ?? null);
 
   return (
     <>
@@ -255,9 +280,15 @@ export function ResumePicker({
             fileRef.current?.click();
             return;
           }
+          if (item.kind === "none") {
+            onChange(null);
+            return;
+          }
           onChange(item.resume.id);
         }}
-        itemToStringLabel={(item: ResumeOption) => (item.kind === "resume" ? item.resume.name : "")}
+        itemToStringLabel={(item: ResumeOption) =>
+          item.kind === "resume" ? item.resume.name : item.kind === "none" ? "No resume" : ""
+        }
         isItemEqualToValue={(a: ResumeOption, b: ResumeOption) => a.id === b.id}
       >
         <ComboboxInput className="w-full" placeholder="Search or upload resume">
@@ -284,6 +315,8 @@ export function ResumePicker({
                       <span className="ml-1 text-muted-foreground">{item.resume.fileName}</span>
                     </span>
                   </span>
+                ) : item.kind === "none" ? (
+                  <span className="text-muted-foreground">No resume</span>
                 ) : (
                   <span className="flex items-center gap-2">
                     <Upload className="size-4" />
@@ -830,6 +863,228 @@ export function ApplicationFields({
             />
           </Field>
         </div>
+      </FieldSet>
+    </div>
+  );
+}
+
+export function LeadFields({
+  companies,
+  resumes,
+  coverLetters,
+  values,
+  setValues,
+  onCreateCompany,
+  onUploadResume,
+  onCreateCoverText,
+  onUploadCover,
+}: {
+  companies: Company[];
+  resumes: Resume[];
+  coverLetters: CoverLetter[];
+  values: LeadFormValues;
+  setValues: (patch: Partial<LeadFormValues>) => void;
+  onCreateCompany: (name: string) => Promise<string>;
+  onUploadResume: (file: File) => Promise<string>;
+  onCreateCoverText: (name: string, body: string) => Promise<string>;
+  onUploadCover: (file: File) => Promise<string>;
+}) {
+  return (
+    <div className="flex flex-col gap-7">
+      <FieldSet>
+        <FieldLegend className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          Person & company
+        </FieldLegend>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field className="sm:col-span-2">
+            <FieldLabel>Company name</FieldLabel>
+            <CompanyPicker
+              companies={companies}
+              value={values.companyId}
+              onChange={(id) => setValues({ companyId: id })}
+              onCreate={onCreateCompany}
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Person name</FieldLabel>
+            <Input
+              value={values.personName}
+              onChange={(e) => setValues({ personName: e.target.value })}
+              placeholder="e.g. Maya Chen"
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Person role</FieldLabel>
+            <Input
+              value={values.personRole}
+              onChange={(e) => setValues({ personRole: e.target.value })}
+              placeholder="Recruiter, hiring manager..."
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Platform</FieldLabel>
+            <NativeSelectField
+              value={values.platform}
+              onChange={(platform: LeadPlatform) => setValues({ platform })}
+              options={leadPlatforms}
+              guard={isLeadPlatform}
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Company link</FieldLabel>
+            <Input
+              type="url"
+              value={values.companyWebsite}
+              onChange={(e) => setValues({ companyWebsite: e.target.value })}
+              placeholder="https://company.com"
+            />
+          </Field>
+          <Field className="sm:col-span-2">
+            <FieldLabel>Profile link</FieldLabel>
+            <Input
+              type="url"
+              value={values.profileUrl}
+              onChange={(e) => setValues({ profileUrl: e.target.value })}
+              placeholder="https://linkedin.com/in/... or x.com/..."
+            />
+          </Field>
+          <Field className="sm:col-span-2">
+            <FieldLabel>Lead / thread link</FieldLabel>
+            <Input
+              type="url"
+              value={values.leadUrl}
+              onChange={(e) => setValues({ leadUrl: e.target.value })}
+              placeholder="Link to DM, email thread, or CRM record"
+            />
+          </Field>
+        </div>
+      </FieldSet>
+
+      <FieldSet>
+        <FieldLegend className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          Status & timing
+        </FieldLegend>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field>
+            <FieldLabel>Status</FieldLabel>
+            <NativeSelectField
+              value={values.status}
+              onChange={(status: LeadStatus) => setValues({ status })}
+              options={leadStatuses}
+              guard={isLeadStatus}
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Priority</FieldLabel>
+            <NativeSelectField
+              value={values.priority}
+              onChange={(priority: Priority) => setValues({ priority })}
+              options={priorities}
+              guard={isPriority}
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Send date</FieldLabel>
+            <Input
+              type="date"
+              value={values.sentDate}
+              onChange={(e) => setValues({ sentDate: e.target.value })}
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Reminder time</FieldLabel>
+            <NativeSelectField
+              value={values.reminderTime}
+              onChange={(reminderTime: ReminderTime) => setValues({ reminderTime })}
+              options={reminderTimes}
+              guard={isReminderTime}
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Next step date</FieldLabel>
+            <Input
+              type="date"
+              value={values.nextStepDate}
+              onChange={(e) => setValues({ nextStepDate: e.target.value })}
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Next step</FieldLabel>
+            <Input
+              value={values.nextStepLabel}
+              onChange={(e) => setValues({ nextStepLabel: e.target.value })}
+              placeholder="e.g. Follow up, Book intro call"
+            />
+          </Field>
+        </div>
+      </FieldSet>
+
+      <FieldSet>
+        <FieldLegend className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          Outreach materials
+        </FieldLegend>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field className="sm:col-span-2">
+            <FieldLabel>Message sent</FieldLabel>
+            <Textarea
+              value={values.message}
+              onChange={(e) => setValues({ message: e.target.value })}
+              placeholder="Paste the DM, cold email, or intro you sent..."
+              className="min-h-28"
+            />
+          </Field>
+          <Field className="sm:col-span-2">
+            <FieldLabel>Resume sent</FieldLabel>
+            <ResumePicker
+              resumes={resumes}
+              value={values.resumeId}
+              onChange={(id) => setValues({ resumeId: id })}
+              onUpload={onUploadResume}
+              optional
+            />
+          </Field>
+          <Field className="sm:col-span-2">
+            <FieldLabel>Cover letter sent</FieldLabel>
+            <CoverLetterPicker
+              coverLetters={coverLetters}
+              value={values.coverLetterId}
+              onChange={(id) => setValues({ coverLetterId: id })}
+              onCreateText={onCreateCoverText}
+              onUpload={onUploadCover}
+            />
+          </Field>
+        </div>
+      </FieldSet>
+
+      <FieldSet>
+        <FieldLegend className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          Notes
+        </FieldLegend>
+        <FieldGroup>
+          <Field>
+            <FieldLabel>Notes</FieldLabel>
+            <Textarea
+              value={values.notes}
+              onChange={(e) => setValues({ notes: e.target.value })}
+              placeholder="Context, warm intro path, what they care about..."
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Tags</FieldLabel>
+            <Input
+              value={values.tags.join(", ")}
+              onChange={(e) =>
+                setValues({
+                  tags: e.target.value
+                    .split(",")
+                    .map((tag) => tag.trim())
+                    .filter(Boolean),
+                })
+              }
+              placeholder="Warm intro, YC, Design"
+            />
+          </Field>
+        </FieldGroup>
       </FieldSet>
     </div>
   );

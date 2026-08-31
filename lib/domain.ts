@@ -31,8 +31,26 @@ export const reminderTimes = ["None", "09:00 AM", "12:00 PM", "05:00 PM"] as con
 export const sortKeys = ["recent", "company", "stage", "priority"] as const;
 export const companyColors = ["bg-foreground text-background", "bg-muted text-foreground"] as const;
 export const closedStages = ["Rejected", "Withdrawn"] as const;
+export const leadPlatforms = ["Twitter DM", "LinkedIn DM", "Cold email", "Email", "Other"] as const;
+export const leadStatuses = [
+  "Draft",
+  "Sent",
+  "Replied",
+  "Follow-up",
+  "Meeting booked",
+  "Converted",
+  "Closed",
+] as const;
+export const closedLeadStatuses = ["Closed"] as const;
+export const leadSortKeys = ["recent", "company", "status", "priority"] as const;
 
-export type Screen = "applications" | "companies" | "resumes" | "cover-letters" | "archive";
+export type Screen =
+  | "applications"
+  | "leads"
+  | "companies"
+  | "resumes"
+  | "cover-letters"
+  | "archive";
 export type Stage = (typeof stages)[number];
 export type Priority = (typeof priorities)[number];
 export type WorkMode = (typeof workModes)[number];
@@ -42,6 +60,9 @@ export type ReplyStatus = (typeof replyStatuses)[number];
 export type Currency = (typeof currencies)[number];
 export type ReminderTime = (typeof reminderTimes)[number];
 export type SortKey = (typeof sortKeys)[number];
+export type LeadPlatform = (typeof leadPlatforms)[number];
+export type LeadStatus = (typeof leadStatuses)[number];
+export type LeadSortKey = (typeof leadSortKeys)[number];
 export type CompanyColor = (typeof companyColors)[number];
 
 export type WorkspaceUser = {
@@ -116,6 +137,34 @@ export type ApplicationFormValues = Omit<
   resumeId: string | null;
 };
 
+export type Lead = {
+  id: string;
+  companyId: string;
+  personName: string;
+  personRole: string;
+  platform: LeadPlatform;
+  companyWebsite: string;
+  profileUrl: string;
+  leadUrl: string;
+  status: LeadStatus;
+  priority: Priority;
+  sentDate: string;
+  nextStepDate: string;
+  nextStepLabel: string;
+  reminderTime: ReminderTime;
+  message: string;
+  resumeId: string | null;
+  coverLetterId: string | null;
+  notes: string;
+  tags: string[];
+  archived: boolean;
+  createdAt: string;
+};
+
+export type LeadFormValues = Omit<Lead, "id" | "archived" | "createdAt" | "companyId"> & {
+  companyId: string | null;
+};
+
 export type SavedView = {
   id: string;
   name: string;
@@ -135,11 +184,13 @@ export type WorkspacePayload = {
   resumes: Resume[];
   coverLetters: CoverLetter[];
   applications: Application[];
+  leads: Lead[];
   savedViews: SavedView[];
 };
 
 export const screenTitles: Record<Screen, string> = {
   applications: "Applications",
+  leads: "Leads",
   companies: "Companies",
   resumes: "Resumes",
   "cover-letters": "Cover letters",
@@ -150,6 +201,13 @@ export const sortLabels: Record<SortKey, string> = {
   recent: "Recent",
   company: "Company",
   stage: "Stage",
+  priority: "Priority",
+};
+
+export const leadSortLabels: Record<LeadSortKey, string> = {
+  recent: "Recent",
+  company: "Company",
+  status: "Status",
   priority: "Priority",
 };
 
@@ -189,14 +247,31 @@ export function isSortKey(value: unknown): value is SortKey {
   return typeof value === "string" && sortKeys.some((s) => s === value);
 }
 
+export function isLeadPlatform(value: unknown): value is LeadPlatform {
+  return typeof value === "string" && leadPlatforms.some((p) => p === value);
+}
+
+export function isLeadStatus(value: unknown): value is LeadStatus {
+  return typeof value === "string" && leadStatuses.some((s) => s === value);
+}
+
+export function isLeadSortKey(value: unknown): value is LeadSortKey {
+  return typeof value === "string" && leadSortKeys.some((s) => s === value);
+}
+
 export function isScreen(value: unknown): value is Screen {
   return (
     value === "applications" ||
+    value === "leads" ||
     value === "companies" ||
     value === "resumes" ||
     value === "cover-letters" ||
     value === "archive"
   );
+}
+
+export function isClosedLeadStatus(value: LeadStatus): boolean {
+  return closedLeadStatuses.some((s) => s === value);
 }
 
 export function screenPath(screen: Screen) {
@@ -245,7 +320,7 @@ export function formatCompensation(
   return item.equityBonus ? `${base} + ${item.equityBonus}` : base;
 }
 
-export function nextStepSummary(item: Pick<Application, "nextStepLabel" | "nextStepDate">) {
+export function nextStepSummary(item: Pick<Application | Lead, "nextStepLabel" | "nextStepDate">) {
   if (item.nextStepLabel) return item.nextStepLabel;
   if (item.nextStepDate) return formatDisplayDate(item.nextStepDate);
   return "—";
@@ -327,6 +402,60 @@ export function formValuesToApplicationPatch(
     contactPhone: draft.contactPhone.trim(),
     contactUrl: draft.contactUrl.trim(),
     contactNotes: draft.contactNotes,
+    tags: draft.tags.map((tag) => tag.trim()).filter(Boolean),
+  };
+}
+
+export function emptyLeadFormValues(): LeadFormValues {
+  return {
+    companyId: null,
+    personName: "",
+    personRole: "",
+    platform: "LinkedIn DM",
+    companyWebsite: "",
+    profileUrl: "",
+    leadUrl: "",
+    status: "Draft",
+    priority: "Medium",
+    sentDate: new Date().toISOString().slice(0, 10),
+    nextStepDate: "",
+    nextStepLabel: "",
+    reminderTime: "None",
+    message: "",
+    resumeId: null,
+    coverLetterId: null,
+    notes: "",
+    tags: [],
+  };
+}
+
+export function valuesFromLead(item: Lead): LeadFormValues {
+  const { id: _id, archived: _archived, createdAt: _createdAt, ...rest } = item;
+  return rest;
+}
+
+export function formValuesToLeadPatch(
+  draft: LeadFormValues,
+): Omit<Lead, "id" | "archived" | "createdAt"> | null {
+  if (!draft.companyId || !draft.personName.trim()) return null;
+  return {
+    companyId: draft.companyId,
+    personName: draft.personName.trim(),
+    personRole: draft.personRole.trim(),
+    platform: draft.platform,
+    companyWebsite: draft.companyWebsite.trim(),
+    profileUrl: draft.profileUrl.trim(),
+    leadUrl: draft.leadUrl.trim(),
+    status: draft.status,
+    priority: draft.priority,
+    sentDate: draft.sentDate,
+    nextStepDate: draft.nextStepDate,
+    nextStepLabel: draft.nextStepLabel.trim(),
+    reminderTime: draft.reminderTime,
+    message: draft.message,
+    resumeId: draft.resumeId,
+    coverLetterId: draft.coverLetterId,
+    notes: draft.notes,
     tags: draft.tags.map((tag) => tag.trim()).filter(Boolean),
   };
 }

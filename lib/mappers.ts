@@ -1,6 +1,8 @@
 import {
   isCurrency,
   isJobType,
+  isLeadPlatform,
+  isLeadStatus,
   isPriority,
   isRecord,
   isReminderTime,
@@ -13,6 +15,7 @@ import {
   type Application,
   type Company,
   type CoverLetter,
+  type Lead,
   type Resume,
   type SavedView,
   type WorkspaceUser,
@@ -22,6 +25,7 @@ import type {
   applications,
   companies,
   coverLetters,
+  leads,
   resumes,
   savedViews,
   session,
@@ -34,9 +38,18 @@ type CompanyRow = typeof companies.$inferSelect;
 type ResumeRow = typeof resumes.$inferSelect;
 type CoverLetterRow = typeof coverLetters.$inferSelect;
 type ApplicationRow = typeof applications.$inferSelect;
+type LeadRow = typeof leads.$inferSelect;
 type SavedViewRow = typeof savedViews.$inferSelect;
 
-export type { UserRow, CompanyRow, ResumeRow, CoverLetterRow, ApplicationRow, SavedViewRow };
+export type {
+  UserRow,
+  CompanyRow,
+  ResumeRow,
+  CoverLetterRow,
+  ApplicationRow,
+  LeadRow,
+  SavedViewRow,
+};
 export type SessionRow = typeof session.$inferSelect;
 export type AccountRow = typeof account.$inferSelect;
 export type VerificationRow = typeof verification.$inferSelect;
@@ -129,6 +142,32 @@ export function mapApplication(row: ApplicationRow): Application {
     contactPhone: row.contactPhone,
     contactUrl: row.contactUrl,
     contactNotes: row.contactNotes,
+    tags: parseJsonArray(row.tags),
+    archived: row.archived,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export function mapLead(row: LeadRow): Lead {
+  return {
+    id: row.id,
+    companyId: row.companyId,
+    personName: row.personName,
+    personRole: row.personRole,
+    platform: isLeadPlatform(row.platform) ? row.platform : "Other",
+    companyWebsite: row.companyWebsite,
+    profileUrl: row.profileUrl,
+    leadUrl: row.leadUrl,
+    status: isLeadStatus(row.status) ? row.status : "Draft",
+    priority: isPriority(row.priority) ? row.priority : "Medium",
+    sentDate: row.sentDate,
+    nextStepDate: row.nextStepDate,
+    nextStepLabel: row.nextStepLabel,
+    reminderTime: isReminderTime(row.reminderTime) ? row.reminderTime : "None",
+    message: row.message,
+    resumeId: row.resumeId,
+    coverLetterId: row.coverLetterId,
+    notes: row.notes,
     tags: parseJsonArray(row.tags),
     archived: row.archived,
     createdAt: row.createdAt.toISOString(),

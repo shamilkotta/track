@@ -1,12 +1,15 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { applications, companies, coverLetters, resumes, savedViews } from "@/lib/db/schema";
+import { applications, companies, coverLetters, leads, resumes, savedViews } from "@/lib/db/schema";
 import {
   companyColorForIndex,
   companyInitial,
+  isClosedLeadStatus,
   isClosedStage,
   isCurrency,
   isJobType,
+  isLeadPlatform,
+  isLeadStatus,
   isPriority,
   isReminderTime,
   isReplyStatus,
@@ -18,6 +21,7 @@ import {
   type Application,
   type Company,
   type CoverLetter,
+  type Lead,
   type Resume,
   type SavedView,
   type WorkspacePayload,
@@ -28,6 +32,7 @@ import {
   mapApplication,
   mapCompany,
   mapCoverLetter,
+  mapLead,
   mapResume,
   mapSavedView,
   parseIdList,
@@ -63,28 +68,33 @@ async function ownedCoverLetter(userId: string, coverLetterId: string) {
 
 export async function loadWorkspace(user: AuthUser): Promise<WorkspacePayload> {
   const database = db();
-  const [companyRows, resumeRows, letterRows, applicationRows, viewRows] = await Promise.all([
-    database.query.companies.findMany({
-      where: eq(companies.userId, user.id),
-      orderBy: desc(companies.createdAt),
-    }),
-    database.query.resumes.findMany({
-      where: eq(resumes.userId, user.id),
-      orderBy: desc(resumes.createdAt),
-    }),
-    database.query.coverLetters.findMany({
-      where: eq(coverLetters.userId, user.id),
-      orderBy: desc(coverLetters.createdAt),
-    }),
-    database.query.applications.findMany({
-      where: eq(applications.userId, user.id),
-      orderBy: desc(applications.createdAt),
-    }),
-    database.query.savedViews.findMany({
-      where: eq(savedViews.userId, user.id),
-      orderBy: desc(savedViews.createdAt),
-    }),
-  ]);
+  const [companyRows, resumeRows, letterRows, applicationRows, leadRows, viewRows] =
+    await Promise.all([
+      database.query.companies.findMany({
+        where: eq(companies.userId, user.id),
+        orderBy: desc(companies.createdAt),
+      }),
+      database.query.resumes.findMany({
+        where: eq(resumes.userId, user.id),
+        orderBy: desc(resumes.createdAt),
+      }),
+      database.query.coverLetters.findMany({
+        where: eq(coverLetters.userId, user.id),
+        orderBy: desc(coverLetters.createdAt),
+      }),
+      database.query.applications.findMany({
+        where: eq(applications.userId, user.id),
+        orderBy: desc(applications.createdAt),
+      }),
+      database.query.leads.findMany({
+        where: eq(leads.userId, user.id),
+        orderBy: desc(leads.createdAt),
+      }),
+      database.query.savedViews.findMany({
+        where: eq(savedViews.userId, user.id),
+        orderBy: desc(savedViews.createdAt),
+      }),
+    ]);
 
   return {
     user: {
@@ -98,6 +108,7 @@ export async function loadWorkspace(user: AuthUser): Promise<WorkspacePayload> {
     resumes: resumeRows.map(mapResume),
     coverLetters: letterRows.map(mapCoverLetter),
     applications: applicationRows.map(mapApplication),
+    leads: leadRows.map(mapLead),
     savedViews: viewRows.map(mapSavedView),
   };
 }
@@ -157,10 +168,14 @@ export async function updateCompany(
 }
 
 export async function deleteCompany(userId: string, id: string) {
-  const used = await db().query.applications.findFirst({
+  const usedByApplication = await db().query.applications.findFirst({
     where: and(eq(applications.companyId, id), eq(applications.userId, userId)),
   });
-  if (used) throw new HttpError(409, "This company is used by an application");
+  if (usedByApplication) throw new HttpError(409, "This company is used by an application");
+  const usedByLead = await db().query.leads.findFirst({
+    where: and(eq(leads.companyId, id), eq(leads.userId, userId)),
+  });
+  if (usedByLead) throw new HttpError(409, "This company is used by a lead");
   await ownedCompany(userId, id);
   await db()
     .delete(companies)
@@ -214,6 +229,10 @@ export async function deleteResume(userId: string, id: string) {
   });
   if (used) throw new HttpError(409, "This resume is attached to an application");
   const current = await ownedResume(userId, id);
+  await db()
+    .update(leads)
+    .set({ resumeId: null, updatedAt: now() })
+    .where(and(eq(leads.resumeId, id), eq(leads.userId, userId)));
   await db()
     .delete(resumes)
     .where(and(eq(resumes.id, id), eq(resumes.userId, userId)));
@@ -296,6 +315,10 @@ export async function deleteCoverLetter(userId: string, id: string) {
     .update(applications)
     .set({ coverLetterId: null, updatedAt: now() })
     .where(and(eq(applications.coverLetterId, id), eq(applications.userId, userId)));
+  await db()
+    .update(leads)
+    .set({ coverLetterId: null, updatedAt: now() })
+    .where(and(eq(leads.coverLetterId, id), eq(leads.userId, userId)));
   await db()
     .delete(coverLetters)
     .where(and(eq(coverLetters.id, id), eq(coverLetters.userId, userId)));
@@ -469,6 +492,138 @@ export async function bulkApplications(
     .update(applications)
     .set({ archived: action === "archive", updatedAt: now() })
     .where(and(eq(applications.userId, userId), inArray(applications.id, uniqueIds)));
+  return { ok: true as const };
+}
+
+function nullableId(value: unknown, fallback: string | null) {
+  if (value === null) return null;
+  if (typeof value === "string") return value;
+  return fallback;
+}
+
+function leadValues(userId: string, record: Record<string, unknown>, current?: Lead) {
+  const companyId = stringField(record, "companyId", current?.companyId ?? "");
+  const personName = stringField(record, "personName", current?.personName ?? "");
+  if (!companyId || !personName.trim()) {
+    throw new HttpError(400, "Company and person name are required");
+  }
+  const statusRaw = stringField(record, "status", current?.status ?? "Draft");
+  const status = isLeadStatus(statusRaw) ? statusRaw : (current?.status ?? "Draft");
+  const archivedInput = record.archived;
+  const archived =
+    typeof archivedInput === "boolean"
+      ? archivedInput
+      : current
+        ? current.archived
+        : isClosedLeadStatus(status);
+  const tagsValue = record.tags;
+  const tags = isStringArray(tagsValue)
+    ? tagsValue
+    : typeof tagsValue === "string"
+      ? tagsValue
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean)
+      : (current?.tags ?? []);
+
+  return {
+    companyId,
+    personName: personName.trim(),
+    personRole: stringField(record, "personRole", current?.personRole ?? ""),
+    platform: isLeadPlatform(stringField(record, "platform", current?.platform ?? "LinkedIn DM"))
+      ? stringField(record, "platform", current?.platform ?? "LinkedIn DM")
+      : (current?.platform ?? "LinkedIn DM"),
+    companyWebsite: stringField(record, "companyWebsite", current?.companyWebsite ?? ""),
+    profileUrl: stringField(record, "profileUrl", current?.profileUrl ?? ""),
+    leadUrl: stringField(record, "leadUrl", current?.leadUrl ?? ""),
+    status,
+    priority: isPriority(stringField(record, "priority", current?.priority ?? "Medium"))
+      ? stringField(record, "priority", current?.priority ?? "Medium")
+      : (current?.priority ?? "Medium"),
+    sentDate: stringField(record, "sentDate", current?.sentDate ?? ""),
+    nextStepDate: stringField(record, "nextStepDate", current?.nextStepDate ?? ""),
+    nextStepLabel:
+      stringField(record, "nextStepLabel", current?.nextStepLabel ?? "") || "Follow up",
+    reminderTime: isReminderTime(
+      stringField(record, "reminderTime", current?.reminderTime ?? "None"),
+    )
+      ? stringField(record, "reminderTime", current?.reminderTime ?? "None")
+      : (current?.reminderTime ?? "None"),
+    message: stringField(record, "message", current?.message ?? ""),
+    resumeId: nullableId(record.resumeId, current?.resumeId ?? null),
+    coverLetterId: nullableId(record.coverLetterId, current?.coverLetterId ?? null),
+    notes: stringField(record, "notes", current?.notes ?? ""),
+    tags: tagsToJson(tags),
+    archived: archived || isClosedLeadStatus(status),
+    userId,
+  };
+}
+
+export async function createLead(userId: string, record: Record<string, unknown>): Promise<Lead> {
+  const values = leadValues(userId, record);
+  await ownedCompany(userId, values.companyId);
+  if (values.resumeId) await ownedResume(userId, values.resumeId);
+  if (values.coverLetterId) await ownedCoverLetter(userId, values.coverLetterId);
+  const id = newId();
+  const timestamp = now();
+  const row = { id, ...values, createdAt: timestamp, updatedAt: timestamp };
+  await db().insert(leads).values(row);
+  const stored = await db().query.leads.findFirst({ where: eq(leads.id, id) });
+  if (!stored) throw new HttpError(500, "Could not save lead");
+  return mapLead(stored);
+}
+
+export async function updateLead(
+  userId: string,
+  id: string,
+  record: Record<string, unknown>,
+): Promise<Lead> {
+  const currentRow = await db().query.leads.findFirst({
+    where: and(eq(leads.id, id), eq(leads.userId, userId)),
+  });
+  if (!currentRow) throw new HttpError(404, "Lead not found");
+  const current = mapLead(currentRow);
+  const values = leadValues(userId, record, current);
+  await ownedCompany(userId, values.companyId);
+  if (values.resumeId) await ownedResume(userId, values.resumeId);
+  if (values.coverLetterId) await ownedCoverLetter(userId, values.coverLetterId);
+  await db()
+    .update(leads)
+    .set({ ...values, updatedAt: now() })
+    .where(and(eq(leads.id, id), eq(leads.userId, userId)));
+  const stored = await db().query.leads.findFirst({
+    where: and(eq(leads.id, id), eq(leads.userId, userId)),
+  });
+  if (!stored) throw new HttpError(404, "Lead not found");
+  return mapLead(stored);
+}
+
+export async function deleteLead(userId: string, id: string) {
+  const current = await db().query.leads.findFirst({
+    where: and(eq(leads.id, id), eq(leads.userId, userId)),
+  });
+  if (!current) throw new HttpError(404, "Lead not found");
+  await db()
+    .delete(leads)
+    .where(and(eq(leads.id, id), eq(leads.userId, userId)));
+}
+
+export async function bulkLeads(
+  userId: string,
+  ids: string[],
+  action: "archive" | "unarchive" | "delete",
+) {
+  const uniqueIds = [...new Set(ids)];
+  if (uniqueIds.length === 0) throw new HttpError(400, "Select at least one lead");
+  const database = db();
+  if (action === "delete") {
+    await database.delete(leads).where(and(eq(leads.userId, userId), inArray(leads.id, uniqueIds)));
+    return { ok: true as const };
+  }
+  await database
+    .update(leads)
+    .set({ archived: action === "archive", updatedAt: now() })
+    .where(and(eq(leads.userId, userId), inArray(leads.id, uniqueIds)));
   return { ok: true as const };
 }
 

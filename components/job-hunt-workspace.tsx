@@ -36,6 +36,7 @@ import {
   PriorityBadge,
   StageBadge,
 } from "@/components/workspace-fields";
+import { LeadsView } from "@/components/leads-workspace";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -125,6 +126,7 @@ import {
   formatCompensation,
   formatDisplayDate,
   formValuesToApplicationPatch,
+  formValuesToLeadPatch,
   isPriority,
   isReplyStatus,
   isSortKey,
@@ -145,6 +147,7 @@ import {
   type ApplicationFormValues,
   type Company,
   type CoverLetter,
+  type Lead,
   type Priority,
   type ReplyStatus,
   type Resume,
@@ -158,19 +161,23 @@ import {
 } from "@/lib/domain";
 import {
   bulkApplicationsRequest,
+  bulkLeadsRequest,
   createApplicationRequest,
   createCompanyRequest,
   createCoverTextRequest,
+  createLeadRequest,
   createViewRequest,
   deleteApplicationRequest,
   deleteCompanyRequest,
   deleteCoverRequest,
+  deleteLeadRequest,
   deleteResumeRequest,
   deleteViewRequest,
   fetchWorkspace,
   patchApplicationRequest,
   patchCompanyRequest,
   patchCoverRequest,
+  patchLeadRequest,
   patchResumeRequest,
   uploadCoverRequest,
   uploadResumeRequest,
@@ -286,10 +293,12 @@ function StatStrip({
 function AppSidebar({
   screen,
   applicationCount,
+  leadCount,
   user,
 }: {
   screen: Screen;
   applicationCount: number;
+  leadCount: number;
   user: WorkspaceUser;
 }) {
   const router = useRouter();
@@ -324,6 +333,16 @@ function AppSidebar({
                   <Inbox />
                   Applications
                   <SidebarMenuBadge>{applicationCount}</SidebarMenuBadge>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={screen === "leads"}
+                  onClick={() => router.push(screenPath("leads"))}
+                >
+                  <Mail />
+                  Leads
+                  <SidebarMenuBadge>{leadCount}</SidebarMenuBadge>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -610,6 +629,8 @@ function ApplicationsView({
   setYear,
   density,
   setDensity,
+  focusId = null,
+  onFocusConsumed,
   onAdd,
   onPatch,
   onDelete,
@@ -631,6 +652,8 @@ function ApplicationsView({
   setYear: (year: string) => void;
   density: Density;
   setDensity: (density: Density) => void;
+  focusId?: string | null;
+  onFocusConsumed?: () => void;
   onAdd: () => void;
   onPatch: (id: string, patch: Partial<Application>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -654,6 +677,12 @@ function ApplicationsView({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [viewName, setViewName] = useState("");
   const [savingView, setSavingView] = useState(false);
+
+  useEffect(() => {
+    if (!focusId) return;
+    setActiveId(focusId);
+    onFocusConsumed?.();
+  }, [focusId, onFocusConsumed]);
 
   const companyById = useMemo(
     () => Object.fromEntries(companies.map((c) => [c.id, c])),
@@ -1130,11 +1159,15 @@ function ApplicationsView({
 
 function CompaniesView({
   companies,
+  focusId = null,
+  onFocusConsumed,
   onCreate,
   onPatch,
   onDelete,
 }: {
   companies: Company[];
+  focusId?: string | null;
+  onFocusConsumed?: () => void;
   onCreate: (name: string, extra?: { website?: string }) => Promise<string>;
   onPatch: (id: string, patch: Record<string, unknown>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -1146,6 +1179,23 @@ function CompaniesView({
   const [savingCreate, setSavingCreate] = useState(false);
   const active = companies.find((c) => c.id === activeId) ?? null;
   const [draft, setDraft] = useState({ name: "", website: "", location: "", logo: "" });
+
+  useEffect(() => {
+    if (!focusId) return;
+    const company = companies.find((c) => c.id === focusId);
+    if (!company) {
+      onFocusConsumed?.();
+      return;
+    }
+    setActiveId(company.id);
+    setDraft({
+      name: company.name,
+      website: company.website,
+      location: company.location,
+      logo: company.logo,
+    });
+    onFocusConsumed?.();
+  }, [focusId, companies, onFocusConsumed]);
 
   function resetCreate() {
     setNewName("");
@@ -1159,7 +1209,7 @@ function CompaniesView({
         <div>
           <h1 className="md:text-xl">Companies</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Reuse companies across applications without retyping.
+            Reuse companies across applications and leads without retyping.
           </p>
         </div>
         <Popover
@@ -1788,6 +1838,8 @@ function ArchiveView({
   companies,
   resumes,
   coverLetters,
+  focusId = null,
+  onFocusConsumed,
   onPatch,
   onDelete,
   onCreateCompany,
@@ -1800,6 +1852,8 @@ function ArchiveView({
   companies: Company[];
   resumes: Resume[];
   coverLetters: CoverLetter[];
+  focusId?: string | null;
+  onFocusConsumed?: () => void;
   onPatch: (id: string, patch: Partial<Application>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onCreateCompany: (name: string) => Promise<string>;
@@ -1814,6 +1868,12 @@ function ArchiveView({
     [companies],
   );
   const active = applications.find((a) => a.id === activeId) ?? null;
+
+  useEffect(() => {
+    if (!focusId) return;
+    setActiveId(focusId);
+    onFocusConsumed?.();
+  }, [focusId, onFocusConsumed]);
 
   if (applications.length === 0) {
     return (
@@ -1971,11 +2031,18 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
   const screen = screenFromPathname(pathname);
   const [modal, setModal] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchFocus, setSearchFocus] = useState<
+    | { kind: "application"; id: string }
+    | { kind: "company"; id: string }
+    | { kind: "lead"; id: string }
+    | null
+  >(null);
   const [user, setUser] = useState(initialUser);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [coverLetters, setCoverLetters] = useState<CoverLetter[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [year, setYear] = useState("all");
   const density = useSyncExternalStore(subscribeDensity, readDensity, (): Density => "comfortable");
@@ -1990,6 +2057,7 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
         setResumes(payload.resumes);
         setCoverLetters(payload.coverLetters);
         setApplications(payload.applications);
+        setLeads(payload.leads);
         setSavedViews(payload.savedViews);
       })
       .catch((cause: unknown) => {
@@ -2042,14 +2110,21 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
     setApplications((prev) => prev.map((item) => (item.id === id ? updated : item)));
   }
 
+  async function patchLead(id: string, patch: Partial<Lead>) {
+    const updated = await patchLeadRequest(id, patch);
+    setLeads((prev) => prev.map((item) => (item.id === id ? updated : item)));
+  }
+
   const activeApplications = applications.filter((item) => !item.archived);
   const archivedApplications = applications.filter((item) => item.archived);
+  const activeLeads = leads.filter((item) => !item.archived);
 
   return (
     <SidebarProvider className="h-svh overflow-hidden">
       <AppSidebar
         screen={screen}
         applicationCount={activeApplications.length}
+        leadCount={activeLeads.length}
         user={user}
       />
       <SidebarInset className="min-h-0 overflow-hidden">
@@ -2078,6 +2153,8 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                   setYear={setYear}
                   density={density}
                   setDensity={writeDensity}
+                  focusId={searchFocus?.kind === "application" ? searchFocus.id : null}
+                  onFocusConsumed={() => setSearchFocus(null)}
                   onAdd={() => setModal(true)}
                   onPatch={async (id, patch) => {
                     try {
@@ -2161,9 +2238,97 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                   onApplyView={(view) => setYear(view.year)}
                 />
               )}
+              {screen === "leads" && (
+                <LeadsView
+                  leads={activeLeads}
+                  companies={companies}
+                  resumes={resumes}
+                  coverLetters={coverLetters}
+                  density={density}
+                  setDensity={writeDensity}
+                  focusId={searchFocus?.kind === "lead" ? searchFocus.id : null}
+                  onFocusConsumed={() => setSearchFocus(null)}
+                  onPatch={async (id, patch) => {
+                    try {
+                      await patchLead(id, patch);
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onDelete={async (id) => {
+                    try {
+                      await deleteLeadRequest(id);
+                      setLeads((prev) => prev.filter((item) => item.id !== id));
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onBulk={async (ids, action) => {
+                    try {
+                      await bulkLeadsRequest(ids, action);
+                      if (action === "delete") {
+                        setLeads((prev) => prev.filter((item) => !ids.includes(item.id)));
+                      } else {
+                        setLeads((prev) =>
+                          prev.map((item) =>
+                            ids.includes(item.id) ? { ...item, archived: true } : item,
+                          ),
+                        );
+                      }
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onCreateCompany={async (name) => {
+                    try {
+                      return await createCompany(name);
+                    } catch (cause) {
+                      fail(cause);
+                      throw cause;
+                    }
+                  }}
+                  onUploadResume={async (file) => {
+                    try {
+                      return await uploadResume(file);
+                    } catch (cause) {
+                      fail(cause);
+                      throw cause;
+                    }
+                  }}
+                  onCreateCoverText={async (name, body) => {
+                    try {
+                      return await createCoverText(name, body);
+                    } catch (cause) {
+                      fail(cause);
+                      throw cause;
+                    }
+                  }}
+                  onUploadCover={async (file) => {
+                    try {
+                      return await uploadCover(file);
+                    } catch (cause) {
+                      fail(cause);
+                      throw cause;
+                    }
+                  }}
+                  onCreate={async (data) => {
+                    const patch = formValuesToLeadPatch(data);
+                    if (!patch) return;
+                    try {
+                      const created = await createLeadRequest(patch);
+                      setLeads((prev) => [created, ...prev]);
+                    } catch (cause) {
+                      fail(cause);
+                      throw cause;
+                    }
+                  }}
+                />
+              )}
               {screen === "companies" && (
                 <CompaniesView
                   companies={companies}
+                  focusId={searchFocus?.kind === "company" ? searchFocus.id : null}
+                  onFocusConsumed={() => setSearchFocus(null)}
                   onCreate={async (name, extra) => {
                     try {
                       return await createCompany(name, extra);
@@ -2215,6 +2380,11 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                     try {
                       await deleteResumeRequest(id);
                       setResumes((prev) => prev.filter((item) => item.id !== id));
+                      setLeads((prev) =>
+                        prev.map((item) =>
+                          item.resumeId === id ? { ...item, resumeId: null } : item,
+                        ),
+                      );
                     } catch (cause) {
                       fail(cause);
                     }
@@ -2261,6 +2431,11 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                           item.coverLetterId === id ? { ...item, coverLetterId: null } : item,
                         ),
                       );
+                      setLeads((prev) =>
+                        prev.map((item) =>
+                          item.coverLetterId === id ? { ...item, coverLetterId: null } : item,
+                        ),
+                      );
                     } catch (cause) {
                       fail(cause);
                     }
@@ -2273,6 +2448,8 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                   companies={companies}
                   resumes={resumes}
                   coverLetters={coverLetters}
+                  focusId={searchFocus?.kind === "application" ? searchFocus.id : null}
+                  onFocusConsumed={() => setSearchFocus(null)}
                   onPatch={async (id, patch) => {
                     try {
                       await patchApplication(id, patch);
@@ -2339,13 +2516,14 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
         className="sm:max-w-xl"
       >
         <CommandPalette className="min-h-80">
-          <CommandInput placeholder="Search applications, companies, resumes..." />
+          <CommandInput placeholder="Search applications, leads, companies, resumes..." />
           <CommandList className="max-h-96">
             <CommandEmpty>No matches.</CommandEmpty>
             <CommandGroup heading="Go to">
               {(
                 [
                   ["applications", "Applications"],
+                  ["leads", "Leads"],
                   ["companies", "Companies"],
                   ["resumes", "Resumes"],
                   ["cover-letters", "Cover letters"],
@@ -2371,11 +2549,30 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                     key={item.id}
                     value={`${company?.name ?? ""} ${item.role}`}
                     onSelect={() => {
+                      setSearchFocus({ kind: "application", id: item.id });
                       router.push(screenPath(item.archived ? "archive" : "applications"));
                       setSearchOpen(false);
                     }}
                   >
                     {company?.name ?? "Unknown"} · {item.role}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+            <CommandGroup heading="Leads">
+              {leads.slice(0, 12).map((item) => {
+                const company = companies.find((c) => c.id === item.companyId);
+                return (
+                  <CommandItem
+                    key={item.id}
+                    value={`${company?.name ?? ""} ${item.personName} ${item.platform}`}
+                    onSelect={() => {
+                      setSearchFocus({ kind: "lead", id: item.id });
+                      router.push(screenPath("leads"));
+                      setSearchOpen(false);
+                    }}
+                  >
+                    {company?.name ?? "Unknown"} · {item.personName}
                   </CommandItem>
                 );
               })}
@@ -2386,6 +2583,7 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                   key={company.id}
                   value={company.name}
                   onSelect={() => {
+                    setSearchFocus({ kind: "company", id: company.id });
                     router.push(screenPath("companies"));
                     setSearchOpen(false);
                   }}

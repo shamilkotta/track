@@ -1,6 +1,8 @@
 import {
   isCurrency,
   isJobType,
+  isLeadPlatform,
+  isLeadStatus,
   isPriority,
   isRecord,
   isReminderTime,
@@ -13,6 +15,7 @@ import {
   type Application,
   type Company,
   type CoverLetter,
+  type Lead,
   type Resume,
   type SavedView,
   type WorkspacePayload,
@@ -139,6 +142,34 @@ function parseApplication(value: unknown): Application | null {
   };
 }
 
+function parseLead(value: unknown): Lead | null {
+  if (!isRecord(value) || typeof value.id !== "string") return null;
+  if (typeof value.companyId !== "string" || typeof value.personName !== "string") return null;
+  return {
+    id: value.id,
+    companyId: value.companyId,
+    personName: value.personName,
+    personRole: requiredString(value, "personRole"),
+    platform: isLeadPlatform(value.platform) ? value.platform : "Other",
+    companyWebsite: requiredString(value, "companyWebsite"),
+    profileUrl: requiredString(value, "profileUrl"),
+    leadUrl: requiredString(value, "leadUrl"),
+    status: isLeadStatus(value.status) ? value.status : "Draft",
+    priority: isPriority(value.priority) ? value.priority : "Medium",
+    sentDate: requiredString(value, "sentDate"),
+    nextStepDate: requiredString(value, "nextStepDate"),
+    nextStepLabel: requiredString(value, "nextStepLabel"),
+    reminderTime: isReminderTime(value.reminderTime) ? value.reminderTime : "None",
+    message: requiredString(value, "message"),
+    resumeId: typeof value.resumeId === "string" ? value.resumeId : null,
+    coverLetterId: typeof value.coverLetterId === "string" ? value.coverLetterId : null,
+    notes: requiredString(value, "notes"),
+    tags: isStringArray(value.tags) ? value.tags : [],
+    archived: value.archived === true,
+    createdAt: requiredString(value, "createdAt"),
+  };
+}
+
 function parseSavedView(value: unknown): SavedView | null {
   if (!isRecord(value) || typeof value.id !== "string" || typeof value.name !== "string")
     return null;
@@ -172,6 +203,7 @@ export function parseWorkspace(value: unknown): WorkspacePayload {
     resumes: parseList(value.resumes, parseResume),
     coverLetters: parseList(value.coverLetters, parseCoverLetter),
     applications: parseList(value.applications, parseApplication),
+    leads: parseList(value.leads, parseLead),
     savedViews: parseList(value.savedViews, parseSavedView),
   };
 }
@@ -334,6 +366,54 @@ export function deleteApplicationRequest(id: string) {
 export function bulkApplicationsRequest(ids: string[], action: "archive" | "unarchive" | "delete") {
   return api(
     "/api/applications",
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids, action }),
+    },
+    () => undefined,
+  );
+}
+
+export function createLeadRequest(data: Record<string, unknown>) {
+  return api(
+    "/api/leads",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    },
+    (value) => {
+      const lead = parseLead(value);
+      if (!lead) throw new Error("Could not save lead");
+      return lead;
+    },
+  );
+}
+
+export function patchLeadRequest(id: string, patch: Record<string, unknown>) {
+  return api(
+    `/api/leads/${id}`,
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+    },
+    (value) => {
+      const lead = parseLead(value);
+      if (!lead) throw new Error("Could not update lead");
+      return lead;
+    },
+  );
+}
+
+export function deleteLeadRequest(id: string) {
+  return api(`/api/leads/${id}`, { method: "DELETE" }, () => undefined);
+}
+
+export function bulkLeadsRequest(ids: string[], action: "archive" | "unarchive" | "delete") {
+  return api(
+    "/api/leads",
     {
       method: "PATCH",
       headers: { "content-type": "application/json" },

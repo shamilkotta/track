@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { signIn, signUp } from "@/lib/auth-client";
-import { redirect } from "nlite/navigation";
+import { useRouter } from "nlite/navigation";
 
 export function AuthScreen({ mode }: { mode: "sign-in" | "sign-up" }) {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
   const [email, setEmail] = useState("");
@@ -38,7 +39,7 @@ export function AuthScreen({ mode }: { mode: "sign-in" | "sign-up" }) {
         setError(result.error.message ?? "Could not continue");
         return;
       }
-      redirect("/");
+      router.push("/");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not continue");
     } finally {

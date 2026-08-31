@@ -1,12 +1,46 @@
 import { betterAuth } from "better-auth/minimal";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { waitUntil } from "cloudflare:workers";
 import { drizzle } from "drizzle-orm/d1";
-import { getEnv } from "@/lib/env";
+import { getEnv, type AppEnv } from "@/lib/env";
 import * as schema from "@/lib/db/schema";
 
+const cliSecret = "trackr-cli-placeholder-secret-do-not-use";
+
+function missingBinding<T extends object>(name: string): T {
+  return new Proxy({} as T, {
+    get() {
+      throw new Error(`${name} is only available inside the Cloudflare Worker runtime`);
+    },
+  });
+}
+
+function cliEnv(): AppEnv {
+  return {
+    DB: missingBinding<AppEnv["DB"]>("DB"),
+    FILES: missingBinding<AppEnv["FILES"]>("FILES"),
+    BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? cliSecret,
+    BETTER_AUTH_URL: process.env.BETTER_AUTH_URL ?? "http://localhost:5173",
+  };
+}
+
+function resolveEnv(): AppEnv {
+  try {
+    return getEnv();
+  } catch {
+    return cliEnv();
+  }
+}
+
+function runBackground(promise: Promise<unknown>) {
+  void import("cloudflare:workers")
+    .then(({ waitUntil }) => waitUntil(promise))
+    .catch(() => {
+      void promise;
+    });
+}
+
 function createAuth() {
-  const env = getEnv();
+  const env = resolveEnv();
   return betterAuth({
     appName: "Trackr",
     baseURL: env.BETTER_AUTH_URL,
@@ -73,7 +107,7 @@ function createAuth() {
         ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"],
       },
       backgroundTasks: {
-        handler: waitUntil,
+        handler: runBackground,
       },
     },
   });

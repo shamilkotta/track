@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FileText, Mail, Paperclip, Plus, Upload, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -162,11 +162,19 @@ export function CompanyPicker({
 }: {
   companies: Company[];
   value: string | null;
-  onChange: (id: string) => void;
+  onChange: (id: string | null) => void;
   onCreate: (name: string) => Promise<string>;
 }) {
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState(false);
+
+  const selectedCompany = companies.find((company) => company.id === value) ?? null;
+
+  useEffect(() => {
+    if (selectedCompany) {
+      setQuery(selectedCompany.name);
+    }
+  }, [selectedCompany?.id, selectedCompany?.name]);
 
   const items = useMemo<CompanyOption[]>(() => {
     const existing: CompanyOption[] = companies.map((company) => ({
@@ -191,28 +199,49 @@ export function CompanyPicker({
   const selectedItem: CompanyOption | null =
     items.find((item) => item.kind === "company" && item.id === value) ?? null;
 
+  const handleInputValueChange = (nextQuery: string) => {
+    setQuery(nextQuery);
+    if (value && nextQuery !== selectedCompany?.name) {
+      onChange(null);
+    }
+  };
+
   return (
     <Combobox
       items={items}
       value={selectedItem}
+      inputValue={query}
       onValueChange={(item: CompanyOption | null) => {
-        if (!item || pending) return;
+        if (pending) return;
+        if (!item) {
+          onChange(null);
+          setQuery("");
+          return;
+        }
         if (item.kind === "create") {
           setPending(true);
           void onCreate(item.name)
-            .then(onChange)
+            .then((id) => {
+              onChange(id);
+              setQuery(item.name);
+            })
             .finally(() => setPending(false));
           return;
         }
         onChange(item.company.id);
+        setQuery(item.company.name);
       }}
-      onInputValueChange={setQuery}
+      onInputValueChange={handleInputValueChange}
       itemToStringLabel={(item: CompanyOption) =>
         item.kind === "company" ? item.company.name : query
       }
       isItemEqualToValue={(a: CompanyOption, b: CompanyOption) => a.id === b.id}
     >
-      <ComboboxInput className="w-full" placeholder="Search or create company" />
+      <ComboboxInput
+        className="w-full"
+        placeholder="Search or create company"
+        showClear={!!value || !!query.trim()}
+      />
       <ComboboxContent>
         <ComboboxEmpty>No companies found.</ComboboxEmpty>
         <ComboboxList>

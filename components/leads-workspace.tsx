@@ -82,11 +82,96 @@ import {
   type Priority,
   type Resume,
 } from "@/lib/domain";
+import { cn } from "@/lib/utils";
 
 type Density = "comfortable" | "compact";
 
 function isDensity(value: string): value is Density {
   return value === "comfortable" || value === "compact";
+}
+
+function relativeFollowUp(iso: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const date = new Date(`${iso}T00:00:00`);
+  const diff = Math.round((date.getTime() - today.getTime()) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  if (diff === -1) return "Yesterday";
+  return formatDisplayDate(iso);
+}
+
+function computeLeadStats(leads: Lead[], companies: Company[]) {
+  const active = leads.filter((item) => !item.archived);
+  const inProgress = active.filter(
+    (item) =>
+      item.status === "Replied" ||
+      item.status === "Follow-up" ||
+      item.status === "Meeting booked",
+  );
+  const sent = active.filter((item) => item.status !== "Draft");
+  const replied = sent.filter(
+    (item) =>
+      item.status === "Replied" ||
+      item.status === "Follow-up" ||
+      item.status === "Meeting booked" ||
+      item.status === "Converted",
+  );
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = active
+    .filter((item) => item.nextStepDate && item.nextStepDate >= today)
+    .sort((a, b) => a.nextStepDate.localeCompare(b.nextStepDate))[0];
+  const company = upcoming ? companies.find((c) => c.id === upcoming.companyId) : undefined;
+  const rate = sent.length === 0 ? 0 : Math.round((replied.length / sent.length) * 100);
+  return [
+    {
+      label: "Active leads",
+      value: String(active.length),
+      hint: `${leads.length} total including archive`,
+    },
+    {
+      label: "In progress",
+      value: String(inProgress.length),
+      hint: active.length
+        ? `${Math.round((inProgress.length / active.length) * 100)}% of active`
+        : "No active leads",
+    },
+    {
+      label: "Response rate",
+      value: sent.length ? `${rate}%` : "—",
+      hint: `${replied.length} replied of ${sent.length} sent`,
+    },
+    {
+      label: "Next follow-up",
+      value: upcoming ? relativeFollowUp(upcoming.nextStepDate) : "None",
+      hint: upcoming
+        ? `${company?.name ?? "Unknown"}${upcoming.reminderTime !== "None" ? ` · ${upcoming.reminderTime}` : ""}`
+        : "No dated next step",
+    },
+  ];
+}
+
+function LeadStatStrip({ leads, companies }: { leads: Lead[]; companies: Company[] }) {
+  const stats = computeLeadStats(leads, companies);
+  return (
+    <div className="mx-4 mb-1 grid grid-cols-2 overflow-hidden rounded-xl border border-foreground/12 bg-background md:mx-7 md:grid-cols-4">
+      {stats.map((stat, i) => (
+        <div
+          key={stat.label}
+          className={cn(
+            "px-4 py-4 md:px-5",
+            i % 2 === 0 && "border-r border-foreground/10",
+            i < 2 && "border-b border-foreground/10 md:border-b-0",
+            i < 3 && "md:border-r md:border-foreground/10",
+          )}
+        >
+          <p className="text-xs text-muted-foreground">{stat.label}</p>
+          <p className="mt-1 text-xl font-semibold tracking-tight">{stat.value}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">{stat.hint}</p>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function LeadDetailDrawer({
@@ -444,6 +529,7 @@ export function LeadsView({
           </Button>
         </div>
       </div>
+      <LeadStatStrip leads={leads} companies={companies} />
       <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3 md:px-6">
         <div className="relative min-w-[180px] flex-1 md:max-w-xs">
           <Search className="absolute top-2.5 left-2.5 size-3.5 text-muted-foreground" />

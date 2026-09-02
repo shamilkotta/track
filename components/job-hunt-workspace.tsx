@@ -28,6 +28,13 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import {
+  CompanyActivityBadges,
+  CompanyActivityList,
+  CompanyGroupHeaderRow,
+  GroupedItemIndent,
+  useCollapsedCompanyGroups,
+} from "@/components/company-group-rows";
 import { usePathname, useRouter } from "nlite/navigation";
 import {
   ApplicationFields,
@@ -182,6 +189,7 @@ import {
   uploadCoverRequest,
   uploadResumeRequest,
 } from "@/lib/workspace-api";
+import { groupByCompany } from "@/lib/group-by-company";
 import { cn } from "@/lib/utils";
 
 type Density = "comfortable" | "compact";
@@ -207,6 +215,25 @@ function subscribeDensity(onStoreChange: () => void) {
 function writeDensity(value: Density) {
   window.localStorage.setItem("trackr-density", value);
   for (const listener of densityListeners) listener();
+}
+
+const groupByCompanyListeners = new Set<() => void>();
+
+function readGroupByCompany() {
+  const stored = window.localStorage.getItem("trackr-group-by-company");
+  return stored !== "false";
+}
+
+function subscribeGroupByCompany(onStoreChange: () => void) {
+  groupByCompanyListeners.add(onStoreChange);
+  return () => {
+    groupByCompanyListeners.delete(onStoreChange);
+  };
+}
+
+function writeGroupByCompany(value: boolean) {
+  window.localStorage.setItem("trackr-group-by-company", String(value));
+  for (const listener of groupByCompanyListeners) listener();
 }
 
 function relativeFollowUp(iso: string) {
@@ -629,6 +656,8 @@ function ApplicationsView({
   setYear,
   density,
   setDensity,
+  groupByCompany: groupByCompanyEnabled,
+  setGroupByCompany,
   focusId = null,
   onFocusConsumed,
   onAdd,
@@ -652,6 +681,8 @@ function ApplicationsView({
   setYear: (year: string) => void;
   density: Density;
   setDensity: (density: Density) => void;
+  groupByCompany: boolean;
+  setGroupByCompany: (value: boolean) => void;
   focusId?: string | null;
   onFocusConsumed?: () => void;
   onAdd: () => void;
@@ -677,6 +708,7 @@ function ApplicationsView({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [viewName, setViewName] = useState("");
   const [savingView, setSavingView] = useState(false);
+  const { isCollapsed, toggle } = useCollapsedCompanyGroups();
 
   useEffect(() => {
     if (!focusId) return;
@@ -742,6 +774,11 @@ function ApplicationsView({
     year,
   ]);
 
+  const companyGroups = useMemo(
+    () => (groupByCompanyEnabled ? groupByCompany(filtered, companyById) : []),
+    [companyById, filtered, groupByCompanyEnabled],
+  );
+
   const active = applications.find((a) => a.id === activeId) ?? null;
   const currentYear = new Date().getFullYear().toString();
 
@@ -805,6 +842,14 @@ function ApplicationsView({
                 <DropdownMenuRadioItem value="comfortable">Comfortable</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="compact">Compact</DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setGroupByCompany(!groupByCompanyEnabled)}
+                className="justify-between"
+              >
+                Group by company
+                {groupByCompanyEnabled && <Badge variant="secondary">On</Badge>}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button variant="outline" onClick={onAdd}>
@@ -1065,62 +1110,161 @@ function ApplicationsView({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filtered.map((item) => {
-            const company = companyById[item.companyId];
-            return (
-              <TableRow
-                key={item.id}
-                data-state={activeId === item.id ? "selected" : undefined}
-                className={density === "compact" ? "[&>td]:py-1.5" : undefined}
-              >
-                <TableCell className="w-10 pl-4 pr-0">
-                  <Checkbox
-                    className="after:inset-0"
-                    checked={selected.includes(item.id)}
-                    onCheckedChange={(checked) => {
-                      setSelected(
-                        checked ? [...selected, item.id] : selected.filter((id) => id !== item.id),
+          {groupByCompanyEnabled
+            ? companyGroups.flatMap((group) => {
+                const groupSelected = group.items.filter((item) => selected.includes(item.id));
+                const renderRow = (item: Application, grouped: boolean) => {
+                  const company = companyById[item.companyId];
+                  return (
+                    <TableRow
+                      key={item.id}
+                      data-state={activeId === item.id ? "selected" : undefined}
+                      className={density === "compact" ? "[&>td]:py-1.5" : undefined}
+                    >
+                      <TableCell className="w-10 pl-4 pr-0">
+                        <Checkbox
+                          className="after:inset-0"
+                          checked={selected.includes(item.id)}
+                          onCheckedChange={(checked) => {
+                            setSelected(
+                              checked
+                                ? [...selected, item.id]
+                                : selected.filter((id) => id !== item.id),
+                            );
+                          }}
+                          aria-label={`Select ${company?.name ?? "application"}`}
+                        />
+                      </TableCell>
+                      <TableCell className="cursor-pointer" onClick={() => setActiveId(item.id)}>
+                        {grouped ? (
+                          <GroupedItemIndent>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">{item.role}</p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {item.location || item.workMode}
+                              </p>
+                            </div>
+                          </GroupedItemIndent>
+                        ) : (
+                          <div className="flex min-w-0 items-center gap-3">
+                            {company && <CompanyMark logo={company.logo} color={company.color} />}
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">{company?.name}</p>
+                              <p className="truncate text-xs text-muted-foreground">{item.role}</p>
+                            </div>
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell
+                        className="hidden cursor-pointer md:table-cell"
+                        onClick={() => setActiveId(item.id)}
+                      >
+                        <StageBadge stage={item.stage} />
+                      </TableCell>
+                      <TableCell
+                        className="hidden cursor-pointer text-muted-foreground md:table-cell"
+                        onClick={() => setActiveId(item.id)}
+                      >
+                        {formatDisplayDate(item.appliedDate)}
+                      </TableCell>
+                      <TableCell
+                        className="hidden max-w-[140px] cursor-pointer truncate text-muted-foreground md:table-cell"
+                        onClick={() => setActiveId(item.id)}
+                      >
+                        {nextStepSummary(item)}
+                      </TableCell>
+                      <TableCell
+                        className="hidden cursor-pointer md:table-cell"
+                        onClick={() => setActiveId(item.id)}
+                      >
+                        <PriorityBadge priority={item.priority} />
+                      </TableCell>
+                    </TableRow>
+                  );
+                };
+
+                if (group.items.length === 1) {
+                  return renderRow(group.items[0]!, false);
+                }
+
+                const collapsed = isCollapsed(group.companyId);
+                return [
+                  <CompanyGroupHeaderRow
+                    key={`group-${group.companyId}`}
+                    company={group.company}
+                    count={group.items.length}
+                    label="applications"
+                    collapsed={collapsed}
+                    onToggle={() => toggle(group.companyId)}
+                    selectedCount={groupSelected.length}
+                    onSelectAll={(checked) => {
+                      const ids = group.items.map((item) => item.id);
+                      setSelected((prev) =>
+                        checked
+                          ? [...new Set([...prev, ...ids])]
+                          : prev.filter((id) => !ids.includes(id)),
                       );
                     }}
-                    aria-label={`Select ${company?.name ?? "application"}`}
-                  />
-                </TableCell>
-                <TableCell className="cursor-pointer" onClick={() => setActiveId(item.id)}>
-                  <div className="flex min-w-0 items-center gap-3">
-                    {company && <CompanyMark logo={company.logo} color={company.color} />}
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{company?.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">{item.role}</p>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell
-                  className="hidden cursor-pointer md:table-cell"
-                  onClick={() => setActiveId(item.id)}
-                >
-                  <StageBadge stage={item.stage} />
-                </TableCell>
-                <TableCell
-                  className="hidden cursor-pointer text-muted-foreground md:table-cell"
-                  onClick={() => setActiveId(item.id)}
-                >
-                  {formatDisplayDate(item.appliedDate)}
-                </TableCell>
-                <TableCell
-                  className="hidden max-w-[140px] cursor-pointer truncate text-muted-foreground md:table-cell"
-                  onClick={() => setActiveId(item.id)}
-                >
-                  {nextStepSummary(item)}
-                </TableCell>
-                <TableCell
-                  className="hidden cursor-pointer md:table-cell"
-                  onClick={() => setActiveId(item.id)}
-                >
-                  <PriorityBadge priority={item.priority} />
-                </TableCell>
-              </TableRow>
-            );
-          })}
+                  />,
+                  ...(collapsed ? [] : group.items.map((item) => renderRow(item, true))),
+                ];
+              })
+            : filtered.map((item) => {
+                const company = companyById[item.companyId];
+                return (
+                  <TableRow
+                    key={item.id}
+                    data-state={activeId === item.id ? "selected" : undefined}
+                    className={density === "compact" ? "[&>td]:py-1.5" : undefined}
+                  >
+                    <TableCell className="w-10 pl-4 pr-0">
+                      <Checkbox
+                        className="after:inset-0"
+                        checked={selected.includes(item.id)}
+                        onCheckedChange={(checked) => {
+                          setSelected(
+                            checked ? [...selected, item.id] : selected.filter((id) => id !== item.id),
+                          );
+                        }}
+                        aria-label={`Select ${company?.name ?? "application"}`}
+                      />
+                    </TableCell>
+                    <TableCell className="cursor-pointer" onClick={() => setActiveId(item.id)}>
+                      <div className="flex min-w-0 items-center gap-3">
+                        {company && <CompanyMark logo={company.logo} color={company.color} />}
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{company?.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">{item.role}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell
+                      className="hidden cursor-pointer md:table-cell"
+                      onClick={() => setActiveId(item.id)}
+                    >
+                      <StageBadge stage={item.stage} />
+                    </TableCell>
+                    <TableCell
+                      className="hidden cursor-pointer text-muted-foreground md:table-cell"
+                      onClick={() => setActiveId(item.id)}
+                    >
+                      {formatDisplayDate(item.appliedDate)}
+                    </TableCell>
+                    <TableCell
+                      className="hidden max-w-[140px] cursor-pointer truncate text-muted-foreground md:table-cell"
+                      onClick={() => setActiveId(item.id)}
+                    >
+                      {nextStepSummary(item)}
+                    </TableCell>
+                    <TableCell
+                      className="hidden cursor-pointer md:table-cell"
+                      onClick={() => setActiveId(item.id)}
+                    >
+                      <PriorityBadge priority={item.priority} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
         </TableBody>
       </Table>
       {filtered.length === 0 && (
@@ -1159,18 +1303,26 @@ function ApplicationsView({
 
 function CompaniesView({
   companies,
+  applications,
+  leads,
   focusId = null,
   onFocusConsumed,
   onCreate,
   onPatch,
   onDelete,
+  onOpenApplication,
+  onOpenLead,
 }: {
   companies: Company[];
+  applications: Application[];
+  leads: Lead[];
   focusId?: string | null;
   onFocusConsumed?: () => void;
   onCreate: (name: string, extra?: { website?: string }) => Promise<string>;
   onPatch: (id: string, patch: Record<string, unknown>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onOpenApplication: (id: string) => void;
+  onOpenLead: (id: string) => void;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -1179,6 +1331,22 @@ function CompaniesView({
   const [savingCreate, setSavingCreate] = useState(false);
   const active = companies.find((c) => c.id === activeId) ?? null;
   const [draft, setDraft] = useState({ name: "", website: "", location: "", logo: "" });
+
+  const activityByCompany = useMemo(() => {
+    const map = new Map<string, { applications: Application[]; leads: Lead[] }>();
+    for (const company of companies) {
+      map.set(company.id, { applications: [], leads: [] });
+    }
+    for (const item of applications) {
+      const bucket = map.get(item.companyId);
+      if (bucket) bucket.applications.push(item);
+    }
+    for (const item of leads) {
+      const bucket = map.get(item.companyId);
+      if (bucket) bucket.leads.push(item);
+    }
+    return map;
+  }, [applications, companies, leads]);
 
   useEffect(() => {
     if (!focusId) return;
@@ -1209,7 +1377,7 @@ function CompaniesView({
         <div>
           <h1 className="md:text-xl">Companies</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Reuse companies across applications and leads without retyping.
+            Reuse companies across applications and leads. Related entries are grouped here.
           </p>
         </div>
         <Popover
@@ -1274,12 +1442,15 @@ function CompaniesView({
         <TableHeader>
           <TableRow>
             <TableHead>Company</TableHead>
+            <TableHead>Activity</TableHead>
             <TableHead>Location</TableHead>
             <TableHead>Website</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {companies.map((c) => (
+          {companies.map((c) => {
+            const activity = activityByCompany.get(c.id);
+            return (
             <TableRow
               key={c.id}
               className="cursor-pointer"
@@ -1299,6 +1470,12 @@ function CompaniesView({
                   <span className="font-medium">{c.name}</span>
                 </div>
               </TableCell>
+              <TableCell>
+                <CompanyActivityBadges
+                  applicationCount={activity?.applications.length ?? 0}
+                  leadCount={activity?.leads.length ?? 0}
+                />
+              </TableCell>
               <TableCell className="text-muted-foreground">{c.location || "—"}</TableCell>
               <TableCell>
                 {c.website ? (
@@ -1316,7 +1493,8 @@ function CompaniesView({
                 )}
               </TableCell>
             </TableRow>
-          ))}
+            );
+          })}
         </TableBody>
       </Table>
       {companies.length === 0 && (
@@ -1366,6 +1544,15 @@ function CompaniesView({
                   onChange={(e) => setDraft({ ...draft, website: e.target.value })}
                 />
               </Field>
+              <div>
+                <p className="mb-2 text-sm font-medium">Related entries</p>
+                <CompanyActivityList
+                  applications={activityByCompany.get(active.id)?.applications ?? []}
+                  leads={activityByCompany.get(active.id)?.leads ?? []}
+                  onOpenApplication={onOpenApplication}
+                  onOpenLead={onOpenLead}
+                />
+              </div>
             </div>
           )}
           <SheetFooter className="border-t">
@@ -2046,6 +2233,11 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [year, setYear] = useState("all");
   const density = useSyncExternalStore(subscribeDensity, readDensity, (): Density => "comfortable");
+  const groupByCompanyEnabled = useSyncExternalStore(
+    subscribeGroupByCompany,
+    readGroupByCompany,
+    () => true,
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -2153,6 +2345,8 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                   setYear={setYear}
                   density={density}
                   setDensity={writeDensity}
+                  groupByCompany={groupByCompanyEnabled}
+                  setGroupByCompany={writeGroupByCompany}
                   focusId={searchFocus?.kind === "application" ? searchFocus.id : null}
                   onFocusConsumed={() => setSearchFocus(null)}
                   onAdd={() => setModal(true)}
@@ -2246,6 +2440,8 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                   coverLetters={coverLetters}
                   density={density}
                   setDensity={writeDensity}
+                  groupByCompany={groupByCompanyEnabled}
+                  setGroupByCompany={writeGroupByCompany}
                   focusId={searchFocus?.kind === "lead" ? searchFocus.id : null}
                   onFocusConsumed={() => setSearchFocus(null)}
                   onPatch={async (id, patch) => {
@@ -2327,6 +2523,8 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
               {screen === "companies" && (
                 <CompaniesView
                   companies={companies}
+                  applications={activeApplications}
+                  leads={activeLeads}
                   focusId={searchFocus?.kind === "company" ? searchFocus.id : null}
                   onFocusConsumed={() => setSearchFocus(null)}
                   onCreate={async (name, extra) => {
@@ -2352,6 +2550,14 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                     } catch (cause) {
                       fail(cause);
                     }
+                  }}
+                  onOpenApplication={(id) => {
+                    router.push(screenPath("applications"));
+                    setSearchFocus({ kind: "application", id });
+                  }}
+                  onOpenLead={(id) => {
+                    router.push(screenPath("leads"));
+                    setSearchFocus({ kind: "lead", id });
                   }}
                 />
               )}

@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDownUp, Filter, Plus, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import {
+  CompanyGroupHeaderRow,
+  GroupedItemIndent,
+  useCollapsedCompanyGroups,
+} from "@/components/company-group-rows";
+import {
   CompanyMark,
   LeadFields,
   LeadStatusBadge,
@@ -23,8 +28,10 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -82,6 +89,7 @@ import {
   type Priority,
   type Resume,
 } from "@/lib/domain";
+import { groupByCompany } from "@/lib/group-by-company";
 import { cn } from "@/lib/utils";
 
 type Density = "comfortable" | "compact";
@@ -408,6 +416,8 @@ export function LeadsView({
   coverLetters,
   density,
   setDensity,
+  groupByCompany: groupByCompanyEnabled,
+  setGroupByCompany,
   focusId = null,
   onFocusConsumed,
   onPatch,
@@ -425,6 +435,8 @@ export function LeadsView({
   coverLetters: CoverLetter[];
   density: Density;
   setDensity: (density: Density) => void;
+  groupByCompany: boolean;
+  setGroupByCompany: (value: boolean) => void;
   focusId?: string | null;
   onFocusConsumed?: () => void;
   onPatch: (id: string, patch: Partial<Lead>) => Promise<void>;
@@ -444,6 +456,7 @@ export function LeadsView({
   const [selectedPlatforms, setSelectedPlatforms] = useState<LeadPlatform[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const { isCollapsed, toggle } = useCollapsedCompanyGroups();
 
   useEffect(() => {
     if (!focusId) return;
@@ -484,6 +497,11 @@ export function LeadsView({
     return rows;
   }, [companyById, filter, leads, query, selectedPlatforms, selectedPriorities, sort]);
 
+  const companyGroups = useMemo(
+    () => (groupByCompanyEnabled ? groupByCompany(filtered, companyById) : []),
+    [companyById, filtered, groupByCompanyEnabled],
+  );
+
   const active = leads.find((lead) => lead.id === activeId) ?? null;
 
   function toggleFilter<T extends string>(list: T[], value: T, setList: (next: T[]) => void) {
@@ -522,6 +540,14 @@ export function LeadsView({
                 <DropdownMenuRadioItem value="comfortable">Comfortable</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="compact">Compact</DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setGroupByCompany(!groupByCompanyEnabled)}
+                className="justify-between"
+              >
+                Group by company
+                {groupByCompanyEnabled && <Badge variant="secondary">On</Badge>}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button variant="outline" onClick={() => setModal(true)}>
@@ -671,71 +697,180 @@ export function LeadsView({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filtered.map((item) => {
-            const company = companyById[item.companyId];
-            return (
-              <TableRow
-                key={item.id}
-                data-state={activeId === item.id ? "selected" : undefined}
-                className={density === "compact" ? "[&>td]:py-1.5" : undefined}
-              >
-                <TableCell className="w-10 pl-4 pr-0">
-                  <Checkbox
-                    className="after:inset-0"
-                    checked={selected.includes(item.id)}
-                    onCheckedChange={(checked) => {
-                      setSelected(
-                        checked ? [...selected, item.id] : selected.filter((id) => id !== item.id),
+          {groupByCompanyEnabled
+            ? companyGroups.flatMap((group) => {
+                const groupSelected = group.items.filter((item) => selected.includes(item.id));
+                const renderRow = (item: Lead, grouped: boolean) => {
+                  const company = companyById[item.companyId];
+                  return (
+                    <TableRow
+                      key={item.id}
+                      data-state={activeId === item.id ? "selected" : undefined}
+                      className={density === "compact" ? "[&>td]:py-1.5" : undefined}
+                    >
+                      <TableCell className="w-10 pl-4 pr-0">
+                        <Checkbox
+                          className="after:inset-0"
+                          checked={selected.includes(item.id)}
+                          onCheckedChange={(checked) => {
+                            setSelected(
+                              checked
+                                ? [...selected, item.id]
+                                : selected.filter((id) => id !== item.id),
+                            );
+                          }}
+                          aria-label={`Select ${item.personName}`}
+                        />
+                      </TableCell>
+                      <TableCell className="cursor-pointer" onClick={() => setActiveId(item.id)}>
+                        {grouped ? (
+                          <GroupedItemIndent>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">{item.personName}</p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {item.personRole || item.platform}
+                              </p>
+                            </div>
+                          </GroupedItemIndent>
+                        ) : (
+                          <div className="flex min-w-0 items-center gap-3">
+                            {company && <CompanyMark logo={company.logo} color={company.color} />}
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">{company?.name}</p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {item.personName}
+                                {item.personRole ? ` · ${item.personRole}` : ""}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell
+                        className="hidden cursor-pointer text-muted-foreground md:table-cell"
+                        onClick={() => setActiveId(item.id)}
+                      >
+                        {item.platform}
+                      </TableCell>
+                      <TableCell
+                        className="hidden cursor-pointer md:table-cell"
+                        onClick={() => setActiveId(item.id)}
+                      >
+                        <LeadStatusBadge status={item.status} />
+                      </TableCell>
+                      <TableCell
+                        className="hidden cursor-pointer text-muted-foreground md:table-cell"
+                        onClick={() => setActiveId(item.id)}
+                      >
+                        {formatDisplayDate(item.sentDate)}
+                      </TableCell>
+                      <TableCell
+                        className="hidden max-w-[140px] cursor-pointer truncate text-muted-foreground md:table-cell"
+                        onClick={() => setActiveId(item.id)}
+                      >
+                        {nextStepSummary(item)}
+                      </TableCell>
+                      <TableCell
+                        className="hidden cursor-pointer md:table-cell"
+                        onClick={() => setActiveId(item.id)}
+                      >
+                        <PriorityBadge priority={item.priority} />
+                      </TableCell>
+                    </TableRow>
+                  );
+                };
+
+                if (group.items.length === 1) {
+                  return renderRow(group.items[0]!, false);
+                }
+
+                const collapsed = isCollapsed(group.companyId);
+                return [
+                  <CompanyGroupHeaderRow
+                    key={`group-${group.companyId}`}
+                    company={group.company}
+                    count={group.items.length}
+                    label="leads"
+                    collapsed={collapsed}
+                    onToggle={() => toggle(group.companyId)}
+                    selectedCount={groupSelected.length}
+                    onSelectAll={(checked) => {
+                      const ids = group.items.map((item) => item.id);
+                      setSelected((prev) =>
+                        checked
+                          ? [...new Set([...prev, ...ids])]
+                          : prev.filter((id) => !ids.includes(id)),
                       );
                     }}
-                    aria-label={`Select ${item.personName}`}
-                  />
-                </TableCell>
-                <TableCell className="cursor-pointer" onClick={() => setActiveId(item.id)}>
-                  <div className="flex min-w-0 items-center gap-3">
-                    {company && <CompanyMark logo={company.logo} color={company.color} />}
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{company?.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {item.personName}
-                        {item.personRole ? ` · ${item.personRole}` : ""}
-                      </p>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell
-                  className="hidden cursor-pointer text-muted-foreground md:table-cell"
-                  onClick={() => setActiveId(item.id)}
-                >
-                  {item.platform}
-                </TableCell>
-                <TableCell
-                  className="hidden cursor-pointer md:table-cell"
-                  onClick={() => setActiveId(item.id)}
-                >
-                  <LeadStatusBadge status={item.status} />
-                </TableCell>
-                <TableCell
-                  className="hidden cursor-pointer text-muted-foreground md:table-cell"
-                  onClick={() => setActiveId(item.id)}
-                >
-                  {formatDisplayDate(item.sentDate)}
-                </TableCell>
-                <TableCell
-                  className="hidden max-w-[140px] cursor-pointer truncate text-muted-foreground md:table-cell"
-                  onClick={() => setActiveId(item.id)}
-                >
-                  {nextStepSummary(item)}
-                </TableCell>
-                <TableCell
-                  className="hidden cursor-pointer md:table-cell"
-                  onClick={() => setActiveId(item.id)}
-                >
-                  <PriorityBadge priority={item.priority} />
-                </TableCell>
-              </TableRow>
-            );
-          })}
+                    colSpan={7}
+                  />,
+                  ...(collapsed ? [] : group.items.map((item) => renderRow(item, true))),
+                ];
+              })
+            : filtered.map((item) => {
+                const company = companyById[item.companyId];
+                return (
+                  <TableRow
+                    key={item.id}
+                    data-state={activeId === item.id ? "selected" : undefined}
+                    className={density === "compact" ? "[&>td]:py-1.5" : undefined}
+                  >
+                    <TableCell className="w-10 pl-4 pr-0">
+                      <Checkbox
+                        className="after:inset-0"
+                        checked={selected.includes(item.id)}
+                        onCheckedChange={(checked) => {
+                          setSelected(
+                            checked ? [...selected, item.id] : selected.filter((id) => id !== item.id),
+                          );
+                        }}
+                        aria-label={`Select ${item.personName}`}
+                      />
+                    </TableCell>
+                    <TableCell className="cursor-pointer" onClick={() => setActiveId(item.id)}>
+                      <div className="flex min-w-0 items-center gap-3">
+                        {company && <CompanyMark logo={company.logo} color={company.color} />}
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{company?.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {item.personName}
+                            {item.personRole ? ` · ${item.personRole}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell
+                      className="hidden cursor-pointer text-muted-foreground md:table-cell"
+                      onClick={() => setActiveId(item.id)}
+                    >
+                      {item.platform}
+                    </TableCell>
+                    <TableCell
+                      className="hidden cursor-pointer md:table-cell"
+                      onClick={() => setActiveId(item.id)}
+                    >
+                      <LeadStatusBadge status={item.status} />
+                    </TableCell>
+                    <TableCell
+                      className="hidden cursor-pointer text-muted-foreground md:table-cell"
+                      onClick={() => setActiveId(item.id)}
+                    >
+                      {formatDisplayDate(item.sentDate)}
+                    </TableCell>
+                    <TableCell
+                      className="hidden max-w-[140px] cursor-pointer truncate text-muted-foreground md:table-cell"
+                      onClick={() => setActiveId(item.id)}
+                    >
+                      {nextStepSummary(item)}
+                    </TableCell>
+                    <TableCell
+                      className="hidden cursor-pointer md:table-cell"
+                      onClick={() => setActiveId(item.id)}
+                    >
+                      <PriorityBadge priority={item.priority} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
         </TableBody>
       </Table>
       {filtered.length === 0 && (

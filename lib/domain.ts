@@ -114,7 +114,7 @@ export type Application = {
   equityBonus: string;
   jobUrl: string;
   jobDescription: string;
-  resumeId: string;
+  resumeId: string | null;
   coverLetterId: string | null;
   message: string;
   notes: string;
@@ -348,7 +348,7 @@ export function emptyFormValues(resumes: Resume[]): ApplicationFormValues {
     equityBonus: "",
     jobUrl: "",
     jobDescription: "",
-    resumeId: resumes[0]?.id ?? null,
+    resumeId: null,
     coverLetterId: null,
     message: "",
     notes: "",
@@ -370,7 +370,7 @@ export function valuesFromApplication(item: Application): ApplicationFormValues 
 export function formValuesToApplicationPatch(
   draft: ApplicationFormValues,
 ): Omit<Application, "id" | "archived" | "createdAt"> | null {
-  if (!draft.companyId || !draft.resumeId) return null;
+  if (!draft.companyId || !draft.role.trim()) return null;
   return {
     companyId: draft.companyId,
     role: draft.role.trim(),

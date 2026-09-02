@@ -823,6 +823,7 @@ export function ApplicationFields({
               value={values.resumeId}
               onChange={(id) => setValues({ resumeId: id })}
               onUpload={onUploadResume}
+              optional
             />
           </Field>
           <Field className="sm:col-span-2">

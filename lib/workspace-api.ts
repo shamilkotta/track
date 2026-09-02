@@ -102,8 +102,10 @@ function parseCoverLetter(value: unknown): CoverLetter | null {
 
 function parseApplication(value: unknown): Application | null {
   if (!isRecord(value) || typeof value.id !== "string") return null;
-  if (typeof value.companyId !== "string" || typeof value.resumeId !== "string") return null;
+  if (typeof value.companyId !== "string") return null;
   if (typeof value.role !== "string") return null;
+  const resumeId = typeof value.resumeId === "string" ? value.resumeId.trim() : null;
+
   return {
     id: value.id,
     companyId: value.companyId,
@@ -126,7 +128,7 @@ function parseApplication(value: unknown): Application | null {
     equityBonus: requiredString(value, "equityBonus"),
     jobUrl: requiredString(value, "jobUrl"),
     jobDescription: requiredString(value, "jobDescription"),
-    resumeId: value.resumeId,
+    resumeId,
     coverLetterId: typeof value.coverLetterId === "string" ? value.coverLetterId : null,
     message: requiredString(value, "message"),
     notes: requiredString(value, "notes"),

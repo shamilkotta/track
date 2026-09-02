@@ -110,9 +110,7 @@ function computeLeadStats(leads: Lead[], companies: Company[]) {
   const active = leads.filter((item) => !item.archived);
   const inProgress = active.filter(
     (item) =>
-      item.status === "Replied" ||
-      item.status === "Follow-up" ||
-      item.status === "Meeting booked",
+      item.status === "Replied" || item.status === "Follow-up" || item.status === "Meeting booked",
   );
   const sent = active.filter((item) => item.status !== "Draft");
   const replied = sent.filter(
@@ -329,13 +327,7 @@ function AddLeadModal({
   const canSave = Boolean(values.companyId && values.personName.trim());
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        onOpenChange(next);
-        if (next) setValuesState(emptyLeadFormValues());
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="shrink-0 border-b p-4 pr-12">
           <DialogTitle>Add lead</DialogTitle>
@@ -361,7 +353,13 @@ function AddLeadModal({
             Company and optional resume or cover letter stay in your library.
           </p>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                onOpenChange(false);
+                setValuesState(emptyLeadFormValues());
+              }}
+            >
               Cancel
             </Button>
             <Button
@@ -369,7 +367,10 @@ function AddLeadModal({
               onClick={() => {
                 setSaving(true);
                 void onSave(values)
-                  .then(() => onOpenChange(false))
+                  .then(() => {
+                    onOpenChange(false);
+                    setValuesState(emptyLeadFormValues());
+                  })
                   .finally(() => setSaving(false));
               }}
             >
@@ -793,7 +794,9 @@ export function LeadsView({
                         checked={selected.includes(item.id)}
                         onCheckedChange={(checked) => {
                           setSelected(
-                            checked ? [...selected, item.id] : selected.filter((id) => id !== item.id),
+                            checked
+                              ? [...selected, item.id]
+                              : selected.filter((id) => id !== item.id),
                           );
                         }}
                         aria-label={`Select ${item.personName}`}

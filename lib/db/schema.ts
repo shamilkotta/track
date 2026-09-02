@@ -158,9 +158,7 @@ export const applications = sqliteTable(
     equityBonus: text("equity_bonus").notNull().default(""),
     jobUrl: text("job_url").notNull().default(""),
     jobDescription: text("job_description").notNull().default(""),
-    resumeId: text("resume_id")
-      .notNull()
-      .references(() => resumes.id, { onDelete: "restrict" }),
+    resumeId: text("resume_id").references(() => resumes.id, { onDelete: "set null" }),
     coverLetterId: text("cover_letter_id").references(() => coverLetters.id, {
       onDelete: "set null",
     }),

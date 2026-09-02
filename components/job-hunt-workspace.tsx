@@ -1223,7 +1223,9 @@ function ApplicationsView({
                         checked={selected.includes(item.id)}
                         onCheckedChange={(checked) => {
                           setSelected(
-                            checked ? [...selected, item.id] : selected.filter((id) => id !== item.id),
+                            checked
+                              ? [...selected, item.id]
+                              : selected.filter((id) => id !== item.id),
                           );
                         }}
                         aria-label={`Select ${company?.name ?? "application"}`}
@@ -1451,48 +1453,48 @@ function CompaniesView({
           {companies.map((c) => {
             const activity = activityByCompany.get(c.id);
             return (
-            <TableRow
-              key={c.id}
-              className="cursor-pointer"
-              onClick={() => {
-                setActiveId(c.id);
-                setDraft({
-                  name: c.name,
-                  website: c.website,
-                  location: c.location,
-                  logo: c.logo,
-                });
-              }}
-            >
-              <TableCell>
-                <div className="flex items-center gap-3">
-                  <CompanyMark logo={c.logo} color={c.color} />
-                  <span className="font-medium">{c.name}</span>
-                </div>
-              </TableCell>
-              <TableCell>
-                <CompanyActivityBadges
-                  applicationCount={activity?.applications.length ?? 0}
-                  leadCount={activity?.leads.length ?? 0}
-                />
-              </TableCell>
-              <TableCell className="text-muted-foreground">{c.location || "—"}</TableCell>
-              <TableCell>
-                {c.website ? (
-                  <a
-                    href={c.website}
-                    className="text-muted-foreground hover:text-foreground"
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    {c.website}
-                  </a>
-                ) : (
-                  "—"
-                )}
-              </TableCell>
-            </TableRow>
+              <TableRow
+                key={c.id}
+                className="cursor-pointer"
+                onClick={() => {
+                  setActiveId(c.id);
+                  setDraft({
+                    name: c.name,
+                    website: c.website,
+                    location: c.location,
+                    logo: c.logo,
+                  });
+                }}
+              >
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    <CompanyMark logo={c.logo} color={c.color} />
+                    <span className="font-medium">{c.name}</span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <CompanyActivityBadges
+                    applicationCount={activity?.applications.length ?? 0}
+                    leadCount={activity?.leads.length ?? 0}
+                  />
+                </TableCell>
+                <TableCell className="text-muted-foreground">{c.location || "—"}</TableCell>
+                <TableCell>
+                  {c.website ? (
+                    <a
+                      href={c.website}
+                      className="text-muted-foreground hover:text-foreground"
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {c.website}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
+              </TableRow>
             );
           })}
         </TableBody>
@@ -2158,16 +2160,10 @@ function AddModal({
 }) {
   const [values, setValuesState] = useState(() => emptyFormValues(resumes));
   const [saving, setSaving] = useState(false);
-  const canSave = Boolean(values.companyId && values.role.trim() && values.resumeId);
+  const canSave = Boolean(values.companyId && values.role.trim());
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        onOpenChange(next);
-        if (next) setValuesState(emptyFormValues(resumes));
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="shrink-0 border-b p-4 pr-12">
           <DialogTitle>Add application</DialogTitle>
@@ -2188,10 +2184,16 @@ function AddModal({
         </div>
         <DialogFooter className="m-0 shrink-0 rounded-none border-t sm:justify-between">
           <p className="hidden text-xs text-muted-foreground sm:block">
-            Company, resume, and cover letter stay in your library.
+            Company and optional resume or cover letter stay in your library.
           </p>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                onOpenChange(false);
+                setValuesState(emptyFormValues(resumes));
+              }}
+            >
               Cancel
             </Button>
             <Button
@@ -2199,7 +2201,10 @@ function AddModal({
               onClick={() => {
                 setSaving(true);
                 void onSave(values)
-                  .then(() => onOpenChange(false))
+                  .then(() => {
+                    onOpenChange(false);
+                    setValuesState(emptyFormValues(resumes));
+                  })
                   .finally(() => setSaving(false));
               }}
             >

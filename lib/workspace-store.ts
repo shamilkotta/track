@@ -224,11 +224,11 @@ export async function updateResume(
 }
 
 export async function deleteResume(userId: string, id: string) {
-  const used = await db().query.applications.findFirst({
-    where: and(eq(applications.resumeId, id), eq(applications.userId, userId)),
-  });
-  if (used) throw new HttpError(409, "This resume is attached to an application");
   const current = await ownedResume(userId, id);
+  await db()
+    .update(applications)
+    .set({ resumeId: null, updatedAt: now() })
+    .where(and(eq(applications.resumeId, id), eq(applications.userId, userId)));
   await db()
     .update(leads)
     .set({ resumeId: null, updatedAt: now() })
@@ -335,10 +335,10 @@ export async function getCoverLetterFile(userId: string, id: string) {
 
 function applicationValues(userId: string, record: Record<string, unknown>, current?: Application) {
   const companyId = stringField(record, "companyId", current?.companyId ?? "");
-  const resumeId = stringField(record, "resumeId", current?.resumeId ?? "");
+  const resumeId = nullableId(record.resumeId, current?.resumeId ?? null);
   const role = stringField(record, "role", current?.role ?? "");
-  if (!companyId || !resumeId || !role.trim()) {
-    throw new HttpError(400, "Company, role, and resume are required");
+  if (!companyId || !role.trim()) {
+    throw new HttpError(400, "Company and role are required");
   }
   const stageRaw = stringField(record, "stage", current?.stage ?? "Applied");
   const stage = isStage(stageRaw) ? stageRaw : (current?.stage ?? "Applied");
@@ -428,7 +428,7 @@ export async function createApplication(
 ): Promise<Application> {
   const values = applicationValues(userId, record);
   await ownedCompany(userId, values.companyId);
-  await ownedResume(userId, values.resumeId);
+  if (values.resumeId) await ownedResume(userId, values.resumeId);
   if (values.coverLetterId) await ownedCoverLetter(userId, values.coverLetterId);
   const id = newId();
   const timestamp = now();
@@ -451,7 +451,7 @@ export async function updateApplication(
   const current = mapApplication(currentRow);
   const values = applicationValues(userId, record, current);
   await ownedCompany(userId, values.companyId);
-  await ownedResume(userId, values.resumeId);
+  if (values.resumeId) await ownedResume(userId, values.resumeId);
   if (values.coverLetterId) await ownedCoverLetter(userId, values.coverLetterId);
   await db()
     .update(applications)

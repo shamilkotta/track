@@ -11,7 +11,6 @@ import {
   CompanyMark,
   LeadFields,
   LeadStatusBadge,
-  NativeSelectField,
   PriorityBadge,
 } from "@/components/workspace-fields";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +33,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -72,7 +70,6 @@ import {
   formValuesToLeadPatch,
   isLeadSortKey,
   isLeadStatus,
-  isPriority,
   leadPlatforms,
   leadSortLabels,
   leadStatuses,
@@ -253,33 +250,7 @@ function LeadDetailDrawer({
               <p className="text-sm text-muted-foreground">{draft.personName}</p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 px-4 pt-4">
-            <Field>
-              <FieldLabel>Status</FieldLabel>
-              <NativeSelectField
-                value={draft.status}
-                onChange={(status) => {
-                  setValues({ status });
-                  patchImmediate({ status });
-                }}
-                options={leadStatuses}
-                guard={isLeadStatus}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Priority</FieldLabel>
-              <NativeSelectField
-                value={draft.priority}
-                onChange={(priority) => {
-                  setValues({ priority });
-                  patchImmediate({ priority });
-                }}
-                options={priorities}
-                guard={isPriority}
-              />
-            </Field>
-          </div>
-          <div className="p-4">
+          <div className="p-4 pt-4">
             <LeadFields
               companies={companies}
               resumes={resumes}
@@ -288,6 +259,8 @@ function LeadDetailDrawer({
               setValues={(patch) => {
                 setValues(patch);
                 const immediateKeys = [
+                  "status",
+                  "priority",
                   "platform",
                   "companyId",
                   "resumeId",

@@ -466,3 +466,14 @@ export function userInitials(name: string) {
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0] ?? ""}${parts[parts.length - 1]?.[0] ?? ""}`.toUpperCase();
 }
+
+export function parseTagsInput(raw: string) {
+  return raw
+    .split(/[,\s]+/)
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+}
+
+export function formatTagsInput(tags: string[]) {
+  return tags.join(", ");
+}

@@ -35,10 +35,12 @@ import {
   isReplyStatus,
   isSource,
   isStage,
+  formatTagsInput,
   isWorkMode,
   jobTypes,
   leadPlatforms,
   leadStatuses,
+  parseTagsInput,
   priorities,
   reminderTimes,
   replyStatuses,
@@ -120,6 +122,55 @@ export function LeadStatusBadge({ status }: { status: LeadStatus }) {
           ? "outline"
           : "secondary";
   return <Badge variant={variant}>{status}</Badge>;
+}
+
+function TagsInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string[];
+  onChange: (tags: string[]) => void;
+  placeholder?: string;
+}) {
+  const [text, setText] = useState(() => formatTagsInput(value));
+  const focusedRef = useRef(false);
+  const external = formatTagsInput(value);
+
+  useEffect(() => {
+    if (!focusedRef.current) setText(external);
+  }, [external]);
+
+  function commit(raw: string) {
+    const tags = parseTagsInput(raw);
+    onChange(tags);
+    setText(formatTagsInput(tags));
+  }
+
+  return (
+    <Input
+      value={text}
+      onFocus={() => {
+        focusedRef.current = true;
+      }}
+      onChange={(e) => {
+        const next = e.target.value;
+        setText(next);
+        onChange(parseTagsInput(next));
+      }}
+      onBlur={() => {
+        focusedRef.current = false;
+        commit(text);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit(text);
+        }
+      }}
+      placeholder={placeholder}
+    />
+  );
 }
 
 export function NativeSelectField<T extends string>({
@@ -819,17 +870,10 @@ export function ApplicationFields({
           </Field>
           <Field>
             <FieldLabel>Tags</FieldLabel>
-            <Input
-              value={values.tags.join(", ")}
-              onChange={(e) =>
-                setValues({
-                  tags: e.target.value
-                    .split(",")
-                    .map((tag) => tag.trim())
-                    .filter(Boolean),
-                })
-              }
-              placeholder="Design systems, B2B SaaS"
+            <TagsInput
+              value={values.tags}
+              onChange={(tags) => setValues({ tags })}
+              placeholder="Design systems, B2B SaaS (comma or space separated)"
             />
           </Field>
         </FieldGroup>
@@ -1100,17 +1144,10 @@ export function LeadFields({
           </Field>
           <Field>
             <FieldLabel>Tags</FieldLabel>
-            <Input
-              value={values.tags.join(", ")}
-              onChange={(e) =>
-                setValues({
-                  tags: e.target.value
-                    .split(",")
-                    .map((tag) => tag.trim())
-                    .filter(Boolean),
-                })
-              }
-              placeholder="Warm intro, YC, Design"
+            <TagsInput
+              value={values.tags}
+              onChange={(tags) => setValues({ tags })}
+              placeholder="Warm intro, YC, Design (comma or space separated)"
             />
           </Field>
         </FieldGroup>

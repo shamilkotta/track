@@ -7,7 +7,7 @@ import {
   isRecord,
   isReminderTime,
   isReplyStatus,
-  isSortKey,
+  isSavedViewScreen,
   isSource,
   isStage,
   isStringArray,
@@ -223,18 +223,18 @@ export function mapWishlist(row: WishlistRow): Wishlist {
 }
 
 export function mapSavedView(row: SavedViewRow): SavedView {
-  const stageValue = row.stage === "All" || isStage(row.stage) ? row.stage : "All";
   return {
     id: row.id,
     name: row.name,
+    screen: isSavedViewScreen(row.screen) ? row.screen : "applications",
     query: row.query,
-    stage: stageValue,
-    sort: isSortKey(row.sort) ? row.sort : "recent",
+    stage: row.stage || "All",
+    sort: row.sort || "recent",
     priorities: parseJsonArray(row.priorities).filter(isPriority),
     replyStatuses: parseJsonArray(row.replyStatuses).filter(isReplyStatus),
     workModes: parseJsonArray(row.workModes).filter(isWorkMode),
-    sources: parseJsonArray(row.sources).filter(isSource),
-    year: row.year,
+    sources: parseJsonArray(row.sources),
+    year: row.year || "all",
   };
 }
 

@@ -19,7 +19,10 @@ export function getEnv(): AppEnv {
   if (!workerEnv.FILES) {
     throw new Error("R2 binding FILES is missing");
   }
-  if (typeof workerEnv.BETTER_AUTH_SECRET !== "string" || workerEnv.BETTER_AUTH_SECRET.length < 32) {
+  if (
+    typeof workerEnv.BETTER_AUTH_SECRET !== "string" ||
+    workerEnv.BETTER_AUTH_SECRET.length < 32
+  ) {
     throw new Error("BETTER_AUTH_SECRET must be at least 32 characters");
   }
   if (typeof workerEnv.BETTER_AUTH_URL !== "string" || workerEnv.BETTER_AUTH_URL.length === 0) {

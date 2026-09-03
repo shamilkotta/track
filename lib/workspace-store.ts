@@ -22,7 +22,7 @@ import {
   isPriority,
   isReminderTime,
   isReplyStatus,
-  isSortKey,
+  isSavedViewScreen,
   isSource,
   isStage,
   isStringArray,
@@ -683,7 +683,10 @@ export async function bulkLeads(
   return { ok: true as const };
 }
 
-function parseWishlistContactsInput(value: unknown, fallback: WishlistContact[]): WishlistContact[] {
+function parseWishlistContactsInput(
+  value: unknown,
+  fallback: WishlistContact[],
+): WishlistContact[] {
   if (!Array.isArray(value)) return fallback;
   return value
     .map((item): WishlistContact | null => {
@@ -840,21 +843,20 @@ export async function createSavedView(
   const name = requireString(record, "name");
   const id = newId();
   const timestamp = now();
-  const stageValue = stringField(record, "stage", "All");
+  const screenValue = stringField(record, "screen", "applications");
   const row = {
     id,
     userId,
     name,
     query: stringField(record, "query"),
-    stage: stageValue === "All" || isStage(stageValue) ? stageValue : "All",
-    sort: isSortKey(stringField(record, "sort", "recent"))
-      ? stringField(record, "sort", "recent")
-      : "recent",
+    stage: stringField(record, "stage", "All") || "All",
+    sort: stringField(record, "sort", "recent") || "recent",
     priorities: JSON.stringify(parseIdList(record.priorities)),
     replyStatuses: JSON.stringify(parseIdList(record.replyStatuses)),
     workModes: JSON.stringify(parseIdList(record.workModes)),
     sources: JSON.stringify(parseIdList(record.sources)),
     year: stringField(record, "year", "all") || "all",
+    screen: isSavedViewScreen(screenValue) ? screenValue : "applications",
     createdAt: timestamp,
     updatedAt: timestamp,
   };

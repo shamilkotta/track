@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "nlite/link";
-import { Target } from "lucide-react";
+import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -48,22 +48,17 @@ export function AuthScreen({ mode }: { mode: "sign-in" | "sign-up" }) {
   }
 
   return (
-    <div className="relative flex min-h-svh items-center justify-center overflow-hidden bg-background px-4">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,oklch(0.97_0_0),transparent_55%)] dark:bg-[radial-gradient(circle_at_top,oklch(0.22_0_0),transparent_55%)]" />
-      <div className="relative w-full max-w-sm">
-        <div className="mb-8 flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-md bg-foreground text-background">
-            <Target className="size-4" />
-          </div>
-          <span className="text-lg font-semibold tracking-tight">Trackr</span>
-        </div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {isSignUp ? "Create your workspace" : "Welcome back"}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+    <div className="flex min-h-svh flex-col bg-background">
+      <header className="flex items-baseline justify-between px-6 py-5 md:px-10">
+        <BrandMark />
+        <p className="text-sm text-muted-foreground">{isSignUp ? "Create workspace" : "Sign in"}</p>
+      </header>
+      <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 pb-16">
+        <h1>{isSignUp ? "Start tracking your search" : "Continue your search"}</h1>
+        <p className="track-page-lede">
           {isSignUp
-            ? "Track every application, follow-up, and next step."
-            : "Sign in to continue your job search."}
+            ? "Applications, follow-ups, and next steps in one place."
+            : "Sign in to open your job search workspace."}
         </p>
         <form className="mt-8 flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)}>
           {isSignUp && (
@@ -113,7 +108,7 @@ export function AuthScreen({ mode }: { mode: "sign-in" | "sign-up" }) {
             {pending ? "Working…" : isSignUp ? "Create account" : "Sign in"}
           </Button>
         </form>
-        <p className="mt-6 text-sm text-muted-foreground">
+        <p className="mt-8 text-sm text-muted-foreground">
           {isSignUp ? "Already have an account?" : "Need an account?"}{" "}
           <Link
             href={isSignUp ? "/sign-in" : "/sign-up"}
@@ -122,7 +117,7 @@ export function AuthScreen({ mode }: { mode: "sign-in" | "sign-up" }) {
             {isSignUp ? "Sign in" : "Sign up"}
           </Link>
         </p>
-      </div>
+      </main>
     </div>
   );
 }

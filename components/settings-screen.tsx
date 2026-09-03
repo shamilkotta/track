@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "nlite/link";
 import { useRouter } from "nlite/navigation";
-import { Target } from "lucide-react";
+import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -21,17 +20,12 @@ export function SettingsScreen({ user }: { user: WorkspaceUser }) {
   const [pending, setPending] = useState(false);
 
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-lg flex-col px-4 py-10">
-      <div className="mb-8">
-        <Link href="/applications" className="flex items-center gap-2">
-          <div className="flex size-7 items-center justify-center rounded-md bg-foreground text-background">
-            <Target className="size-4" />
-          </div>
-          <span className="font-semibold tracking-tight">Trackr</span>
-        </Link>
-      </div>
-      <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-      <p className="mt-1 text-sm text-muted-foreground">{user.email}</p>
+    <div className="mx-auto flex min-h-svh w-full max-w-lg flex-col px-6 py-10 md:px-8">
+      <header className="mb-10">
+        <BrandMark href="/applications" />
+      </header>
+      <h1>Settings</h1>
+      <p className="track-page-lede">{user.email}</p>
 
       <form
         className="mt-8 flex flex-col gap-4"
@@ -70,7 +64,7 @@ export function SettingsScreen({ user }: { user: WorkspaceUser }) {
       </form>
 
       <form
-        className="mt-10 flex flex-col gap-4"
+        className="mt-12 flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault();
           setPending(true);
@@ -90,7 +84,7 @@ export function SettingsScreen({ user }: { user: WorkspaceUser }) {
             .finally(() => setPending(false));
         }}
       >
-        <h2 className="text-sm font-semibold">Password</h2>
+        <h2>Password</h2>
         <Field>
           <FieldLabel>Current password</FieldLabel>
           <Input
@@ -118,13 +112,13 @@ export function SettingsScreen({ user }: { user: WorkspaceUser }) {
       {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
       {message && <p className="mt-4 text-sm text-muted-foreground">{message}</p>}
 
-      <div className="mt-auto flex gap-2 pt-10">
+      <div className="mt-auto flex gap-2 pt-12">
         <Button size="lg" variant="outline" onClick={() => router.push("/applications")}>
           Back to workspace
         </Button>
         <Button
           size="lg"
-          variant="destructive"
+          variant="outline"
           onClick={() => {
             void signOut({
               fetchOptions: {

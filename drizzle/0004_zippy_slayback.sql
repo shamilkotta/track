@@ -1,0 +1,1 @@
+ALTER TABLE `saved_views` ADD `screen` text DEFAULT 'applications' NOT NULL;

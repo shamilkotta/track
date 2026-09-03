@@ -7,7 +7,7 @@ import {
   isRecord,
   isReminderTime,
   isReplyStatus,
-  isSortKey,
+  isSavedViewScreen,
   isSource,
   isStage,
   isStringArray,
@@ -214,19 +214,19 @@ function parseWishlist(value: unknown): Wishlist | null {
 function parseSavedView(value: unknown): SavedView | null {
   if (!isRecord(value) || typeof value.id !== "string" || typeof value.name !== "string")
     return null;
-  const stage = value.stage === "All" || isStage(value.stage) ? value.stage : "All";
   return {
     id: value.id,
     name: value.name,
+    screen: isSavedViewScreen(value.screen) ? value.screen : "applications",
     query: requiredString(value, "query"),
-    stage,
-    sort: isSortKey(value.sort) ? value.sort : "recent",
+    stage: requiredString(value, "stage") || "All",
+    sort: requiredString(value, "sort") || "recent",
     priorities: isStringArray(value.priorities) ? value.priorities.filter(isPriority) : [],
     replyStatuses: isStringArray(value.replyStatuses)
       ? value.replyStatuses.filter(isReplyStatus)
       : [],
     workModes: isStringArray(value.workModes) ? value.workModes.filter(isWorkMode) : [],
-    sources: isStringArray(value.sources) ? value.sources.filter(isSource) : [],
+    sources: isStringArray(value.sources) ? value.sources : [],
     year: requiredString(value, "year") || "all",
   };
 }

@@ -64,7 +64,6 @@ import {
   type WishlistStatus,
   type WorkMode,
 } from "@/lib/domain";
-import { cn } from "@/lib/utils";
 
 type CompanyOption =
   | { kind: "company"; id: string; label: string; company: Company }
@@ -83,7 +82,7 @@ type CoverLetterOption =
 
 export function CompanyMark({
   logo,
-  color,
+  color: _color,
   large = false,
 }: {
   logo: string;
@@ -91,8 +90,8 @@ export function CompanyMark({
   large?: boolean;
 }) {
   return (
-    <Avatar size={large ? "lg" : "default"} className="rounded-lg after:rounded-lg">
-      <AvatarFallback className={cn("rounded-lg text-sm font-semibold", color)}>
+    <Avatar size={large ? "lg" : "default"} className="rounded-md after:rounded-md">
+      <AvatarFallback className="rounded-md bg-secondary text-sm font-medium text-foreground">
         {logo}
       </AvatarFallback>
     </Avatar>
@@ -104,13 +103,13 @@ export function StageBadge({ stage }: { stage: Stage }) {
     stage === "Offer"
       ? "default"
       : stage === "Rejected" || stage === "Withdrawn"
-        ? "destructive"
+        ? "outline"
         : "secondary";
   return <Badge variant={variant}>{stage}</Badge>;
 }
 
 export function PriorityBadge({ priority }: { priority: Priority }) {
-  return <Badge variant={priority === "High" ? "outline" : "secondary"}>{priority}</Badge>;
+  return <Badge variant={priority === "High" ? "default" : "secondary"}>{priority}</Badge>;
 }
 
 export function LeadStatusBadge({ status }: { status: LeadStatus }) {
@@ -118,7 +117,7 @@ export function LeadStatusBadge({ status }: { status: LeadStatus }) {
     status === "Converted"
       ? "default"
       : status === "Closed"
-        ? "destructive"
+        ? "outline"
         : status === "Replied" || status === "Meeting booked"
           ? "outline"
           : "secondary";
@@ -130,7 +129,7 @@ export function WishlistStatusBadge({ status }: { status: WishlistStatus }) {
     status === "Ready" || status === "Reached out"
       ? "default"
       : status === "Closed"
-        ? "destructive"
+        ? "outline"
         : status === "Researching"
           ? "outline"
           : "secondary";
@@ -265,9 +264,6 @@ export function CompanyPicker({
 
   const handleInputValueChange = (nextQuery: string) => {
     setQuery(nextQuery);
-    if (value && nextQuery !== selectedCompany?.name) {
-      onChange(null);
-    }
   };
 
   return (

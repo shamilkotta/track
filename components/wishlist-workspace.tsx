@@ -1,16 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  ArrowDownUp,
-  Filter,
-  Heart,
-  Plus,
-  Search,
-  SlidersHorizontal,
-  Trash2,
-  X,
-} from "lucide-react";
+import { ArrowDownUp, Filter, Plus, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
 import {
   CompanyGroupHeaderRow,
   GroupedItemIndent,
@@ -23,6 +14,7 @@ import {
   PriorityBadge,
   WishlistStatusBadge,
 } from "@/components/workspace-fields";
+import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -96,13 +88,13 @@ import {
   type Company,
   type Priority,
   type ReminderTime,
+  type SavedView,
   type Wishlist,
   type WishlistFormValues,
   type WishlistSortKey,
   type WishlistStatus,
 } from "@/lib/domain";
 import { groupByCompany } from "@/lib/group-by-company";
-import { cn } from "@/lib/utils";
 
 type Density = "comfortable" | "compact";
 
@@ -442,20 +434,12 @@ function computeWishlistStats(items: Wishlist[], companies: Company[]) {
 function WishlistStatStrip({ items, companies }: { items: Wishlist[]; companies: Company[] }) {
   const stats = computeWishlistStats(items, companies);
   return (
-    <div className="mx-4 mb-1 grid grid-cols-2 overflow-hidden rounded-xl border border-foreground/12 bg-background md:mx-7 md:grid-cols-4">
-      {stats.map((stat, i) => (
-        <div
-          key={stat.label}
-          className={cn(
-            "px-4 py-4 md:px-5",
-            i % 2 === 0 && "border-r border-foreground/10",
-            i < 2 && "border-b border-foreground/10 md:border-b-0",
-            i < 3 && "md:border-r md:border-foreground/10",
-          )}
-        >
-          <p className="text-xs text-muted-foreground">{stat.label}</p>
-          <p className="mt-1 text-xl font-semibold tracking-tight">{stat.value}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">{stat.hint}</p>
+    <div className="track-stat-strip mx-4 mb-6 md:mx-7">
+      {stats.map((stat) => (
+        <div key={stat.label}>
+          <p className="track-stat-label">{stat.label}</p>
+          <p className="track-stat-value">{stat.value}</p>
+          <p className="track-stat-detail">{stat.hint}</p>
         </div>
       ))}
     </div>
@@ -505,7 +489,10 @@ function WishlistDetailDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-2xl">
+      <SheetContent
+        className="w-full gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-2xl"
+        initialFocus={false}
+      >
         <SheetHeader className="shrink-0 border-b">
           <SheetTitle className="flex items-center gap-2">
             Wishlist details
@@ -532,12 +519,7 @@ function WishlistDetailDrawer({
               values={draft}
               setValues={(patch) => {
                 setValues(patch);
-                const immediateKeys = [
-                  "status",
-                  "priority",
-                  "companyId",
-                  "reminderTime",
-                ] as const;
+                const immediateKeys = ["status", "priority", "reminderTime"] as const;
                 const immediate: Partial<Wishlist> = {};
                 for (const key of immediateKeys) {
                   if (key in patch) {
@@ -653,6 +635,9 @@ export function WishlistView({
   onBulk,
   onCreateCompany,
   onCreate,
+  savedViews,
+  onSaveView,
+  onDeleteView,
 }: {
   wishlists: Wishlist[];
   companies: Company[];
@@ -667,6 +652,9 @@ export function WishlistView({
   onBulk: (ids: string[], action: "archive" | "delete") => Promise<void>;
   onCreateCompany: (name: string) => Promise<string>;
   onCreate: (data: WishlistFormValues) => Promise<void>;
+  savedViews: SavedView[];
+  onSaveView: (view: Omit<SavedView, "id">) => Promise<void>;
+  onDeleteView: (id: string) => Promise<void>;
 }) {
   const [modal, setModal] = useState(false);
   const [query, setQuery] = useState("");
@@ -734,15 +722,11 @@ export function WishlistView({
 
   return (
     <>
-      <div className="flex items-end justify-between px-4 pb-5 pt-7 md:px-7">
+      <div className="track-page-header">
         <div>
-          <p className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <Heart className="size-3.5" />
-            Target companies
-          </p>
-          <h1 className="md:text-xl">Wishlist</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Companies you want to watch — contacts, notes, and next steps.
+          <h1>Companies you want to watch</h1>
+          <p className="track-page-lede">
+            Contacts, notes, and next steps before an application exists.
           </p>
         </div>
         <div className="hidden items-center gap-2 md:flex">
@@ -774,13 +758,13 @@ export function WishlistView({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" onClick={() => setModal(true)}>
+          <Button onClick={() => setModal(true)}>
             <Plus /> New wishlist
           </Button>
         </div>
       </div>
       <WishlistStatStrip items={wishlists} companies={companies} />
-      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3 md:px-6">
+      <div className="track-toolbar">
         <div className="relative min-w-[180px] flex-1 md:max-w-xs">
           <Search className="absolute top-2.5 left-2.5 size-3.5 text-muted-foreground" />
           <Input
@@ -869,6 +853,28 @@ export function WishlistView({
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
+        <SavedViewsMenu
+          views={savedViews}
+          current={{
+            screen: "wishlist",
+            query,
+            stage: filter,
+            sort,
+            priorities: selectedPriorities,
+            replyStatuses: [],
+            workModes: [],
+            sources: [],
+            year: "all",
+          }}
+          onSave={onSaveView}
+          onDelete={onDeleteView}
+          onApply={(view) => {
+            setQuery(view.query);
+            if (view.stage === "All" || isWishlistStatus(view.stage)) setFilter(view.stage);
+            if (isWishlistSortKey(view.sort)) setSort(view.sort);
+            setSelectedPriorities(view.priorities);
+          }}
+        />
         {selected.length > 0 && (
           <div className="flex items-center gap-1">
             <Button variant="secondary" onClick={() => void onBulk(selected, "archive")}>

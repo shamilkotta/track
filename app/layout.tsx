@@ -5,8 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Trackr — Job search workspace",
-  description:
-    "A focused command center for every application, follow-up, and next step in your job search.",
+  description: "Track every application, follow-up, and next step in one focused workspace.",
   generator: "v0.app",
   icons: {
     icon: [
@@ -37,8 +36,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      <TooltipProvider>{children}</TooltipProvider>
-    </ThemeProvider>
+    <>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      <link
+        href="https://fonts.googleapis.com/css2?family=Geist:wght@400..600&family=Geist+Mono:wght@400..600&display=swap"
+        rel="stylesheet"
+        referrerPolicy="no-referrer"
+      />
+      <link rel="stylesheet" href="/assets/vercel-brand.css" precedence="vbg" />
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <TooltipProvider>{children}</TooltipProvider>
+      </ThemeProvider>
+    </>
   );
 }

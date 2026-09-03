@@ -269,6 +269,7 @@ export const savedViews = sqliteTable(
     workModes: text("work_modes").notNull().default("[]"),
     sources: text("sources").notNull().default("[]"),
     year: text("year").notNull().default("all"),
+    screen: text("screen").notNull().default("applications"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownUp, Filter, Plus, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { ArrowDownUp, Filter, Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import {
   CompanyGroupHeaderRow,
   GroupedItemIndent,
@@ -13,6 +13,7 @@ import {
   LeadStatusBadge,
   PriorityBadge,
 } from "@/components/workspace-fields";
+import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -68,6 +69,7 @@ import {
   emptyLeadFormValues,
   formatDisplayDate,
   formValuesToLeadPatch,
+  isLeadPlatform,
   isLeadSortKey,
   isLeadStatus,
   leadPlatforms,
@@ -85,9 +87,9 @@ import {
   type LeadStatus,
   type Priority,
   type Resume,
+  type SavedView,
 } from "@/lib/domain";
 import { groupByCompany } from "@/lib/group-by-company";
-import { cn } from "@/lib/utils";
 
 type Density = "comfortable" | "compact";
 
@@ -157,20 +159,12 @@ function computeLeadStats(leads: Lead[], companies: Company[]) {
 function LeadStatStrip({ leads, companies }: { leads: Lead[]; companies: Company[] }) {
   const stats = computeLeadStats(leads, companies);
   return (
-    <div className="mx-4 mb-1 grid grid-cols-2 overflow-hidden rounded-xl border border-foreground/12 bg-background md:mx-7 md:grid-cols-4">
-      {stats.map((stat, i) => (
-        <div
-          key={stat.label}
-          className={cn(
-            "px-4 py-4 md:px-5",
-            i % 2 === 0 && "border-r border-foreground/10",
-            i < 2 && "border-b border-foreground/10 md:border-b-0",
-            i < 3 && "md:border-r md:border-foreground/10",
-          )}
-        >
-          <p className="text-xs text-muted-foreground">{stat.label}</p>
-          <p className="mt-1 text-xl font-semibold tracking-tight">{stat.value}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">{stat.hint}</p>
+    <div className="track-stat-strip mx-4 mb-6 md:mx-7">
+      {stats.map((stat) => (
+        <div key={stat.label}>
+          <p className="track-stat-label">{stat.label}</p>
+          <p className="track-stat-value">{stat.value}</p>
+          <p className="track-stat-detail">{stat.hint}</p>
         </div>
       ))}
     </div>
@@ -230,7 +224,10 @@ function LeadDetailDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-2xl">
+      <SheetContent
+        className="w-full gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-2xl"
+        initialFocus={false}
+      >
         <SheetHeader className="shrink-0 border-b">
           <SheetTitle className="flex items-center gap-2">
             Lead details
@@ -260,7 +257,6 @@ function LeadDetailDrawer({
                   "status",
                   "priority",
                   "platform",
-                  "companyId",
                   "resumeId",
                   "coverLetterId",
                   "reminderTime",
@@ -402,6 +398,9 @@ export function LeadsView({
   onCreateCoverText,
   onUploadCover,
   onCreate,
+  savedViews,
+  onSaveView,
+  onDeleteView,
 }: {
   leads: Lead[];
   companies: Company[];
@@ -421,6 +420,9 @@ export function LeadsView({
   onCreateCoverText: (name: string, body: string) => Promise<string>;
   onUploadCover: (file: File) => Promise<string>;
   onCreate: (data: LeadFormValues) => Promise<void>;
+  savedViews: SavedView[];
+  onSaveView: (view: Omit<SavedView, "id">) => Promise<void>;
+  onDeleteView: (id: string) => Promise<void>;
 }) {
   const [modal, setModal] = useState(false);
   const [query, setQuery] = useState("");
@@ -484,15 +486,11 @@ export function LeadsView({
 
   return (
     <>
-      <div className="flex items-end justify-between px-4 pb-5 pt-7 md:px-7">
+      <div className="track-page-header">
         <div>
-          <p className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <Sparkles className="size-3.5" />
-            Outreach pipeline
-          </p>
-          <h1 className="md:text-xl">Leads</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            DMs, cold emails, and every outreach thread in one place.
+          <h1>Who you reached out to</h1>
+          <p className="track-page-lede">
+            DMs, cold emails, and outreach threads with a clear next step.
           </p>
         </div>
         <div className="hidden items-center gap-2 md:flex">
@@ -524,13 +522,13 @@ export function LeadsView({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" onClick={() => setModal(true)}>
+          <Button onClick={() => setModal(true)}>
             <Plus /> New lead
           </Button>
         </div>
       </div>
       <LeadStatStrip leads={leads} companies={companies} />
-      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3 md:px-6">
+      <div className="track-toolbar">
         <div className="relative min-w-[180px] flex-1 md:max-w-xs">
           <Search className="absolute top-2.5 left-2.5 size-3.5 text-muted-foreground" />
           <Input
@@ -641,6 +639,29 @@ export function LeadsView({
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
+        <SavedViewsMenu
+          views={savedViews}
+          current={{
+            screen: "leads",
+            query,
+            stage: filter,
+            sort,
+            priorities: selectedPriorities,
+            replyStatuses: [],
+            workModes: [],
+            sources: selectedPlatforms,
+            year: "all",
+          }}
+          onSave={onSaveView}
+          onDelete={onDeleteView}
+          onApply={(view) => {
+            setQuery(view.query);
+            if (view.stage === "All" || isLeadStatus(view.stage)) setFilter(view.stage);
+            if (isLeadSortKey(view.sort)) setSort(view.sort);
+            setSelectedPriorities(view.priorities);
+            setSelectedPlatforms(view.sources.filter(isLeadPlatform));
+          }}
+        />
         {selected.length > 0 && (
           <div className="flex items-center gap-1">
             <Button variant="secondary" onClick={() => void onBulk(selected, "archive")}>

@@ -208,16 +208,20 @@ export type WishlistFormValues = Omit<Wishlist, "id" | "archived" | "createdAt" 
   companyId: string | null;
 };
 
+export const savedViewScreens = ["applications", "leads", "wishlist"] as const;
+export type SavedViewScreen = (typeof savedViewScreens)[number];
+
 export type SavedView = {
   id: string;
   name: string;
+  screen: SavedViewScreen;
   query: string;
-  stage: "All" | Stage;
-  sort: SortKey;
+  stage: string;
+  sort: string;
   priorities: Priority[];
   replyStatuses: ReplyStatus[];
   workModes: WorkMode[];
-  sources: Source[];
+  sources: string[];
   year: string;
 };
 
@@ -297,6 +301,10 @@ export function isReminderTime(value: unknown): value is ReminderTime {
 
 export function isSortKey(value: unknown): value is SortKey {
   return typeof value === "string" && sortKeys.some((s) => s === value);
+}
+
+export function isSavedViewScreen(value: unknown): value is SavedViewScreen {
+  return typeof value === "string" && savedViewScreens.some((s) => s === value);
 }
 
 export function isLeadPlatform(value: unknown): value is LeadPlatform {
@@ -385,7 +393,9 @@ export function formatCompensation(
   return item.equityBonus ? `${base} + ${item.equityBonus}` : base;
 }
 
-export function nextStepSummary(item: Pick<Application | Lead | Wishlist, "nextStepLabel" | "nextStepDate">) {
+export function nextStepSummary(
+  item: Pick<Application | Lead | Wishlist, "nextStepLabel" | "nextStepDate">,
+) {
   if (item.nextStepLabel) return item.nextStepLabel;
   if (item.nextStepDate) return formatDisplayDate(item.nextStepDate);
   return "—";

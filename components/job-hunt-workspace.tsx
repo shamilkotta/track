@@ -4,17 +4,14 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import {
   Archive,
   ArrowDownUp,
-  BriefcaseBusiness,
   Building2,
   CircleHelp,
-  Command,
   Download,
   FileText,
   Filter,
   FolderOpen,
   Heart,
   Inbox,
-  ListFilter,
   LogOut,
   Mail,
   MoreHorizontal,
@@ -24,7 +21,6 @@ import {
   Search,
   Settings2,
   SlidersHorizontal,
-  Target,
   Trash2,
   Upload,
   X,
@@ -36,6 +32,8 @@ import {
   GroupedItemIndent,
   useCollapsedCompanyGroups,
 } from "@/components/company-group-rows";
+import { BrandMark } from "@/components/brand-mark";
+import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { usePathname, useRouter } from "nlite/navigation";
 import {
   ApplicationFields,
@@ -140,11 +138,11 @@ import {
   isPriority,
   isReplyStatus,
   isSortKey,
+  isSource,
   isStage,
   nextStepSummary,
   priorities,
   replyStatuses,
-  screenTitles,
   screenFromPathname,
   screenPath,
   sortLabels,
@@ -198,7 +196,6 @@ import {
   uploadResumeRequest,
 } from "@/lib/workspace-api";
 import { groupByCompany } from "@/lib/group-by-company";
-import { cn } from "@/lib/utils";
 
 type Density = "comfortable" | "compact";
 
@@ -305,20 +302,12 @@ function StatStrip({
 }) {
   const stats = computeStats(applications, companies);
   return (
-    <div className="mx-4 mb-1 grid grid-cols-2 overflow-hidden rounded-xl border border-foreground/12 bg-background md:mx-7 md:grid-cols-4">
-      {stats.map((stat, i) => (
-        <div
-          key={stat.label}
-          className={cn(
-            "px-4 py-4 md:px-5",
-            i % 2 === 0 && "border-r border-foreground/10",
-            i < 2 && "border-b border-foreground/10 md:border-b-0",
-            i < 3 && "md:border-r md:border-foreground/10",
-          )}
-        >
-          <p className="text-xs text-muted-foreground">{stat.label}</p>
-          <p className="mt-1 text-xl font-semibold tracking-tight">{stat.value}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">{stat.hint}</p>
+    <div className="track-stat-strip mx-4 mb-6 md:mx-7">
+      {stats.map((stat) => (
+        <div key={stat.label}>
+          <p className="track-stat-label">{stat.label}</p>
+          <p className="track-stat-value">{stat.value}</p>
+          <p className="track-stat-detail">{stat.hint}</p>
         </div>
       ))}
     </div>
@@ -341,21 +330,9 @@ function AppSidebar({
   const router = useRouter();
 
   return (
-    <Sidebar>
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg">
-              <div className="flex size-7 items-center justify-center rounded-md bg-foreground text-background">
-                <Target className="size-4" />
-              </div>
-              <span className="font-semibold tracking-tight">Trackr</span>
-              <Badge variant="outline" className="ml-auto font-mono text-[10px]">
-                PRO
-              </Badge>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+    <Sidebar className="border-r border-border">
+      <SidebarHeader className="px-4 pt-5 pb-3">
+        <BrandMark />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -484,19 +461,13 @@ function AppSidebar({
   );
 }
 
-function Header({ screen, onSearch }: { screen: Screen; onSearch: () => void }) {
+function Header({ onSearch }: { onSearch: () => void }) {
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4 md:px-6">
+    <header className="flex h-12 shrink-0 items-center gap-3 px-4 md:px-6">
       <SidebarTrigger className="-ml-1" />
-      <div className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex">
-        <span>Workspace</span>
-        <span>/</span>
-        <span className="text-foreground">{screenTitles[screen]}</span>
-      </div>
       <div className="ml-auto flex items-center gap-2">
         <Button variant="outline" className="hidden md:inline-flex" onClick={onSearch}>
-          <Command />
-          Quick search
+          Search
           <Kbd>⌘K</Kbd>
         </Button>
       </div>
@@ -623,7 +594,6 @@ function DetailDrawer({
                 setValues(patch);
                 const immediateKeys = [
                   "workMode",
-                  "companyId",
                   "resumeId",
                   "coverLetterId",
                   "replyStatus",
@@ -726,8 +696,6 @@ function ApplicationsView({
   const [selectedSources, setSelectedSources] = useState<Source[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [viewName, setViewName] = useState("");
-  const [savingView, setSavingView] = useState(false);
   const { isCollapsed, toggle } = useCollapsedCompanyGroups();
 
   useEffect(() => {
@@ -808,39 +776,11 @@ function ApplicationsView({
 
   return (
     <>
-      <div className="flex items-end justify-between px-4 pb-5 pt-7 md:px-7">
+      <div className="track-page-header">
         <div>
-          <p className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <BriefcaseBusiness className="size-3.5" />
-            Job search /
-            <Select
-              value={year}
-              onValueChange={(value) => {
-                if (value) setYear(value);
-              }}
-            >
-              <SelectTrigger
-                size="sm"
-                className="h-6 w-auto border-none bg-transparent px-1 shadow-none"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All years</SelectItem>
-                {!years.includes(currentYear) && (
-                  <SelectItem value={currentYear}>{currentYear}</SelectItem>
-                )}
-                {years.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {value}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </p>
-          <h1 className="md:text-xl">Applications</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Your command center for every opportunity.
+          <h1>What needs attention</h1>
+          <p className="track-page-lede">
+            Active applications, response rate, and the next dated follow-up.
           </p>
         </div>
         <div className="hidden items-center gap-2 md:flex">
@@ -872,13 +812,13 @@ function ApplicationsView({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" onClick={onAdd}>
+          <Button onClick={onAdd}>
             <Plus /> New entry
           </Button>
         </div>
       </div>
       <StatStrip applications={applications} companies={companies} />
-      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3 md:px-6">
+      <div className="track-toolbar">
         <div className="relative min-w-[180px] flex-1 md:max-w-xs">
           <Search className="absolute top-2.5 left-2.5 size-3.5 text-muted-foreground" />
           <Input
@@ -997,6 +937,27 @@ function ApplicationsView({
             ))}
           </SelectContent>
         </Select>
+        <Select
+          value={year}
+          onValueChange={(value) => {
+            if (value) setYear(value);
+          }}
+        >
+          <SelectTrigger aria-label="Filter by year">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All years</SelectItem>
+            {!years.includes(currentYear) && (
+              <SelectItem value={currentYear}>{currentYear}</SelectItem>
+            )}
+            {years.map((value) => (
+              <SelectItem key={value} value={value}>
+                {value}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <DropdownMenu>
           <DropdownMenuTrigger
             render={<Button variant="outline" className="text-muted-foreground" />}
@@ -1019,91 +980,33 @@ function ApplicationsView({
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="outline"
-                className="ml-auto hidden text-muted-foreground md:inline-flex"
-              />
-            }
-          >
-            <ListFilter />
-            Saved views
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
-            {savedViews.length === 0 && (
-              <p className="px-2 py-1.5 text-xs text-muted-foreground">No saved views yet.</p>
-            )}
-            {savedViews.map((view) => (
-              <DropdownMenuItem
-                key={view.id}
-                onClick={() => {
-                  setQuery(view.query);
-                  setFilter(view.stage);
-                  setSort(view.sort);
-                  setSelectedPriorities(view.priorities);
-                  setSelectedReplies(view.replyStatuses);
-                  setSelectedModes(view.workModes);
-                  setSelectedSources(view.sources);
-                  setYear(view.year);
-                  onApplyView(view);
-                }}
-              >
-                <span className="min-w-0 flex-1 truncate">{view.name}</span>
-                <button
-                  type="button"
-                  aria-label={`Delete ${view.name}`}
-                  className="text-muted-foreground hover:text-destructive"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void onDeleteView(view.id);
-                  }}
-                >
-                  <X className="size-3.5" />
-                </button>
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            {savingView ? (
-              <div className="flex gap-1 p-1">
-                <Input
-                  value={viewName}
-                  onChange={(e) => setViewName(e.target.value)}
-                  placeholder="View name"
-                  className="h-7"
-                />
-                <Button
-                  size="xs"
-                  disabled={!viewName.trim()}
-                  onClick={() => {
-                    void onSaveView({
-                      name: viewName.trim(),
-                      query,
-                      stage: filter,
-                      sort,
-                      priorities: selectedPriorities,
-                      replyStatuses: selectedReplies,
-                      workModes: selectedModes,
-                      sources: selectedSources,
-                      year,
-                    }).then(() => {
-                      setViewName("");
-                      setSavingView(false);
-                    });
-                  }}
-                >
-                  Save
-                </Button>
-              </div>
-            ) : (
-              <DropdownMenuItem onClick={() => setSavingView(true)}>
-                <Plus />
-                Save current view
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <SavedViewsMenu
+          views={savedViews}
+          current={{
+            screen: "applications",
+            query,
+            stage: filter,
+            sort,
+            priorities: selectedPriorities,
+            replyStatuses: selectedReplies,
+            workModes: selectedModes,
+            sources: selectedSources,
+            year,
+          }}
+          onSave={onSaveView}
+          onDelete={onDeleteView}
+          onApply={(view) => {
+            setQuery(view.query);
+            if (view.stage === "All" || isStage(view.stage)) setFilter(view.stage);
+            if (isSortKey(view.sort)) setSort(view.sort);
+            setSelectedPriorities(view.priorities);
+            setSelectedReplies(view.replyStatuses);
+            setSelectedModes(view.workModes);
+            setSelectedSources(view.sources.filter(isSource));
+            setYear(view.year);
+            onApplyView(view);
+          }}
+        />
         {selected.length > 0 && (
           <div className="flex items-center gap-1">
             <Button variant="secondary" onClick={() => void onBulk(selected, "archive")}>
@@ -1394,12 +1297,12 @@ function CompaniesView({
   }
 
   return (
-    <div className="px-4 pb-8 pt-7 md:px-7">
-      <div className="mb-6 flex items-end justify-between">
+    <>
+      <div className="track-page-header">
         <div>
-          <h1 className="md:text-xl">Companies</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Reuse companies across applications and leads. Related entries are grouped here.
+          <h1>Companies</h1>
+          <p className="track-page-lede">
+            Shared across applications and leads. Related entries are grouped here.
           </p>
         </div>
         <Popover
@@ -1412,7 +1315,7 @@ function CompaniesView({
             }
           }}
         >
-          <PopoverTrigger render={<Button variant="outline" />}>
+          <PopoverTrigger render={<Button />}>
             <Plus /> Add company
           </PopoverTrigger>
           <PopoverContent align="end" className="w-80 gap-3 p-3">
@@ -1460,144 +1363,146 @@ function CompaniesView({
           </PopoverContent>
         </Popover>
       </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Company</TableHead>
-            <TableHead>Activity</TableHead>
-            <TableHead>Location</TableHead>
-            <TableHead>Website</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {companies.map((c) => {
-            const activity = activityByCompany.get(c.id);
-            return (
-              <TableRow
-                key={c.id}
-                className="cursor-pointer"
+      <div className="px-4 pb-8 md:px-7">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Company</TableHead>
+              <TableHead>Activity</TableHead>
+              <TableHead>Location</TableHead>
+              <TableHead>Website</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {companies.map((c) => {
+              const activity = activityByCompany.get(c.id);
+              return (
+                <TableRow
+                  key={c.id}
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setActiveId(c.id);
+                    setDraft({
+                      name: c.name,
+                      website: c.website,
+                      location: c.location,
+                      logo: c.logo,
+                    });
+                  }}
+                >
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <CompanyMark logo={c.logo} color={c.color} />
+                      <span className="font-medium">{c.name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <CompanyActivityBadges
+                      applicationCount={activity?.applications.length ?? 0}
+                      leadCount={activity?.leads.length ?? 0}
+                    />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{c.location || "—"}</TableCell>
+                  <TableCell>
+                    {c.website ? (
+                      <a
+                        href={c.website}
+                        className="text-muted-foreground hover:text-foreground"
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {c.website}
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+        {companies.length === 0 && (
+          <p className="py-12 text-center text-sm text-muted-foreground">
+            No companies yet. Add one here or while creating an application.
+          </p>
+        )}
+        <Sheet
+          open={active !== null}
+          onOpenChange={(open) => {
+            if (!open) setActiveId(null);
+          }}
+        >
+          <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-md">
+            <SheetHeader className="border-b">
+              <SheetTitle>Edit company</SheetTitle>
+              <SheetDescription>Shared across every application for this company.</SheetDescription>
+            </SheetHeader>
+            {active && (
+              <div className="flex flex-1 flex-col gap-4 p-4">
+                <Field>
+                  <FieldLabel>Name</FieldLabel>
+                  <Input
+                    value={draft.name}
+                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>Logo letter</FieldLabel>
+                  <Input
+                    value={draft.logo}
+                    onChange={(e) => setDraft({ ...draft, logo: e.target.value })}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>Location</FieldLabel>
+                  <Input
+                    value={draft.location}
+                    onChange={(e) => setDraft({ ...draft, location: e.target.value })}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>Website</FieldLabel>
+                  <Input
+                    type="url"
+                    value={draft.website}
+                    onChange={(e) => setDraft({ ...draft, website: e.target.value })}
+                  />
+                </Field>
+                <div>
+                  <p className="mb-2 text-sm font-medium">Related entries</p>
+                  <CompanyActivityList
+                    applications={activityByCompany.get(active.id)?.applications ?? []}
+                    leads={activityByCompany.get(active.id)?.leads ?? []}
+                    onOpenApplication={onOpenApplication}
+                    onOpenLead={onOpenLead}
+                  />
+                </div>
+              </div>
+            )}
+            <SheetFooter className="border-t">
+              <Button
+                variant="outline"
                 onClick={() => {
-                  setActiveId(c.id);
-                  setDraft({
-                    name: c.name,
-                    website: c.website,
-                    location: c.location,
-                    logo: c.logo,
-                  });
+                  if (active && window.confirm("Delete this company?")) void onDelete(active.id);
                 }}
               >
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <CompanyMark logo={c.logo} color={c.color} />
-                    <span className="font-medium">{c.name}</span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <CompanyActivityBadges
-                    applicationCount={activity?.applications.length ?? 0}
-                    leadCount={activity?.leads.length ?? 0}
-                  />
-                </TableCell>
-                <TableCell className="text-muted-foreground">{c.location || "—"}</TableCell>
-                <TableCell>
-                  {c.website ? (
-                    <a
-                      href={c.website}
-                      className="text-muted-foreground hover:text-foreground"
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      {c.website}
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-      {companies.length === 0 && (
-        <p className="py-12 text-center text-sm text-muted-foreground">
-          No companies yet. Add one here or while creating an application.
-        </p>
-      )}
-      <Sheet
-        open={active !== null}
-        onOpenChange={(open) => {
-          if (!open) setActiveId(null);
-        }}
-      >
-        <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-md">
-          <SheetHeader className="border-b">
-            <SheetTitle>Edit company</SheetTitle>
-            <SheetDescription>Shared across every application for this company.</SheetDescription>
-          </SheetHeader>
-          {active && (
-            <div className="flex flex-1 flex-col gap-4 p-4">
-              <Field>
-                <FieldLabel>Name</FieldLabel>
-                <Input
-                  value={draft.name}
-                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Logo letter</FieldLabel>
-                <Input
-                  value={draft.logo}
-                  onChange={(e) => setDraft({ ...draft, logo: e.target.value })}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Location</FieldLabel>
-                <Input
-                  value={draft.location}
-                  onChange={(e) => setDraft({ ...draft, location: e.target.value })}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Website</FieldLabel>
-                <Input
-                  type="url"
-                  value={draft.website}
-                  onChange={(e) => setDraft({ ...draft, website: e.target.value })}
-                />
-              </Field>
-              <div>
-                <p className="mb-2 text-sm font-medium">Related entries</p>
-                <CompanyActivityList
-                  applications={activityByCompany.get(active.id)?.applications ?? []}
-                  leads={activityByCompany.get(active.id)?.leads ?? []}
-                  onOpenApplication={onOpenApplication}
-                  onOpenLead={onOpenLead}
-                />
-              </div>
-            </div>
-          )}
-          <SheetFooter className="border-t">
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (active && window.confirm("Delete this company?")) void onDelete(active.id);
-              }}
-            >
-              Delete
-            </Button>
-            <Button
-              onClick={() => {
-                if (!active) return;
-                void onPatch(active.id, draft).then(() => setActiveId(null));
-              }}
-            >
-              Save
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
-    </div>
+                Delete
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!active) return;
+                  void onPatch(active.id, draft).then(() => setActiveId(null));
+                }}
+              >
+                Save
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      </div>
+    </>
   );
 }
 
@@ -1627,15 +1532,13 @@ function ResumesView({
   const usedBy = active ? applications.filter((a) => a.resumeId === active.id) : [];
 
   return (
-    <div className="px-4 pb-8 pt-7 md:px-7">
-      <div className="mb-6 flex items-end justify-between">
+    <>
+      <div className="track-page-header">
         <div>
-          <h1 className="md:text-xl">Resumes</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Open any resume to see the file and where it is used.
-          </p>
+          <h1>Resumes</h1>
+          <p className="track-page-lede">Open any resume to see the file and where it is used.</p>
         </div>
-        <Button variant="outline" onClick={() => fileRef.current?.click()}>
+        <Button onClick={() => fileRef.current?.click()}>
           <Upload /> Upload resume
         </Button>
         <input
@@ -1650,123 +1553,125 @@ function ResumesView({
           }}
         />
       </div>
-      <div className="flex flex-col gap-2">
-        {resumes.map((r) => {
-          const count = applications.filter((a) => a.resumeId === r.id).length;
-          return (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => {
-                setActiveId(r.id);
-                setName(r.name);
-              }}
-              className="flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors hover:bg-accent/50"
-            >
-              <FileText className="size-4 shrink-0 text-muted-foreground" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">{r.name}</p>
-                <p className="text-xs text-muted-foreground">{r.fileName}</p>
-              </div>
-              <Badge variant="secondary">
-                {count} {count === 1 ? "application" : "applications"}
-              </Badge>
-            </button>
-          );
-        })}
-      </div>
-      {resumes.length === 0 && (
-        <p className="py-12 text-center text-sm text-muted-foreground">
-          Upload a PDF or Word resume to attach it to applications.
-        </p>
-      )}
-      <Sheet
-        open={active !== null}
-        onOpenChange={(open) => {
-          if (!open) setActiveId(null);
-        }}
-      >
-        <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-xl">
-          <SheetHeader className="border-b">
-            <SheetTitle>{active?.name ?? "Resume"}</SheetTitle>
-            <SheetDescription>Full resume details</SheetDescription>
-          </SheetHeader>
-          {active && (
-            <ScrollArea className="min-h-0 flex-1">
-              <div className="flex flex-col gap-5 p-4">
-                <Field>
-                  <FieldLabel>Name</FieldLabel>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} />
-                </Field>
-                <div className="flex items-start gap-3 rounded-lg border p-3">
-                  <FileText className="mt-0.5 size-5 text-muted-foreground" />
-                  <div className="min-w-0">
-                    <p className="font-medium">{active.fileName}</p>
-                    <a
-                      href={`/resumes/${active.id}/file`}
-                      className="mt-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <Download className="size-3.5" />
-                      Open file
-                    </a>
+      <div className="px-4 pb-8 md:px-7">
+        <div className="flex flex-col gap-2">
+          {resumes.map((r) => {
+            const count = applications.filter((a) => a.resumeId === r.id).length;
+            return (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => {
+                  setActiveId(r.id);
+                  setName(r.name);
+                }}
+                className="flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors hover:bg-accent/50"
+              >
+                <FileText className="size-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{r.name}</p>
+                  <p className="text-xs text-muted-foreground">{r.fileName}</p>
+                </div>
+                <Badge variant="secondary">
+                  {count} {count === 1 ? "application" : "applications"}
+                </Badge>
+              </button>
+            );
+          })}
+        </div>
+        {resumes.length === 0 && (
+          <p className="py-12 text-center text-sm text-muted-foreground">
+            Upload a PDF or Word resume to attach it to applications.
+          </p>
+        )}
+        <Sheet
+          open={active !== null}
+          onOpenChange={(open) => {
+            if (!open) setActiveId(null);
+          }}
+        >
+          <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-xl">
+            <SheetHeader className="border-b">
+              <SheetTitle>{active?.name ?? "Resume"}</SheetTitle>
+              <SheetDescription>Full resume details</SheetDescription>
+            </SheetHeader>
+            {active && (
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="flex flex-col gap-5 p-4">
+                  <Field>
+                    <FieldLabel>Name</FieldLabel>
+                    <Input value={name} onChange={(e) => setName(e.target.value)} />
+                  </Field>
+                  <div className="flex items-start gap-3 rounded-lg border p-3">
+                    <FileText className="mt-0.5 size-5 text-muted-foreground" />
+                    <div className="min-w-0">
+                      <p className="font-medium">{active.fileName}</p>
+                      <a
+                        href={`/resumes/${active.id}/file`}
+                        className="mt-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <Download className="size-3.5" />
+                        Open file
+                      </a>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      Used in applications
+                    </p>
+                    {usedBy.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Not attached to any application yet.
+                      </p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {usedBy.map((app) => {
+                          const company = companyById[app.companyId];
+                          return (
+                            <div
+                              key={app.id}
+                              className="flex items-center gap-3 rounded-lg border px-3 py-2"
+                            >
+                              {company && <CompanyMark logo={company.logo} color={company.color} />}
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">
+                                  {company?.name ?? "Unknown"}
+                                </p>
+                                <p className="truncate text-xs text-muted-foreground">{app.role}</p>
+                              </div>
+                              <StageBadge stage={app.stage} />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Used in applications
-                  </p>
-                  {usedBy.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      Not attached to any application yet.
-                    </p>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {usedBy.map((app) => {
-                        const company = companyById[app.companyId];
-                        return (
-                          <div
-                            key={app.id}
-                            className="flex items-center gap-3 rounded-lg border px-3 py-2"
-                          >
-                            {company && <CompanyMark logo={company.logo} color={company.color} />}
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">
-                                {company?.name ?? "Unknown"}
-                              </p>
-                              <p className="truncate text-xs text-muted-foreground">{app.role}</p>
-                            </div>
-                            <StageBadge stage={app.stage} />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </ScrollArea>
-          )}
-          <SheetFooter className="border-t">
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (active && window.confirm("Delete this resume?")) void onDelete(active.id);
-              }}
-            >
-              Delete
-            </Button>
-            <Button
-              onClick={() => {
-                if (active) void onRename(active.id, name);
-              }}
-            >
-              Save
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
-    </div>
+              </ScrollArea>
+            )}
+            <SheetFooter className="border-t">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (active && window.confirm("Delete this resume?")) void onDelete(active.id);
+                }}
+              >
+                Delete
+              </Button>
+              <Button
+                onClick={() => {
+                  if (active) void onRename(active.id, name);
+                }}
+              >
+                Save
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      </div>
+    </>
   );
 }
 
@@ -1802,15 +1707,13 @@ function CoverLettersView({
   const usedBy = active ? applications.filter((a) => a.coverLetterId === active.id) : [];
 
   return (
-    <div className="px-4 pb-8 pt-7 md:px-7">
-      <div className="mb-6 flex items-end justify-between gap-2">
+    <>
+      <div className="track-page-header">
         <div>
-          <h1 className="md:text-xl">Cover letters</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Open any letter to read the full text or file details.
-          </p>
+          <h1>Cover letters</h1>
+          <p className="track-page-lede">Open any letter to read the full text or file details.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <Popover
             open={writing}
             onOpenChange={(open) => {
@@ -1821,7 +1724,7 @@ function CoverLettersView({
               }
             }}
           >
-            <PopoverTrigger render={<Button variant="outline" />}>
+            <PopoverTrigger render={<Button />}>
               <Pencil /> Write
             </PopoverTrigger>
             <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] gap-3 p-3">
@@ -1874,7 +1777,7 @@ function CoverLettersView({
               </FieldGroup>
             </PopoverContent>
           </Popover>
-          <Button variant="outline" onClick={() => fileRef.current?.click()}>
+          <Button onClick={() => fileRef.current?.click()}>
             <Upload /> Upload
           </Button>
         </div>
@@ -1890,155 +1793,158 @@ function CoverLettersView({
           }}
         />
       </div>
-      <div className="flex flex-col gap-2">
-        {coverLetters.map((c) => {
-          const count = applications.filter((a) => a.coverLetterId === c.id).length;
-          return (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => {
-                setActiveId(c.id);
-                setEditName(c.name);
-                setEditBody(c.kind === "text" ? c.body : "");
-              }}
-              className="flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors hover:bg-accent/50"
-            >
-              {c.kind === "file" ? (
-                <Paperclip className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-              ) : (
-                <Mail className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">{c.name}</p>
-                <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                  {c.kind === "file" ? c.fileName : c.body}
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                <Badge variant="secondary">{c.kind === "file" ? "File" : "Text"}</Badge>
-                <span className="text-[11px] text-muted-foreground">
-                  {count} {count === 1 ? "use" : "uses"}
-                </span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-      {coverLetters.length === 0 && !writing && (
-        <p className="py-12 text-center text-sm text-muted-foreground">
-          Write a letter or upload a file to reuse it across applications.
-        </p>
-      )}
-      <Sheet
-        open={active !== null}
-        onOpenChange={(open) => {
-          if (!open) setActiveId(null);
-        }}
-      >
-        <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-xl">
-          <SheetHeader className="border-b">
-            <SheetTitle>{active?.name ?? "Cover letter"}</SheetTitle>
-            <SheetDescription>
-              {active?.kind === "file" ? "Uploaded file" : "Full letter text"}
-            </SheetDescription>
-          </SheetHeader>
-          {active && (
-            <ScrollArea className="min-h-0 flex-1">
-              <div className="flex flex-col gap-5 p-4">
-                <Field>
-                  <FieldLabel>Name</FieldLabel>
-                  <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
-                </Field>
-                <div className="rounded-lg border p-3">
-                  <div className="mb-2 flex items-center gap-2">
-                    {active.kind === "file" ? (
-                      <Paperclip className="size-4 text-muted-foreground" />
-                    ) : (
-                      <Mail className="size-4 text-muted-foreground" />
-                    )}
-                    <Badge variant="secondary">{active.kind === "file" ? "File" : "Text"}</Badge>
-                  </div>
-                  {active.kind === "file" ? (
-                    <div>
-                      <p className="font-medium">{active.fileName}</p>
-                      <a
-                        href={`/cover-letters/${active.id}/file`}
-                        className="mt-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <Download className="size-3.5" />
-                        Open file
-                      </a>
-                    </div>
-                  ) : (
-                    <Textarea
-                      value={editBody}
-                      onChange={(e) => setEditBody(e.target.value)}
-                      className="min-h-40"
-                    />
-                  )}
-                </div>
-                <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Used in applications
+      <div className="px-4 pb-8 md:px-7">
+        <div className="flex flex-col gap-2">
+          {coverLetters.map((c) => {
+            const count = applications.filter((a) => a.coverLetterId === c.id).length;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => {
+                  setActiveId(c.id);
+                  setEditName(c.name);
+                  setEditBody(c.kind === "text" ? c.body : "");
+                }}
+                className="flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors hover:bg-accent/50"
+              >
+                {c.kind === "file" ? (
+                  <Paperclip className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                ) : (
+                  <Mail className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{c.name}</p>
+                  <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                    {c.kind === "file" ? c.fileName : c.body}
                   </p>
-                  {usedBy.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      Not attached to any application yet.
-                    </p>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {usedBy.map((app) => {
-                        const company = companyById[app.companyId];
-                        return (
-                          <div
-                            key={app.id}
-                            className="flex items-center gap-3 rounded-lg border px-3 py-2"
-                          >
-                            {company && <CompanyMark logo={company.logo} color={company.color} />}
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">
-                                {company?.name ?? "Unknown"}
-                              </p>
-                              <p className="truncate text-xs text-muted-foreground">{app.role}</p>
-                            </div>
-                            <StageBadge stage={app.stage} />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
-              </div>
-            </ScrollArea>
-          )}
-          <SheetFooter className="border-t">
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (active && window.confirm("Delete this cover letter?")) void onDelete(active.id);
-              }}
-            >
-              <Trash2 />
-              Delete
-            </Button>
-            <Button
-              onClick={() => {
-                if (!active) return;
-                void onPatch(active.id, {
-                  name: editName,
-                  body: active.kind === "text" ? editBody : undefined,
-                });
-              }}
-            >
-              Save
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
-    </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <Badge variant="secondary">{c.kind === "file" ? "File" : "Text"}</Badge>
+                  <span className="text-[11px] text-muted-foreground">
+                    {count} {count === 1 ? "use" : "uses"}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        {coverLetters.length === 0 && !writing && (
+          <p className="py-12 text-center text-sm text-muted-foreground">
+            Write a letter or upload a file to reuse it across applications.
+          </p>
+        )}
+        <Sheet
+          open={active !== null}
+          onOpenChange={(open) => {
+            if (!open) setActiveId(null);
+          }}
+        >
+          <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-xl">
+            <SheetHeader className="border-b">
+              <SheetTitle>{active?.name ?? "Cover letter"}</SheetTitle>
+              <SheetDescription>
+                {active?.kind === "file" ? "Uploaded file" : "Full letter text"}
+              </SheetDescription>
+            </SheetHeader>
+            {active && (
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="flex flex-col gap-5 p-4">
+                  <Field>
+                    <FieldLabel>Name</FieldLabel>
+                    <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+                  </Field>
+                  <div className="rounded-lg border p-3">
+                    <div className="mb-2 flex items-center gap-2">
+                      {active.kind === "file" ? (
+                        <Paperclip className="size-4 text-muted-foreground" />
+                      ) : (
+                        <Mail className="size-4 text-muted-foreground" />
+                      )}
+                      <Badge variant="secondary">{active.kind === "file" ? "File" : "Text"}</Badge>
+                    </div>
+                    {active.kind === "file" ? (
+                      <div>
+                        <p className="font-medium">{active.fileName}</p>
+                        <a
+                          href={`/cover-letters/${active.id}/file`}
+                          className="mt-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <Download className="size-3.5" />
+                          Open file
+                        </a>
+                      </div>
+                    ) : (
+                      <Textarea
+                        value={editBody}
+                        onChange={(e) => setEditBody(e.target.value)}
+                        className="min-h-40"
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      Used in applications
+                    </p>
+                    {usedBy.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Not attached to any application yet.
+                      </p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {usedBy.map((app) => {
+                          const company = companyById[app.companyId];
+                          return (
+                            <div
+                              key={app.id}
+                              className="flex items-center gap-3 rounded-lg border px-3 py-2"
+                            >
+                              {company && <CompanyMark logo={company.logo} color={company.color} />}
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">
+                                  {company?.name ?? "Unknown"}
+                                </p>
+                                <p className="truncate text-xs text-muted-foreground">{app.role}</p>
+                              </div>
+                              <StageBadge stage={app.stage} />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </ScrollArea>
+            )}
+            <SheetFooter className="border-t">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (active && window.confirm("Delete this cover letter?"))
+                    void onDelete(active.id);
+                }}
+              >
+                <Trash2 />
+                Delete
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!active) return;
+                  void onPatch(active.id, {
+                    name: editName,
+                    body: active.kind === "text" ? editBody : undefined,
+                  });
+                }}
+              >
+                Save
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      </div>
+    </>
   );
 }
 
@@ -2086,29 +1992,25 @@ function ArchiveView({
 
   if (applications.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 px-4 py-24 text-center">
-        <Archive className="size-8 text-muted-foreground" />
+      <div className="px-4 pb-8 pt-7 md:px-7">
         <h1>Archive</h1>
-        <p className="text-sm text-muted-foreground">
-          Closed and withdrawn applications land here.
-        </p>
+        <p className="track-page-lede">Closed and withdrawn applications land here.</p>
+        <p className="mt-10 text-sm text-muted-foreground">No archived applications yet.</p>
       </div>
     );
   }
 
   return (
     <div className="px-4 pb-8 pt-7 md:px-7">
-      <div className="mb-6">
-        <h1 className="md:text-xl">Archive</h1>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Closed and withdrawn applications land here.
-        </p>
+      <div className="mb-8">
+        <h1>Archive</h1>
+        <p className="track-page-lede">Closed and withdrawn applications land here.</p>
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-0 divide-y border-y">
         {applications.map((item) => {
           const company = companyById[item.companyId];
           return (
-            <div key={item.id} className="flex items-center gap-3 rounded-lg border px-4 py-3">
+            <div key={item.id} className="flex items-center gap-3 px-1 py-3">
               <button
                 type="button"
                 className="flex min-w-0 flex-1 items-center gap-3 text-left"
@@ -2301,6 +2203,24 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
     setError(cause instanceof Error ? cause.message : "Something went wrong");
   }
 
+  async function saveView(view: Omit<SavedView, "id">) {
+    try {
+      const saved = await createViewRequest(view);
+      setSavedViews((prev) => [saved, ...prev]);
+    } catch (cause) {
+      fail(cause);
+    }
+  }
+
+  async function deleteView(id: string) {
+    try {
+      await deleteViewRequest(id);
+      setSavedViews((prev) => prev.filter((view) => view.id !== id));
+    } catch (cause) {
+      fail(cause);
+    }
+  }
+
   async function createCompany(name: string, extra?: { website?: string; location?: string }) {
     const company = await createCompanyRequest(name, extra);
     setCompanies((prev) => [company, ...prev]);
@@ -2380,7 +2300,7 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
         user={user}
       />
       <SidebarInset className="min-h-0 overflow-hidden">
-        <Header screen={screen} onSearch={() => setSearchOpen(true)} />
+        <Header onSearch={() => setSearchOpen(true)} />
         {error && (
           <div className="flex items-center justify-between border-b bg-destructive/10 px-4 py-2 text-sm text-destructive">
             <span>{error}</span>
@@ -2400,7 +2320,7 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                   companies={companies}
                   resumes={resumes}
                   coverLetters={coverLetters}
-                  savedViews={savedViews}
+                  savedViews={savedViews.filter((view) => view.screen === "applications")}
                   year={year}
                   setYear={setYear}
                   density={density}
@@ -2473,22 +2393,8 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                       throw cause;
                     }
                   }}
-                  onSaveView={async (view) => {
-                    try {
-                      const saved = await createViewRequest(view);
-                      setSavedViews((prev) => [saved, ...prev]);
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onDeleteView={async (id) => {
-                    try {
-                      await deleteViewRequest(id);
-                      setSavedViews((prev) => prev.filter((view) => view.id !== id));
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
+                  onSaveView={saveView}
+                  onDeleteView={deleteView}
                   onApplyView={(view) => setYear(view.year)}
                 />
               )}
@@ -2502,6 +2408,9 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                   setDensity={writeDensity}
                   groupByCompany={groupByCompanyEnabled}
                   setGroupByCompany={writeGroupByCompany}
+                  savedViews={savedViews.filter((view) => view.screen === "leads")}
+                  onSaveView={saveView}
+                  onDeleteView={deleteView}
                   focusId={searchFocus?.kind === "lead" ? searchFocus.id : null}
                   onFocusConsumed={() => setSearchFocus(null)}
                   onPatch={async (id, patch) => {
@@ -2591,6 +2500,9 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                   setDensity={writeDensity}
                   groupByCompany={groupByCompanyEnabled}
                   setGroupByCompany={writeGroupByCompany}
+                  savedViews={savedViews.filter((view) => view.screen === "wishlist")}
+                  onSaveView={saveView}
+                  onDeleteView={deleteView}
                   focusId={searchFocus?.kind === "wishlist" ? searchFocus.id : null}
                   onFocusConsumed={() => setSearchFocus(null)}
                   onPatch={async (id, patch) => {

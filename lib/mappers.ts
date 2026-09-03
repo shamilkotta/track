@@ -11,6 +11,7 @@ import {
   isSource,
   isStage,
   isStringArray,
+  isWishlistStatus,
   isWorkMode,
   type Application,
   type Company,
@@ -18,6 +19,8 @@ import {
   type Lead,
   type Resume,
   type SavedView,
+  type Wishlist,
+  type WishlistContact,
   type WorkspaceUser,
 } from "@/lib/domain";
 import type {
@@ -31,6 +34,7 @@ import type {
   session,
   user,
   verification,
+  wishlists,
 } from "@/lib/db/schema";
 
 type UserRow = typeof user.$inferSelect;
@@ -39,6 +43,7 @@ type ResumeRow = typeof resumes.$inferSelect;
 type CoverLetterRow = typeof coverLetters.$inferSelect;
 type ApplicationRow = typeof applications.$inferSelect;
 type LeadRow = typeof leads.$inferSelect;
+type WishlistRow = typeof wishlists.$inferSelect;
 type SavedViewRow = typeof savedViews.$inferSelect;
 
 export type {
@@ -48,6 +53,7 @@ export type {
   CoverLetterRow,
   ApplicationRow,
   LeadRow,
+  WishlistRow,
   SavedViewRow,
 };
 export type SessionRow = typeof session.$inferSelect;
@@ -58,6 +64,29 @@ function parseJsonArray(value: string): string[] {
   try {
     const parsed: unknown = JSON.parse(value);
     return isStringArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseWishlistContacts(value: string): WishlistContact[] {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item): WishlistContact | null => {
+        if (!isRecord(item)) return null;
+        return {
+          id: typeof item.id === "string" && item.id ? item.id : crypto.randomUUID(),
+          name: typeof item.name === "string" ? item.name : "",
+          role: typeof item.role === "string" ? item.role : "",
+          email: typeof item.email === "string" ? item.email : "",
+          phone: typeof item.phone === "string" ? item.phone : "",
+          url: typeof item.url === "string" ? item.url : "",
+          notes: typeof item.notes === "string" ? item.notes : "",
+        };
+      })
+      .filter((item): item is WishlistContact => item !== null);
   } catch {
     return [];
   }
@@ -174,6 +203,25 @@ export function mapLead(row: LeadRow): Lead {
   };
 }
 
+export function mapWishlist(row: WishlistRow): Wishlist {
+  return {
+    id: row.id,
+    companyId: row.companyId,
+    companyWebsite: row.companyWebsite,
+    interest: row.interest,
+    status: isWishlistStatus(row.status) ? row.status : "Interested",
+    priority: isPriority(row.priority) ? row.priority : "Medium",
+    nextStepDate: row.nextStepDate,
+    nextStepLabel: row.nextStepLabel,
+    reminderTime: isReminderTime(row.reminderTime) ? row.reminderTime : "None",
+    notes: row.notes,
+    contacts: parseWishlistContacts(row.contacts),
+    tags: parseJsonArray(row.tags),
+    archived: row.archived,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 export function mapSavedView(row: SavedViewRow): SavedView {
   const stageValue = row.stage === "All" || isStage(row.stage) ? row.stage : "All";
   return {
@@ -192,6 +240,10 @@ export function mapSavedView(row: SavedViewRow): SavedView {
 
 export function tagsToJson(tags: string[]) {
   return JSON.stringify(tags);
+}
+
+export function contactsToJson(contacts: WishlistContact[]) {
+  return JSON.stringify(contacts);
 }
 
 export function parseIdList(value: unknown): string[] {

@@ -11,6 +11,7 @@ import {
   isSource,
   isStage,
   isStringArray,
+  isWishlistStatus,
   isWorkMode,
   type Application,
   type Company,
@@ -18,6 +19,8 @@ import {
   type Lead,
   type Resume,
   type SavedView,
+  type Wishlist,
+  type WishlistContact,
   type WorkspacePayload,
   type WorkspaceUser,
 } from "@/lib/domain";
@@ -172,6 +175,42 @@ function parseLead(value: unknown): Lead | null {
   };
 }
 
+function parseWishlistContact(value: unknown): WishlistContact | null {
+  if (!isRecord(value)) return null;
+  return {
+    id: typeof value.id === "string" && value.id ? value.id : crypto.randomUUID(),
+    name: requiredString(value, "name"),
+    role: requiredString(value, "role"),
+    email: requiredString(value, "email"),
+    phone: requiredString(value, "phone"),
+    url: requiredString(value, "url"),
+    notes: requiredString(value, "notes"),
+  };
+}
+
+function parseWishlist(value: unknown): Wishlist | null {
+  if (!isRecord(value) || typeof value.id !== "string") return null;
+  if (typeof value.companyId !== "string") return null;
+  return {
+    id: value.id,
+    companyId: value.companyId,
+    companyWebsite: requiredString(value, "companyWebsite"),
+    interest: requiredString(value, "interest"),
+    status: isWishlistStatus(value.status) ? value.status : "Interested",
+    priority: isPriority(value.priority) ? value.priority : "Medium",
+    nextStepDate: requiredString(value, "nextStepDate"),
+    nextStepLabel: requiredString(value, "nextStepLabel"),
+    reminderTime: isReminderTime(value.reminderTime) ? value.reminderTime : "None",
+    notes: requiredString(value, "notes"),
+    contacts: Array.isArray(value.contacts)
+      ? value.contacts.map(parseWishlistContact).filter((item): item is WishlistContact => !!item)
+      : [],
+    tags: isStringArray(value.tags) ? value.tags : [],
+    archived: value.archived === true,
+    createdAt: requiredString(value, "createdAt"),
+  };
+}
+
 function parseSavedView(value: unknown): SavedView | null {
   if (!isRecord(value) || typeof value.id !== "string" || typeof value.name !== "string")
     return null;
@@ -206,6 +245,7 @@ export function parseWorkspace(value: unknown): WorkspacePayload {
     coverLetters: parseList(value.coverLetters, parseCoverLetter),
     applications: parseList(value.applications, parseApplication),
     leads: parseList(value.leads, parseLead),
+    wishlists: parseList(value.wishlists, parseWishlist),
     savedViews: parseList(value.savedViews, parseSavedView),
   };
 }
@@ -416,6 +456,54 @@ export function deleteLeadRequest(id: string) {
 export function bulkLeadsRequest(ids: string[], action: "archive" | "unarchive" | "delete") {
   return api(
     "/api/leads",
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids, action }),
+    },
+    () => undefined,
+  );
+}
+
+export function createWishlistRequest(data: Record<string, unknown>) {
+  return api(
+    "/api/wishlists",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    },
+    (value) => {
+      const item = parseWishlist(value);
+      if (!item) throw new Error("Could not save wishlist item");
+      return item;
+    },
+  );
+}
+
+export function patchWishlistRequest(id: string, patch: Record<string, unknown>) {
+  return api(
+    `/api/wishlists/${id}`,
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+    },
+    (value) => {
+      const item = parseWishlist(value);
+      if (!item) throw new Error("Could not update wishlist item");
+      return item;
+    },
+  );
+}
+
+export function deleteWishlistRequest(id: string) {
+  return api(`/api/wishlists/${id}`, { method: "DELETE" }, () => undefined);
+}
+
+export function bulkWishlistsRequest(ids: string[], action: "archive" | "unarchive" | "delete") {
+  return api(
+    "/api/wishlists",
     {
       method: "PATCH",
       headers: { "content-type": "application/json" },

@@ -1,11 +1,20 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { applications, companies, coverLetters, leads, resumes, savedViews } from "@/lib/db/schema";
+import {
+  applications,
+  companies,
+  coverLetters,
+  leads,
+  resumes,
+  savedViews,
+  wishlists,
+} from "@/lib/db/schema";
 import {
   companyColorForIndex,
   companyInitial,
   isClosedLeadStatus,
   isClosedStage,
+  isClosedWishlistStatus,
   isCurrency,
   isJobType,
   isLeadPlatform,
@@ -17,6 +26,7 @@ import {
   isSource,
   isStage,
   isStringArray,
+  isWishlistStatus,
   isWorkMode,
   type Application,
   type Company,
@@ -24,17 +34,21 @@ import {
   type Lead,
   type Resume,
   type SavedView,
+  type Wishlist,
+  type WishlistContact,
   type WorkspacePayload,
 } from "@/lib/domain";
 import { deleteUserFile, putUserFile } from "@/lib/files";
 import { HttpError, newId, now, requireString, stringField } from "@/lib/http";
 import {
+  contactsToJson,
   mapApplication,
   mapCompany,
   mapCoverLetter,
   mapLead,
   mapResume,
   mapSavedView,
+  mapWishlist,
   parseIdList,
   tagsToJson,
 } from "@/lib/mappers";
@@ -68,7 +82,7 @@ async function ownedCoverLetter(userId: string, coverLetterId: string) {
 
 export async function loadWorkspace(user: AuthUser): Promise<WorkspacePayload> {
   const database = db();
-  const [companyRows, resumeRows, letterRows, applicationRows, leadRows, viewRows] =
+  const [companyRows, resumeRows, letterRows, applicationRows, leadRows, wishlistRows, viewRows] =
     await Promise.all([
       database.query.companies.findMany({
         where: eq(companies.userId, user.id),
@@ -90,6 +104,10 @@ export async function loadWorkspace(user: AuthUser): Promise<WorkspacePayload> {
         where: eq(leads.userId, user.id),
         orderBy: desc(leads.createdAt),
       }),
+      database.query.wishlists.findMany({
+        where: eq(wishlists.userId, user.id),
+        orderBy: desc(wishlists.createdAt),
+      }),
       database.query.savedViews.findMany({
         where: eq(savedViews.userId, user.id),
         orderBy: desc(savedViews.createdAt),
@@ -109,6 +127,7 @@ export async function loadWorkspace(user: AuthUser): Promise<WorkspacePayload> {
     coverLetters: letterRows.map(mapCoverLetter),
     applications: applicationRows.map(mapApplication),
     leads: leadRows.map(mapLead),
+    wishlists: wishlistRows.map(mapWishlist),
     savedViews: viewRows.map(mapSavedView),
   };
 }
@@ -167,6 +186,25 @@ export async function updateCompany(
   return mapCompany({ ...current, ...next });
 }
 
+/** Fill empty company directory fields from application/lead form values. */
+async function fillCompanyDirectoryFields(
+  userId: string,
+  companyId: string,
+  fields: { website?: string; location?: string },
+) {
+  const company = await ownedCompany(userId, companyId);
+  const website = fields.website?.trim() ?? "";
+  const location = fields.location?.trim() ?? "";
+  const next: { website?: string; location?: string; updatedAt: Date } = { updatedAt: now() };
+  if (!company.website && website) next.website = website;
+  if (!company.location && location) next.location = location;
+  if (!next.website && !next.location) return;
+  await db()
+    .update(companies)
+    .set(next)
+    .where(and(eq(companies.id, companyId), eq(companies.userId, userId)));
+}
+
 export async function deleteCompany(userId: string, id: string) {
   const usedByApplication = await db().query.applications.findFirst({
     where: and(eq(applications.companyId, id), eq(applications.userId, userId)),
@@ -176,6 +214,10 @@ export async function deleteCompany(userId: string, id: string) {
     where: and(eq(leads.companyId, id), eq(leads.userId, userId)),
   });
   if (usedByLead) throw new HttpError(409, "This company is used by a lead");
+  const usedByWishlist = await db().query.wishlists.findFirst({
+    where: and(eq(wishlists.companyId, id), eq(wishlists.userId, userId)),
+  });
+  if (usedByWishlist) throw new HttpError(409, "This company is used by a wishlist item");
   await ownedCompany(userId, id);
   await db()
     .delete(companies)
@@ -434,6 +476,10 @@ export async function createApplication(
   const timestamp = now();
   const row = { id, ...values, createdAt: timestamp, updatedAt: timestamp };
   await db().insert(applications).values(row);
+  await fillCompanyDirectoryFields(userId, values.companyId, {
+    website: values.companyWebsite,
+    location: values.location,
+  });
   const stored = await db().query.applications.findFirst({ where: eq(applications.id, id) });
   if (!stored) throw new HttpError(500, "Could not save application");
   return mapApplication(stored);
@@ -457,6 +503,10 @@ export async function updateApplication(
     .update(applications)
     .set({ ...values, updatedAt: now() })
     .where(and(eq(applications.id, id), eq(applications.userId, userId)));
+  await fillCompanyDirectoryFields(userId, values.companyId, {
+    website: values.companyWebsite,
+    location: values.location,
+  });
   const stored = await db().query.applications.findFirst({
     where: and(eq(applications.id, id), eq(applications.userId, userId)),
   });
@@ -568,6 +618,9 @@ export async function createLead(userId: string, record: Record<string, unknown>
   const timestamp = now();
   const row = { id, ...values, createdAt: timestamp, updatedAt: timestamp };
   await db().insert(leads).values(row);
+  await fillCompanyDirectoryFields(userId, values.companyId, {
+    website: values.companyWebsite,
+  });
   const stored = await db().query.leads.findFirst({ where: eq(leads.id, id) });
   if (!stored) throw new HttpError(500, "Could not save lead");
   return mapLead(stored);
@@ -591,6 +644,9 @@ export async function updateLead(
     .update(leads)
     .set({ ...values, updatedAt: now() })
     .where(and(eq(leads.id, id), eq(leads.userId, userId)));
+  await fillCompanyDirectoryFields(userId, values.companyId, {
+    website: values.companyWebsite,
+  });
   const stored = await db().query.leads.findFirst({
     where: and(eq(leads.id, id), eq(leads.userId, userId)),
   });
@@ -624,6 +680,156 @@ export async function bulkLeads(
     .update(leads)
     .set({ archived: action === "archive", updatedAt: now() })
     .where(and(eq(leads.userId, userId), inArray(leads.id, uniqueIds)));
+  return { ok: true as const };
+}
+
+function parseWishlistContactsInput(value: unknown, fallback: WishlistContact[]): WishlistContact[] {
+  if (!Array.isArray(value)) return fallback;
+  return value
+    .map((item): WishlistContact | null => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+      const record = item as Record<string, unknown>;
+      return {
+        id: typeof record.id === "string" && record.id ? record.id : newId(),
+        name: typeof record.name === "string" ? record.name.trim() : "",
+        role: typeof record.role === "string" ? record.role.trim() : "",
+        email: typeof record.email === "string" ? record.email.trim() : "",
+        phone: typeof record.phone === "string" ? record.phone.trim() : "",
+        url: typeof record.url === "string" ? record.url.trim() : "",
+        notes: typeof record.notes === "string" ? record.notes : "",
+      };
+    })
+    .filter((item): item is WishlistContact => item !== null)
+    .filter(
+      (contact) =>
+        contact.name ||
+        contact.role ||
+        contact.email ||
+        contact.phone ||
+        contact.url ||
+        contact.notes.trim(),
+    );
+}
+
+function wishlistValues(userId: string, record: Record<string, unknown>, current?: Wishlist) {
+  const companyId = stringField(record, "companyId", current?.companyId ?? "");
+  if (!companyId) throw new HttpError(400, "Company is required");
+  const statusRaw = stringField(record, "status", current?.status ?? "Interested");
+  const status = isWishlistStatus(statusRaw) ? statusRaw : (current?.status ?? "Interested");
+  const archivedInput = record.archived;
+  const archived =
+    typeof archivedInput === "boolean"
+      ? archivedInput
+      : current
+        ? current.archived
+        : isClosedWishlistStatus(status);
+  const tagsValue = record.tags;
+  const tags = isStringArray(tagsValue)
+    ? tagsValue
+    : typeof tagsValue === "string"
+      ? tagsValue
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean)
+      : (current?.tags ?? []);
+  const contacts = parseWishlistContactsInput(record.contacts, current?.contacts ?? []);
+
+  return {
+    companyId,
+    companyWebsite: stringField(record, "companyWebsite", current?.companyWebsite ?? ""),
+    interest: stringField(record, "interest", current?.interest ?? ""),
+    status,
+    priority: isPriority(stringField(record, "priority", current?.priority ?? "Medium"))
+      ? stringField(record, "priority", current?.priority ?? "Medium")
+      : (current?.priority ?? "Medium"),
+    nextStepDate: stringField(record, "nextStepDate", current?.nextStepDate ?? ""),
+    nextStepLabel:
+      stringField(record, "nextStepLabel", current?.nextStepLabel ?? "") || "Research company",
+    reminderTime: isReminderTime(
+      stringField(record, "reminderTime", current?.reminderTime ?? "None"),
+    )
+      ? stringField(record, "reminderTime", current?.reminderTime ?? "None")
+      : (current?.reminderTime ?? "None"),
+    notes: stringField(record, "notes", current?.notes ?? ""),
+    contacts: contactsToJson(contacts),
+    tags: tagsToJson(tags),
+    archived: archived || isClosedWishlistStatus(status),
+    userId,
+  };
+}
+
+export async function createWishlist(
+  userId: string,
+  record: Record<string, unknown>,
+): Promise<Wishlist> {
+  const values = wishlistValues(userId, record);
+  await ownedCompany(userId, values.companyId);
+  const id = newId();
+  const timestamp = now();
+  const row = { id, ...values, createdAt: timestamp, updatedAt: timestamp };
+  await db().insert(wishlists).values(row);
+  await fillCompanyDirectoryFields(userId, values.companyId, {
+    website: values.companyWebsite,
+  });
+  const stored = await db().query.wishlists.findFirst({ where: eq(wishlists.id, id) });
+  if (!stored) throw new HttpError(500, "Could not save wishlist item");
+  return mapWishlist(stored);
+}
+
+export async function updateWishlist(
+  userId: string,
+  id: string,
+  record: Record<string, unknown>,
+): Promise<Wishlist> {
+  const currentRow = await db().query.wishlists.findFirst({
+    where: and(eq(wishlists.id, id), eq(wishlists.userId, userId)),
+  });
+  if (!currentRow) throw new HttpError(404, "Wishlist item not found");
+  const current = mapWishlist(currentRow);
+  const values = wishlistValues(userId, record, current);
+  await ownedCompany(userId, values.companyId);
+  await db()
+    .update(wishlists)
+    .set({ ...values, updatedAt: now() })
+    .where(and(eq(wishlists.id, id), eq(wishlists.userId, userId)));
+  await fillCompanyDirectoryFields(userId, values.companyId, {
+    website: values.companyWebsite,
+  });
+  const stored = await db().query.wishlists.findFirst({
+    where: and(eq(wishlists.id, id), eq(wishlists.userId, userId)),
+  });
+  if (!stored) throw new HttpError(404, "Wishlist item not found");
+  return mapWishlist(stored);
+}
+
+export async function deleteWishlist(userId: string, id: string) {
+  const current = await db().query.wishlists.findFirst({
+    where: and(eq(wishlists.id, id), eq(wishlists.userId, userId)),
+  });
+  if (!current) throw new HttpError(404, "Wishlist item not found");
+  await db()
+    .delete(wishlists)
+    .where(and(eq(wishlists.id, id), eq(wishlists.userId, userId)));
+}
+
+export async function bulkWishlists(
+  userId: string,
+  ids: string[],
+  action: "archive" | "unarchive" | "delete",
+) {
+  const uniqueIds = [...new Set(ids)];
+  if (uniqueIds.length === 0) throw new HttpError(400, "Select at least one wishlist item");
+  const database = db();
+  if (action === "delete") {
+    await database
+      .delete(wishlists)
+      .where(and(eq(wishlists.userId, userId), inArray(wishlists.id, uniqueIds)));
+    return { ok: true as const };
+  }
+  await database
+    .update(wishlists)
+    .set({ archived: action === "archive", updatedAt: now() })
+    .where(and(eq(wishlists.userId, userId), inArray(wishlists.id, uniqueIds)));
   return { ok: true as const };
 }
 

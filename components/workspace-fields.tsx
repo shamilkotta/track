@@ -61,6 +61,7 @@ import {
   type Resume,
   type Source,
   type Stage,
+  type WishlistStatus,
   type WorkMode,
 } from "@/lib/domain";
 import { cn } from "@/lib/utils";
@@ -119,6 +120,18 @@ export function LeadStatusBadge({ status }: { status: LeadStatus }) {
       : status === "Closed"
         ? "destructive"
         : status === "Replied" || status === "Meeting booked"
+          ? "outline"
+          : "secondary";
+  return <Badge variant={variant}>{status}</Badge>;
+}
+
+export function WishlistStatusBadge({ status }: { status: WishlistStatus }) {
+  const variant =
+    status === "Ready" || status === "Reached out"
+      ? "default"
+      : status === "Closed"
+        ? "destructive"
+        : status === "Researching"
           ? "outline"
           : "secondary";
   return <Badge variant={variant}>{status}</Badge>;
@@ -634,7 +647,16 @@ export function ApplicationFields({
             <CompanyPicker
               companies={companies}
               value={values.companyId}
-              onChange={(id) => setValues({ companyId: id })}
+              onChange={(id) => {
+                const company = companies.find((item) => item.id === id);
+                setValues({
+                  companyId: id,
+                  ...(company?.website && !values.companyWebsite
+                    ? { companyWebsite: company.website }
+                    : {}),
+                  ...(company?.location && !values.location ? { location: company.location } : {}),
+                });
+              }}
               onCreate={onCreateCompany}
             />
           </Field>
@@ -975,7 +997,15 @@ export function LeadFields({
             <CompanyPicker
               companies={companies}
               value={values.companyId}
-              onChange={(id) => setValues({ companyId: id })}
+              onChange={(id) => {
+                const company = companies.find((item) => item.id === id);
+                setValues({
+                  companyId: id,
+                  ...(company?.website && !values.companyWebsite
+                    ? { companyWebsite: company.website }
+                    : {}),
+                });
+              }}
               onCreate={onCreateCompany}
             />
           </Field>

@@ -43,10 +43,20 @@ export const leadStatuses = [
 ] as const;
 export const closedLeadStatuses = ["Closed"] as const;
 export const leadSortKeys = ["recent", "company", "status", "priority"] as const;
+export const wishlistStatuses = [
+  "Interested",
+  "Researching",
+  "Ready",
+  "Reached out",
+  "Closed",
+] as const;
+export const closedWishlistStatuses = ["Closed"] as const;
+export const wishlistSortKeys = ["recent", "company", "status", "priority"] as const;
 
 export type Screen =
   | "applications"
   | "leads"
+  | "wishlist"
   | "companies"
   | "resumes"
   | "cover-letters"
@@ -63,6 +73,8 @@ export type SortKey = (typeof sortKeys)[number];
 export type LeadPlatform = (typeof leadPlatforms)[number];
 export type LeadStatus = (typeof leadStatuses)[number];
 export type LeadSortKey = (typeof leadSortKeys)[number];
+export type WishlistStatus = (typeof wishlistStatuses)[number];
+export type WishlistSortKey = (typeof wishlistSortKeys)[number];
 export type CompanyColor = (typeof companyColors)[number];
 
 export type WorkspaceUser = {
@@ -165,6 +177,37 @@ export type LeadFormValues = Omit<Lead, "id" | "archived" | "createdAt" | "compa
   companyId: string | null;
 };
 
+export type WishlistContact = {
+  id: string;
+  name: string;
+  role: string;
+  email: string;
+  phone: string;
+  url: string;
+  notes: string;
+};
+
+export type Wishlist = {
+  id: string;
+  companyId: string;
+  companyWebsite: string;
+  interest: string;
+  status: WishlistStatus;
+  priority: Priority;
+  nextStepDate: string;
+  nextStepLabel: string;
+  reminderTime: ReminderTime;
+  notes: string;
+  contacts: WishlistContact[];
+  tags: string[];
+  archived: boolean;
+  createdAt: string;
+};
+
+export type WishlistFormValues = Omit<Wishlist, "id" | "archived" | "createdAt" | "companyId"> & {
+  companyId: string | null;
+};
+
 export type SavedView = {
   id: string;
   name: string;
@@ -185,12 +228,14 @@ export type WorkspacePayload = {
   coverLetters: CoverLetter[];
   applications: Application[];
   leads: Lead[];
+  wishlists: Wishlist[];
   savedViews: SavedView[];
 };
 
 export const screenTitles: Record<Screen, string> = {
   applications: "Applications",
   leads: "Leads",
+  wishlist: "Wishlist",
   companies: "Companies",
   resumes: "Resumes",
   "cover-letters": "Cover letters",
@@ -205,6 +250,13 @@ export const sortLabels: Record<SortKey, string> = {
 };
 
 export const leadSortLabels: Record<LeadSortKey, string> = {
+  recent: "Recent",
+  company: "Company",
+  status: "Status",
+  priority: "Priority",
+};
+
+export const wishlistSortLabels: Record<WishlistSortKey, string> = {
   recent: "Recent",
   company: "Company",
   status: "Status",
@@ -259,10 +311,19 @@ export function isLeadSortKey(value: unknown): value is LeadSortKey {
   return typeof value === "string" && leadSortKeys.some((s) => s === value);
 }
 
+export function isWishlistStatus(value: unknown): value is WishlistStatus {
+  return typeof value === "string" && wishlistStatuses.some((s) => s === value);
+}
+
+export function isWishlistSortKey(value: unknown): value is WishlistSortKey {
+  return typeof value === "string" && wishlistSortKeys.some((s) => s === value);
+}
+
 export function isScreen(value: unknown): value is Screen {
   return (
     value === "applications" ||
     value === "leads" ||
+    value === "wishlist" ||
     value === "companies" ||
     value === "resumes" ||
     value === "cover-letters" ||
@@ -272,6 +333,10 @@ export function isScreen(value: unknown): value is Screen {
 
 export function isClosedLeadStatus(value: LeadStatus): boolean {
   return closedLeadStatuses.some((s) => s === value);
+}
+
+export function isClosedWishlistStatus(value: WishlistStatus): boolean {
+  return closedWishlistStatuses.some((s) => s === value);
 }
 
 export function screenPath(screen: Screen) {
@@ -320,7 +385,7 @@ export function formatCompensation(
   return item.equityBonus ? `${base} + ${item.equityBonus}` : base;
 }
 
-export function nextStepSummary(item: Pick<Application | Lead, "nextStepLabel" | "nextStepDate">) {
+export function nextStepSummary(item: Pick<Application | Lead | Wishlist, "nextStepLabel" | "nextStepDate">) {
   if (item.nextStepLabel) return item.nextStepLabel;
   if (item.nextStepDate) return formatDisplayDate(item.nextStepDate);
   return "—";
@@ -456,6 +521,79 @@ export function formValuesToLeadPatch(
     resumeId: draft.resumeId,
     coverLetterId: draft.coverLetterId,
     notes: draft.notes,
+    tags: draft.tags.map((tag) => tag.trim()).filter(Boolean),
+  };
+}
+
+export function emptyWishlistContact(): WishlistContact {
+  return {
+    id: crypto.randomUUID(),
+    name: "",
+    role: "",
+    email: "",
+    phone: "",
+    url: "",
+    notes: "",
+  };
+}
+
+export function emptyWishlistFormValues(): WishlistFormValues {
+  return {
+    companyId: null,
+    companyWebsite: "",
+    interest: "",
+    status: "Interested",
+    priority: "Medium",
+    nextStepDate: "",
+    nextStepLabel: "",
+    reminderTime: "None",
+    notes: "",
+    contacts: [emptyWishlistContact()],
+    tags: [],
+  };
+}
+
+export function valuesFromWishlist(item: Wishlist): WishlistFormValues {
+  const { id: _id, archived: _archived, createdAt: _createdAt, ...rest } = item;
+  return {
+    ...rest,
+    contacts: rest.contacts.length > 0 ? rest.contacts : [emptyWishlistContact()],
+  };
+}
+
+export function formValuesToWishlistPatch(
+  draft: WishlistFormValues,
+): Omit<Wishlist, "id" | "archived" | "createdAt"> | null {
+  if (!draft.companyId) return null;
+  return {
+    companyId: draft.companyId,
+    companyWebsite: draft.companyWebsite.trim(),
+    interest: draft.interest.trim(),
+    status: draft.status,
+    priority: draft.priority,
+    nextStepDate: draft.nextStepDate,
+    nextStepLabel: draft.nextStepLabel.trim(),
+    reminderTime: draft.reminderTime,
+    notes: draft.notes,
+    contacts: draft.contacts
+      .map((contact) => ({
+        id: contact.id || crypto.randomUUID(),
+        name: contact.name.trim(),
+        role: contact.role.trim(),
+        email: contact.email.trim(),
+        phone: contact.phone.trim(),
+        url: contact.url.trim(),
+        notes: contact.notes,
+      }))
+      .filter(
+        (contact) =>
+          contact.name ||
+          contact.role ||
+          contact.email ||
+          contact.phone ||
+          contact.url ||
+          contact.notes.trim(),
+      ),
     tags: draft.tags.map((tag) => tag.trim()).filter(Boolean),
   };
 }

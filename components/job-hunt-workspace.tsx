@@ -12,6 +12,7 @@ import {
   FileText,
   Filter,
   FolderOpen,
+  Heart,
   Inbox,
   ListFilter,
   LogOut,
@@ -44,6 +45,7 @@ import {
   StageBadge,
 } from "@/components/workspace-fields";
 import { LeadsView } from "@/components/leads-workspace";
+import { WishlistView } from "@/components/wishlist-workspace";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -134,6 +136,7 @@ import {
   formatDisplayDate,
   formValuesToApplicationPatch,
   formValuesToLeadPatch,
+  formValuesToWishlistPatch,
   isPriority,
   isReplyStatus,
   isSortKey,
@@ -163,29 +166,34 @@ import {
   type SortKey,
   type Source,
   type Stage,
+  type Wishlist,
   type WorkMode,
   type WorkspaceUser,
 } from "@/lib/domain";
 import {
   bulkApplicationsRequest,
   bulkLeadsRequest,
+  bulkWishlistsRequest,
   createApplicationRequest,
   createCompanyRequest,
   createCoverTextRequest,
   createLeadRequest,
   createViewRequest,
+  createWishlistRequest,
   deleteApplicationRequest,
   deleteCompanyRequest,
   deleteCoverRequest,
   deleteLeadRequest,
   deleteResumeRequest,
   deleteViewRequest,
+  deleteWishlistRequest,
   fetchWorkspace,
   patchApplicationRequest,
   patchCompanyRequest,
   patchCoverRequest,
   patchLeadRequest,
   patchResumeRequest,
+  patchWishlistRequest,
   uploadCoverRequest,
   uploadResumeRequest,
 } from "@/lib/workspace-api";
@@ -321,11 +329,13 @@ function AppSidebar({
   screen,
   applicationCount,
   leadCount,
+  wishlistCount,
   user,
 }: {
   screen: Screen;
   applicationCount: number;
   leadCount: number;
+  wishlistCount: number;
   user: WorkspaceUser;
 }) {
   const router = useRouter();
@@ -370,6 +380,16 @@ function AppSidebar({
                   <Mail />
                   Leads
                   <SidebarMenuBadge>{leadCount}</SidebarMenuBadge>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={screen === "wishlist"}
+                  onClick={() => router.push(screenPath("wishlist"))}
+                >
+                  <Heart />
+                  Wishlist
+                  <SidebarMenuBadge>{wishlistCount}</SidebarMenuBadge>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -2227,6 +2247,7 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
     | { kind: "application"; id: string }
     | { kind: "company"; id: string }
     | { kind: "lead"; id: string }
+    | { kind: "wishlist"; id: string }
     | null
   >(null);
   const [user, setUser] = useState(initialUser);
@@ -2235,6 +2256,7 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
   const [coverLetters, setCoverLetters] = useState<CoverLetter[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [wishlists, setWishlists] = useState<Wishlist[]>([]);
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [year, setYear] = useState("all");
   const density = useSyncExternalStore(subscribeDensity, readDensity, (): Density => "comfortable");
@@ -2255,6 +2277,7 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
         setCoverLetters(payload.coverLetters);
         setApplications(payload.applications);
         setLeads(payload.leads);
+        setWishlists(payload.wishlists);
         setSavedViews(payload.savedViews);
       })
       .catch((cause: unknown) => {
@@ -2284,6 +2307,25 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
     return company.id;
   }
 
+  function fillLocalCompanyFields(
+    companyId: string,
+    fields: { website?: string; location?: string },
+  ) {
+    const website = fields.website?.trim() ?? "";
+    const location = fields.location?.trim() ?? "";
+    if (!website && !location) return;
+    setCompanies((prev) =>
+      prev.map((company) => {
+        if (company.id !== companyId) return company;
+        return {
+          ...company,
+          website: company.website || website,
+          location: company.location || location,
+        };
+      }),
+    );
+  }
+
   async function uploadResume(file: File) {
     const resume = await uploadResumeRequest(file);
     setResumes((prev) => [resume, ...prev]);
@@ -2305,16 +2347,28 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
   async function patchApplication(id: string, patch: Partial<Application>) {
     const updated = await patchApplicationRequest(id, patch);
     setApplications((prev) => prev.map((item) => (item.id === id ? updated : item)));
+    fillLocalCompanyFields(updated.companyId, {
+      website: updated.companyWebsite,
+      location: updated.location,
+    });
   }
 
   async function patchLead(id: string, patch: Partial<Lead>) {
     const updated = await patchLeadRequest(id, patch);
     setLeads((prev) => prev.map((item) => (item.id === id ? updated : item)));
+    fillLocalCompanyFields(updated.companyId, { website: updated.companyWebsite });
+  }
+
+  async function patchWishlist(id: string, patch: Partial<Wishlist>) {
+    const updated = await patchWishlistRequest(id, patch);
+    setWishlists((prev) => prev.map((item) => (item.id === id ? updated : item)));
+    fillLocalCompanyFields(updated.companyId, { website: updated.companyWebsite });
   }
 
   const activeApplications = applications.filter((item) => !item.archived);
   const archivedApplications = applications.filter((item) => item.archived);
   const activeLeads = leads.filter((item) => !item.archived);
+  const activeWishlists = wishlists.filter((item) => !item.archived);
 
   return (
     <SidebarProvider className="h-svh overflow-hidden">
@@ -2322,6 +2376,7 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
         screen={screen}
         applicationCount={activeApplications.length}
         leadCount={activeLeads.length}
+        wishlistCount={activeWishlists.length}
         user={user}
       />
       <SidebarInset className="min-h-0 overflow-hidden">
@@ -2518,6 +2573,74 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                     try {
                       const created = await createLeadRequest(patch);
                       setLeads((prev) => [created, ...prev]);
+                      fillLocalCompanyFields(created.companyId, {
+                        website: created.companyWebsite,
+                      });
+                    } catch (cause) {
+                      fail(cause);
+                      throw cause;
+                    }
+                  }}
+                />
+              )}
+              {screen === "wishlist" && (
+                <WishlistView
+                  wishlists={activeWishlists}
+                  companies={companies}
+                  density={density}
+                  setDensity={writeDensity}
+                  groupByCompany={groupByCompanyEnabled}
+                  setGroupByCompany={writeGroupByCompany}
+                  focusId={searchFocus?.kind === "wishlist" ? searchFocus.id : null}
+                  onFocusConsumed={() => setSearchFocus(null)}
+                  onPatch={async (id, patch) => {
+                    try {
+                      await patchWishlist(id, patch);
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onDelete={async (id) => {
+                    try {
+                      await deleteWishlistRequest(id);
+                      setWishlists((prev) => prev.filter((item) => item.id !== id));
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onBulk={async (ids, action) => {
+                    try {
+                      await bulkWishlistsRequest(ids, action);
+                      if (action === "delete") {
+                        setWishlists((prev) => prev.filter((item) => !ids.includes(item.id)));
+                      } else {
+                        setWishlists((prev) =>
+                          prev.map((item) =>
+                            ids.includes(item.id) ? { ...item, archived: true } : item,
+                          ),
+                        );
+                      }
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onCreateCompany={async (name) => {
+                    try {
+                      return await createCompany(name);
+                    } catch (cause) {
+                      fail(cause);
+                      throw cause;
+                    }
+                  }}
+                  onCreate={async (data) => {
+                    const patch = formValuesToWishlistPatch(data);
+                    if (!patch) return;
+                    try {
+                      const created = await createWishlistRequest(patch);
+                      setWishlists((prev) => [created, ...prev]);
+                      fillLocalCompanyFields(created.companyId, {
+                        website: created.companyWebsite,
+                      });
                     } catch (cause) {
                       fail(cause);
                       throw cause;
@@ -2714,6 +2837,10 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
           try {
             const created = await createApplicationRequest(patch);
             setApplications((prev) => [created, ...prev]);
+            fillLocalCompanyFields(created.companyId, {
+              website: created.companyWebsite,
+              location: created.location,
+            });
           } catch (cause) {
             fail(cause);
             throw cause;
@@ -2727,7 +2854,7 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
         className="sm:max-w-xl"
       >
         <CommandPalette className="min-h-80">
-          <CommandInput placeholder="Search applications, leads, companies, resumes..." />
+          <CommandInput placeholder="Search applications, leads, wishlist, companies..." />
           <CommandList className="max-h-96">
             <CommandEmpty>No matches.</CommandEmpty>
             <CommandGroup heading="Go to">
@@ -2735,6 +2862,7 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                 [
                   ["applications", "Applications"],
                   ["leads", "Leads"],
+                  ["wishlist", "Wishlist"],
                   ["companies", "Companies"],
                   ["resumes", "Resumes"],
                   ["cover-letters", "Cover letters"],
@@ -2784,6 +2912,25 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                     }}
                   >
                     {company?.name ?? "Unknown"} · {item.personName}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+            <CommandGroup heading="Wishlist">
+              {wishlists.slice(0, 12).map((item) => {
+                const company = companies.find((c) => c.id === item.companyId);
+                return (
+                  <CommandItem
+                    key={item.id}
+                    value={`${company?.name ?? ""} ${item.interest}`}
+                    onSelect={() => {
+                      setSearchFocus({ kind: "wishlist", id: item.id });
+                      router.push(screenPath("wishlist"));
+                      setSearchOpen(false);
+                    }}
+                  >
+                    {company?.name ?? "Unknown"}
+                    {item.interest ? ` · ${item.interest}` : ""}
                   </CommandItem>
                 );
               })}

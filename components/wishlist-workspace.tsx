@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ArrowDownUp, Filter, Plus, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
 import {
+  CompanyActivityBadges,
   CompanyGroupHeaderRow,
   GroupedItemIndent,
   useCollapsedCompanyGroups,
@@ -86,7 +87,9 @@ import {
   valuesFromWishlist,
   wishlistSortLabels,
   wishlistStatuses,
+  type ApplicationListItem,
   type Company,
+  type LeadListItem,
   type Priority,
   type ReminderTime,
   type SavedView,
@@ -114,6 +117,14 @@ function relativeFollowUp(iso: string) {
   if (diff === 1) return "Tomorrow";
   if (diff === -1) return "Yesterday";
   return formatDisplayDate(iso);
+}
+
+function lastLeadSentDate(leads: LeadListItem[]) {
+  let latest = "";
+  for (const lead of leads) {
+    if (lead.sentDate && lead.sentDate > latest) latest = lead.sentDate;
+  }
+  return latest;
 }
 
 function TagsInput({
@@ -689,6 +700,8 @@ function AddWishlistModal({
 export function WishlistView({
   wishlists,
   companies,
+  applications,
+  leads,
   density,
   setDensity,
   groupByCompany: groupByCompanyEnabled,
@@ -706,6 +719,8 @@ export function WishlistView({
 }: {
   wishlists: WishlistListItem[];
   companies: Company[];
+  applications: ApplicationListItem[];
+  leads: LeadListItem[];
   density: Density;
   setDensity: (density: Density) => void;
   groupByCompany: boolean;
@@ -741,6 +756,22 @@ export function WishlistView({
     () => Object.fromEntries(companies.map((c) => [c.id, c])),
     [companies],
   );
+
+  const activityByCompany = useMemo(() => {
+    const map = new Map<string, { applications: ApplicationListItem[]; leads: LeadListItem[] }>();
+    for (const company of companies) {
+      map.set(company.id, { applications: [], leads: [] });
+    }
+    for (const item of applications) {
+      const bucket = map.get(item.companyId);
+      if (bucket) bucket.applications.push(item);
+    }
+    for (const item of leads) {
+      const bucket = map.get(item.companyId);
+      if (bucket) bucket.leads.push(item);
+    }
+    return map;
+  }, [applications, companies, leads]);
 
   const filtered = useMemo(() => {
     const rows = wishlists.filter((item) => {
@@ -969,6 +1000,8 @@ export function WishlistView({
             <TableHead className="w-10 pl-4 pr-0" />
             <TableHead>Company</TableHead>
             <TableHead>Contacts</TableHead>
+            <TableHead>Activity</TableHead>
+            <TableHead>Last lead</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Next step</TableHead>
             <TableHead>Priority</TableHead>
@@ -980,6 +1013,8 @@ export function WishlistView({
                 const groupSelected = group.items.filter((item) => selected.includes(item.id));
                 const renderRow = (item: WishlistListItem, grouped: boolean) => {
                   const company = companyById[item.companyId];
+                  const activity = activityByCompany.get(item.companyId);
+                  const lastSent = lastLeadSentDate(activity?.leads ?? []);
                   return (
                     <TableRow
                       key={item.id}
@@ -1034,6 +1069,21 @@ export function WishlistView({
                         className="hidden cursor-pointer md:table-cell"
                         onClick={() => setActiveId(item.id)}
                       >
+                        <CompanyActivityBadges
+                          applicationCount={activity?.applications.length ?? 0}
+                          leadCount={activity?.leads.length ?? 0}
+                        />
+                      </TableCell>
+                      <TableCell
+                        className="hidden cursor-pointer text-muted-foreground md:table-cell"
+                        onClick={() => setActiveId(item.id)}
+                      >
+                        {lastSent ? formatDisplayDate(lastSent) : "—"}
+                      </TableCell>
+                      <TableCell
+                        className="hidden cursor-pointer md:table-cell"
+                        onClick={() => setActiveId(item.id)}
+                      >
                         <WishlistStatusBadge status={item.status} />
                       </TableCell>
                       <TableCell
@@ -1074,13 +1124,15 @@ export function WishlistView({
                           : prev.filter((id) => !ids.includes(id)),
                       );
                     }}
-                    colSpan={6}
+                    colSpan={8}
                   />,
                   ...(collapsed ? [] : group.items.map((item) => renderRow(item, true))),
                 ];
               })
             : filtered.map((item) => {
                 const company = companyById[item.companyId];
+                const activity = activityByCompany.get(item.companyId);
+                const lastSent = lastLeadSentDate(activity?.leads ?? []);
                 return (
                   <TableRow
                     key={item.id}
@@ -1117,6 +1169,21 @@ export function WishlistView({
                       onClick={() => setActiveId(item.id)}
                     >
                       {contactSummary(item)}
+                    </TableCell>
+                    <TableCell
+                      className="hidden cursor-pointer md:table-cell"
+                      onClick={() => setActiveId(item.id)}
+                    >
+                      <CompanyActivityBadges
+                        applicationCount={activity?.applications.length ?? 0}
+                        leadCount={activity?.leads.length ?? 0}
+                      />
+                    </TableCell>
+                    <TableCell
+                      className="hidden cursor-pointer text-muted-foreground md:table-cell"
+                      onClick={() => setActiveId(item.id)}
+                    >
+                      {lastSent ? formatDisplayDate(lastSent) : "—"}
                     </TableCell>
                     <TableCell
                       className="hidden cursor-pointer md:table-cell"

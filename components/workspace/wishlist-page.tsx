@@ -8,7 +8,9 @@ import { ListPageSkeleton } from "@/components/workspace-skeletons";
 import { useWorkspaceFocus } from "@/components/workspace-shell";
 import {
   mutateCreateCompany,
+  useApplicationsQuery,
   useCompaniesQuery,
+  useLeadsQuery,
   useSavedViewsQuery,
   useWishlistsQuery,
   useWorkspaceMutations,
@@ -35,9 +37,15 @@ export default function WishlistPage() {
   );
   const wishlistsQuery = useWishlistsQuery("active");
   const companiesQuery = useCompaniesQuery();
+  const applicationsQuery = useApplicationsQuery("active");
+  const leadsQuery = useLeadsQuery("active");
   const viewsQuery = useSavedViewsQuery("wishlist");
   const mutations = useWorkspaceMutations();
-  const listPending = wishlistsQuery.isPending || companiesQuery.isPending;
+  const listPending =
+    wishlistsQuery.isPending ||
+    companiesQuery.isPending ||
+    applicationsQuery.isPending ||
+    leadsQuery.isPending;
 
   function fail(cause: unknown) {
     setActionError(failMessage(cause));
@@ -52,12 +60,14 @@ export default function WishlistPage() {
             title="Companies you want to watch"
             description="Contacts, notes, and next steps before an application exists."
           />
-          <ListPageSkeleton columns={5} />
+          <ListPageSkeleton columns={7} />
         </>
       ) : (
         <WishlistView
           wishlists={wishlistsQuery.data ?? []}
           companies={companiesQuery.data ?? []}
+          applications={applicationsQuery.data ?? []}
+          leads={leadsQuery.data ?? []}
           density={density}
           setDensity={writeDensity}
           groupByCompany={groupByCompanyEnabled}

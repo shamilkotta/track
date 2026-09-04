@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ArrowDownUp, Filter, Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import {
   CompanyGroupHeaderRow,
@@ -355,6 +355,7 @@ function AddLeadModal({
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <LeadFields
+            key={open ? "open" : "closed"}
             companies={companies}
             resumes={resumes}
             coverLetters={coverLetters}
@@ -454,14 +455,14 @@ export function LeadsView({
   const [selectedPlatforms, setSelectedPlatforms] = useState<LeadPlatform[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [localActiveId, setLocalActiveId] = useState<string | null>(null);
   const { isCollapsed, toggle } = useCollapsedCompanyGroups();
+  const activeId = focusId ?? localActiveId;
 
-  useEffect(() => {
-    if (!focusId) return;
-    setActiveId(focusId);
-    onFocusConsumed?.();
-  }, [focusId, onFocusConsumed]);
+  function setActiveId(id: string | null) {
+    if (focusId) onFocusConsumed?.();
+    setLocalActiveId(id);
+  }
 
   const companyById = useMemo(
     () => Object.fromEntries(companies.map((c) => [c.id, c])),

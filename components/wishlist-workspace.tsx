@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ArrowDownUp, Filter, Plus, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
 import {
   CompanyGroupHeaderRow,
@@ -125,8 +125,20 @@ function TagsInput({
 }) {
   return (
     <Input
-      value={formatTagsInput(value)}
-      onChange={(e) => onChange(parseTagsInput(e.target.value))}
+      defaultValue={formatTagsInput(value)}
+      onChange={(e) => onChange(parseTagsInput(e.currentTarget.value))}
+      onBlur={(e) => {
+        const tags = parseTagsInput(e.currentTarget.value);
+        e.currentTarget.value = formatTagsInput(tags);
+        onChange(tags);
+      }}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        const tags = parseTagsInput(e.currentTarget.value);
+        e.currentTarget.value = formatTagsInput(tags);
+        onChange(tags);
+      }}
       placeholder={placeholder}
     />
   );
@@ -602,6 +614,7 @@ function AddWishlistModal({
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <WishlistFields
+            key={open ? "open" : "closed"}
             companies={companies}
             values={values}
             setValues={(patch) => setValuesState((current) => ({ ...current, ...patch }))}
@@ -685,14 +698,14 @@ export function WishlistView({
   const [selectedPriorities, setSelectedPriorities] = useState<Priority[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [localActiveId, setLocalActiveId] = useState<string | null>(null);
   const { isCollapsed, toggle } = useCollapsedCompanyGroups();
+  const activeId = focusId ?? localActiveId;
 
-  useEffect(() => {
-    if (!focusId) return;
-    setActiveId(focusId);
-    onFocusConsumed?.();
-  }, [focusId, onFocusConsumed]);
+  function setActiveId(id: string | null) {
+    if (focusId) onFocusConsumed?.();
+    setLocalActiveId(id);
+  }
 
   const companyById = useMemo(
     () => Object.fromEntries(companies.map((c) => [c.id, c])),

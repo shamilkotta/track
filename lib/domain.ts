@@ -410,7 +410,7 @@ export function nextStepSummary(
   return "—";
 }
 
-export function emptyFormValues(resumes: Resume[]): ApplicationFormValues {
+export function emptyFormValues(): ApplicationFormValues {
   return {
     companyId: null,
     role: "",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { FileText, Mail, Paperclip, Plus, Upload, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -145,40 +145,21 @@ function TagsInput({
   onChange: (tags: string[]) => void;
   placeholder?: string;
 }) {
-  const [text, setText] = useState(() => formatTagsInput(value));
-  const focusedRef = useRef(false);
-  const external = formatTagsInput(value);
-
-  useEffect(() => {
-    if (!focusedRef.current) setText(external);
-  }, [external]);
-
-  function commit(raw: string) {
-    const tags = parseTagsInput(raw);
-    onChange(tags);
-    setText(formatTagsInput(tags));
-  }
-
   return (
     <Input
-      value={text}
-      onFocus={() => {
-        focusedRef.current = true;
-      }}
-      onChange={(e) => {
-        const next = e.target.value;
-        setText(next);
-        onChange(parseTagsInput(next));
-      }}
-      onBlur={() => {
-        focusedRef.current = false;
-        commit(text);
+      defaultValue={formatTagsInput(value)}
+      onChange={(e) => onChange(parseTagsInput(e.currentTarget.value))}
+      onBlur={(e) => {
+        const tags = parseTagsInput(e.currentTarget.value);
+        e.currentTarget.value = formatTagsInput(tags);
+        onChange(tags);
       }}
       onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          commit(text);
-        }
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        const tags = parseTagsInput(e.currentTarget.value);
+        e.currentTarget.value = formatTagsInput(tags);
+        onChange(tags);
       }}
       placeholder={placeholder}
     />
@@ -228,16 +209,15 @@ export function CompanyPicker({
   onChange: (id: string | null) => void;
   onCreate: (name: string) => Promise<string>;
 }) {
-  const [query, setQuery] = useState("");
-  const [pending, setPending] = useState(false);
-
   const selectedCompany = companies.find((company) => company.id === value) ?? null;
+  const selectedName = selectedCompany?.name ?? "";
+  const [pending, setPending] = useState(false);
+  const [typed, setTyped] = useState<{ forId: string | null; query: string } | null>(null);
+  const query = typed && typed.forId === value ? typed.query : selectedName;
 
-  useEffect(() => {
-    if (selectedCompany) {
-      setQuery(selectedCompany.name);
-    }
-  }, [selectedCompany?.id, selectedCompany?.name]);
+  const setQuery = (next: string) => {
+    setTyped({ forId: value, query: next });
+  };
 
   const items = useMemo<CompanyOption[]>(() => {
     const existing: CompanyOption[] = companies.map((company) => ({

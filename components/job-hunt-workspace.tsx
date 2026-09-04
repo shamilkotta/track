@@ -726,15 +726,15 @@ function ApplicationsView({
   const [selectedModes, setSelectedModes] = useState<WorkMode[]>([]);
   const [selectedSources, setSelectedSources] = useState<Source[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [localActiveId, setLocalActiveId] = useState<string | null>(null);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const { isCollapsed, toggle } = useCollapsedCompanyGroups();
+  const activeId = focusId ?? localActiveId;
 
-  useEffect(() => {
-    if (!focusId) return;
-    setActiveId(focusId);
-    onFocusConsumed?.();
-  }, [focusId, onFocusConsumed]);
+  function setActiveId(id: string | null) {
+    if (focusId) onFocusConsumed?.();
+    setLocalActiveId(id);
+  }
 
   const companyById = useMemo(
     () => Object.fromEntries(companies.map((c) => [c.id, c])),
@@ -1300,14 +1300,40 @@ function CompaniesView({
   onOpenApplication: (id: string) => void;
   onOpenLead: (id: string) => void;
 }) {
-  const [activeId, setActiveId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newWebsite, setNewWebsite] = useState("");
   const [savingCreate, setSavingCreate] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [localActiveId, setLocalActiveId] = useState<string | null>(null);
+  const activeId = focusId ?? localActiveId;
   const active = companies.find((c) => c.id === activeId) ?? null;
-  const [draft, setDraft] = useState({ name: "", website: "", location: "", logo: "" });
+  const [dirtyDraft, setDirtyDraft] = useState<{
+    id: string;
+    name: string;
+    website: string;
+    location: string;
+    logo: string;
+  } | null>(null);
+
+  function setActiveId(id: string | null) {
+    if (focusId) onFocusConsumed?.();
+    setLocalActiveId(id);
+    if (id === null) setDirtyDraft(null);
+  }
+
+  const draft =
+    active && dirtyDraft?.id === active.id
+      ? dirtyDraft
+      : active
+        ? {
+            id: active.id,
+            name: active.name,
+            website: active.website,
+            location: active.location,
+            logo: active.logo,
+          }
+        : { id: "", name: "", website: "", location: "", logo: "" };
 
   const activityByCompany = useMemo(() => {
     const map = new Map<string, { applications: Application[]; leads: Lead[] }>();
@@ -1324,23 +1350,6 @@ function CompaniesView({
     }
     return map;
   }, [applications, companies, leads]);
-
-  useEffect(() => {
-    if (!focusId) return;
-    const company = companies.find((c) => c.id === focusId);
-    if (!company) {
-      onFocusConsumed?.();
-      return;
-    }
-    setActiveId(company.id);
-    setDraft({
-      name: company.name,
-      website: company.website,
-      location: company.location,
-      logo: company.logo,
-    });
-    onFocusConsumed?.();
-  }, [focusId, companies, onFocusConsumed]);
 
   function resetCreate() {
     setNewName("");
@@ -1429,19 +1438,7 @@ function CompaniesView({
             {companies.map((c) => {
               const activity = activityByCompany.get(c.id);
               return (
-                <TableRow
-                  key={c.id}
-                  className="cursor-pointer"
-                  onClick={() => {
-                    setActiveId(c.id);
-                    setDraft({
-                      name: c.name,
-                      website: c.website,
-                      location: c.location,
-                      logo: c.logo,
-                    });
-                  }}
-                >
+                <TableRow key={c.id} className="cursor-pointer" onClick={() => setActiveId(c.id)}>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <CompanyMark logo={c.logo} color={c.color} />
@@ -1497,21 +1494,27 @@ function CompaniesView({
                   <FieldLabel>Name</FieldLabel>
                   <Input
                     value={draft.name}
-                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                    onChange={(e) =>
+                      setDirtyDraft({ ...draft, id: active.id, name: e.target.value })
+                    }
                   />
                 </Field>
                 <Field>
                   <FieldLabel>Logo letter</FieldLabel>
                   <Input
                     value={draft.logo}
-                    onChange={(e) => setDraft({ ...draft, logo: e.target.value })}
+                    onChange={(e) =>
+                      setDirtyDraft({ ...draft, id: active.id, logo: e.target.value })
+                    }
                   />
                 </Field>
                 <Field>
                   <FieldLabel>Location</FieldLabel>
                   <Input
                     value={draft.location}
-                    onChange={(e) => setDraft({ ...draft, location: e.target.value })}
+                    onChange={(e) =>
+                      setDirtyDraft({ ...draft, id: active.id, location: e.target.value })
+                    }
                   />
                 </Field>
                 <Field>
@@ -1519,7 +1522,9 @@ function CompaniesView({
                   <Input
                     type="url"
                     value={draft.website}
-                    onChange={(e) => setDraft({ ...draft, website: e.target.value })}
+                    onChange={(e) =>
+                      setDirtyDraft({ ...draft, id: active.id, website: e.target.value })
+                    }
                   />
                 </Field>
                 <div>
@@ -1540,7 +1545,12 @@ function CompaniesView({
               <Button
                 onClick={() => {
                   if (!active) return;
-                  void onPatch(active.id, draft).then(() => setActiveId(null));
+                  void onPatch(active.id, {
+                    name: draft.name,
+                    website: draft.website,
+                    location: draft.location,
+                    logo: draft.logo,
+                  }).then(() => setActiveId(null));
                 }}
               >
                 Save changes
@@ -2065,12 +2075,24 @@ function ArchiveView({
   onCreateCoverText: (name: string, body: string) => Promise<string>;
   onUploadCover: (file: File) => Promise<string>;
 }) {
-  const [active, setActive] = useState<
+  const [localActive, setLocalActive] = useState<
     | { kind: "application"; id: string }
     | { kind: "lead"; id: string }
     | { kind: "wishlist"; id: string }
     | null
   >(null);
+  const active = focusId && focusKind ? { kind: focusKind, id: focusId } : localActive;
+
+  function setActive(
+    next:
+      | { kind: "application"; id: string }
+      | { kind: "lead"; id: string }
+      | { kind: "wishlist"; id: string }
+      | null,
+  ) {
+    if (focusId) onFocusConsumed?.();
+    setLocalActive(next);
+  }
   const companyById = useMemo(
     () => Object.fromEntries(companies.map((c) => [c.id, c])),
     [companies],
@@ -2111,12 +2133,6 @@ function ArchiveView({
 
     return rows.sort((a, b) => b.sortAt.localeCompare(a.sortAt));
   }, [applications, leads, wishlists]);
-
-  useEffect(() => {
-    if (!focusId || !focusKind) return;
-    setActive({ kind: focusKind, id: focusId });
-    onFocusConsumed?.();
-  }, [focusId, focusKind, onFocusConsumed]);
 
   return (
     <div className="px-4 pb-8 pt-7 md:px-7">
@@ -2314,7 +2330,7 @@ function AddModal({
   onUploadCover: (file: File) => Promise<string>;
   onSave: (data: ApplicationFormValues) => Promise<void>;
 }) {
-  const [values, setValuesState] = useState(() => emptyFormValues(resumes));
+  const [values, setValuesState] = useState(() => emptyFormValues());
   const [saving, setSaving] = useState(false);
   const canSave = Boolean(values.companyId && values.role.trim());
 
@@ -2327,6 +2343,7 @@ function AddModal({
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <ApplicationFields
+            key={open ? "open" : "closed"}
             companies={companies}
             resumes={resumes}
             coverLetters={coverLetters}
@@ -2347,7 +2364,7 @@ function AddModal({
               variant="outline"
               onClick={() => {
                 onOpenChange(false);
-                setValuesState(emptyFormValues(resumes));
+                setValuesState(emptyFormValues());
               }}
             >
               Cancel
@@ -2359,7 +2376,7 @@ function AddModal({
                 void onSave(values)
                   .then(() => {
                     onOpenChange(false);
-                    setValuesState(emptyFormValues(resumes));
+                    setValuesState(emptyFormValues());
                   })
                   .finally(() => setSaving(false));
               }}

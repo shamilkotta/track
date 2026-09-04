@@ -92,10 +92,12 @@ import {
   type SavedView,
   type Wishlist,
   type WishlistFormValues,
+  type WishlistListItem,
   type WishlistSortKey,
   type WishlistStatus,
 } from "@/lib/domain";
 import { groupByCompany } from "@/lib/group-by-company";
+import { useWishlistQuery } from "@/hooks/use-workspace";
 
 type Density = "comfortable" | "compact";
 
@@ -405,12 +407,12 @@ function WishlistFields({
   );
 }
 
-function computeWishlistStats(items: Wishlist[], companies: Company[]) {
+function computeWishlistStats(items: WishlistListItem[], companies: Company[]) {
   const active = items.filter((item) => !item.archived);
   const researching = active.filter(
     (item) => item.status === "Researching" || item.status === "Ready",
   );
-  const withContacts = active.filter((item) => item.contacts.some((c) => c.name || c.email));
+  const withContacts = active.filter((item) => item.contacts.some((c) => c.name));
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = active
     .filter((item) => item.nextStepDate && item.nextStepDate >= today)
@@ -444,7 +446,13 @@ function computeWishlistStats(items: Wishlist[], companies: Company[]) {
   ];
 }
 
-function WishlistStatStrip({ items, companies }: { items: Wishlist[]; companies: Company[] }) {
+function WishlistStatStrip({
+  items,
+  companies,
+}: {
+  items: WishlistListItem[];
+  companies: Company[];
+}) {
   const stats = computeWishlistStats(items, companies);
   return (
     <div className="track-stat-strip mx-4 mb-6 md:mx-7">
@@ -460,7 +468,7 @@ function WishlistStatStrip({ items, companies }: { items: Wishlist[]; companies:
 }
 
 export function WishlistDetailDrawer({
-  item,
+  id,
   company,
   companies,
   open,
@@ -471,7 +479,7 @@ export function WishlistDetailDrawer({
   readOnly = false,
   onCreateCompany,
 }: {
-  item: Wishlist;
+  id: string;
   company: Company | undefined;
   companies: Company[];
   open: boolean;
@@ -482,13 +490,23 @@ export function WishlistDetailDrawer({
   readOnly?: boolean;
   onCreateCompany: (name: string) => Promise<string>;
 }) {
-  const [draft, setDraft] = useState(() => valuesFromWishlist(item));
+  const { data: item, isPending, isError, error } = useWishlistQuery(open ? id : null);
+  const [draft, setDraft] = useState<WishlistFormValues | null>(null);
+  const [draftSourceId, setDraftSourceId] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  if (item && draftSourceId !== item.id) {
+    setDraftSourceId(item.id);
+    setDraft(valuesFromWishlist(item));
+  } else if (!item && draftSourceId !== null) {
+    setDraftSourceId(null);
+    setDraft(null);
+  }
+
   function setValues(patch: Partial<WishlistFormValues>) {
-    if (readOnly) return;
-    setDraft((current) => ({ ...current, ...patch }));
+    if (readOnly || !draft) return;
+    setDraft((current) => (current ? { ...current, ...patch } : current));
   }
 
   function flashSaved() {
@@ -497,12 +515,12 @@ export function WishlistDetailDrawer({
   }
 
   function patchImmediate(patch: Partial<Wishlist>) {
-    if (readOnly) return;
+    if (readOnly || !item) return;
     void onPatch(item.id, patch).then(flashSaved);
   }
 
   function saveAll() {
-    if (readOnly) return;
+    if (readOnly || !draft || !item) return;
     const patch = formValuesToWishlistPatch(draft);
     if (!patch) return;
     void onPatch(item.id, patch).then(flashSaved);
@@ -524,55 +542,67 @@ export function WishlistDetailDrawer({
             </SheetTitle>
             <SheetDescription>
               {company?.name ?? "Unknown"}
-              {item.interest ? ` · ${item.interest}` : ""}
+              {item?.interest ? ` · ${item.interest}` : ""}
               {readOnly ? " · Archived" : ""}
             </SheetDescription>
           </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div {...(readOnly ? { inert: true } : {})}>
-              <div className="flex items-start gap-3 px-4 pt-4">
-                {company && <CompanyMark logo={company.logo} color={company.color} large />}
-                <div className="min-w-0">
-                  <p className="font-semibold">{company?.name ?? "Unknown"}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {draft.interest || "No interest noted"}
-                  </p>
+          {isPending || !item || !draft ? (
+            <p className="px-4 py-8 text-sm text-muted-foreground">
+              {isError
+                ? error instanceof Error
+                  ? error.message
+                  : "Could not load wishlist item"
+                : "Loading details…"}
+            </p>
+          ) : (
+            <>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <div {...(readOnly ? { inert: true } : {})}>
+                  <div className="flex items-start gap-3 px-4 pt-4">
+                    {company && <CompanyMark logo={company.logo} color={company.color} large />}
+                    <div className="min-w-0">
+                      <p className="font-semibold">{company?.name ?? "Unknown"}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {draft.interest || "No interest noted"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="p-4 pt-4">
+                    <WishlistFields
+                      companies={companies}
+                      values={draft}
+                      setValues={(patch) => {
+                        setValues(patch);
+                        const immediateKeys = ["status", "priority", "reminderTime"] as const;
+                        const immediate: Partial<Wishlist> = {};
+                        for (const key of immediateKeys) {
+                          if (key in patch) {
+                            Object.assign(immediate, { [key]: patch[key] });
+                          }
+                        }
+                        if (Object.keys(immediate).length > 0) patchImmediate(immediate);
+                      }}
+                      onCreateCompany={onCreateCompany}
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="p-4 pt-4">
-                <WishlistFields
-                  companies={companies}
-                  values={draft}
-                  setValues={(patch) => {
-                    setValues(patch);
-                    const immediateKeys = ["status", "priority", "reminderTime"] as const;
-                    const immediate: Partial<Wishlist> = {};
-                    for (const key of immediateKeys) {
-                      if (key in patch) {
-                        Object.assign(immediate, { [key]: patch[key] });
-                      }
-                    }
-                    if (Object.keys(immediate).length > 0) patchImmediate(immediate);
-                  }}
-                  onCreateCompany={onCreateCompany}
-                />
-              </div>
-            </div>
-          </div>
-          <SheetFooter className="shrink-0 border-t">
-            <p className="mr-auto text-xs text-muted-foreground">
-              {item.contacts.length} contact{item.contacts.length === 1 ? "" : "s"} ·{" "}
-              {formatDisplayDate(item.createdAt.slice(0, 10))}
-            </p>
-            <Button variant="outline" onClick={() => setConfirmDelete(true)}>
-              Delete
-            </Button>
-            {readOnly ? (
-              <Button onClick={() => void onRestore?.()}>Restore</Button>
-            ) : (
-              <Button onClick={saveAll}>Save changes</Button>
-            )}
-          </SheetFooter>
+              <SheetFooter className="shrink-0 border-t">
+                <p className="mr-auto text-xs text-muted-foreground">
+                  {item.contacts.length} contact{item.contacts.length === 1 ? "" : "s"} ·{" "}
+                  {formatDisplayDate(item.createdAt.slice(0, 10))}
+                </p>
+                <Button variant="outline" onClick={() => setConfirmDelete(true)}>
+                  Delete
+                </Button>
+                {readOnly ? (
+                  <Button onClick={() => void onRestore?.()}>Restore</Button>
+                ) : (
+                  <Button onClick={saveAll}>Save changes</Button>
+                )}
+              </SheetFooter>
+            </>
+          )}
         </SheetContent>
       </Sheet>
       <ConfirmDialog
@@ -580,7 +610,7 @@ export function WishlistDetailDrawer({
         onOpenChange={setConfirmDelete}
         title="Delete this wishlist item?"
         description="This permanently removes the wishlist entry. This cannot be undone."
-        onConfirm={() => onDelete(item.id)}
+        onConfirm={() => onDelete(id)}
       />
     </>
   );
@@ -674,7 +704,7 @@ export function WishlistView({
   onSaveView,
   onDeleteView,
 }: {
-  wishlists: Wishlist[];
+  wishlists: WishlistListItem[];
   companies: Company[];
   density: Density;
   setDensity: (density: Density) => void;
@@ -717,7 +747,7 @@ export function WishlistView({
       const company = companyById[item.companyId];
       const contactNames = item.contacts.map((c) => `${c.name} ${c.role}`).join(" ");
       const hay =
-        `${company?.name ?? ""} ${item.interest} ${contactNames} ${item.tags.join(" ")} ${item.notes}`.toLowerCase();
+        `${company?.name ?? ""} ${item.interest} ${contactNames} ${item.tags.join(" ")}`.toLowerCase();
       if (filter !== "All" && item.status !== filter) return false;
       if (selectedPriorities.length > 0 && !selectedPriorities.includes(item.priority))
         return false;
@@ -749,7 +779,7 @@ export function WishlistView({
     setList(list.includes(value) ? list.filter((item) => item !== value) : [...list, value]);
   }
 
-  function contactSummary(item: Wishlist) {
+  function contactSummary(item: WishlistListItem) {
     const named = item.contacts.filter((c) => c.name.trim());
     if (named.length === 0) return "No contacts";
     if (named.length === 1) return named[0]!.name;
@@ -948,7 +978,7 @@ export function WishlistView({
           {groupByCompanyEnabled
             ? companyGroups.flatMap((group) => {
                 const groupSelected = group.items.filter((item) => selected.includes(item.id));
-                const renderRow = (item: Wishlist, grouped: boolean) => {
+                const renderRow = (item: WishlistListItem, grouped: boolean) => {
                   const company = companyById[item.companyId];
                   return (
                     <TableRow
@@ -1121,7 +1151,7 @@ export function WishlistView({
       {active && (
         <WishlistDetailDrawer
           key={active.id}
-          item={active}
+          id={active.id}
           company={companyById[active.companyId]}
           companies={companies}
           open

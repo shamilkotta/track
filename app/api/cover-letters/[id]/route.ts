@@ -1,5 +1,15 @@
 import { asRecord, errorResponse, json, readJson, requireApiUser } from "@/lib/http";
-import { deleteCoverLetter, updateCoverLetter } from "@/lib/workspace-store";
+import { deleteCoverLetter, getCoverLetter, updateCoverLetter } from "@/lib/workspace-store";
+
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const user = await requireApiUser(request);
+    const { id } = await context.params;
+    return json(await getCoverLetter(user.id, id));
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {

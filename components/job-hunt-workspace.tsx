@@ -1,25 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
-  Archive,
   ArrowDownUp,
-  Building2,
-  CircleHelp,
   Download,
   FileText,
   Filter,
-  FolderOpen,
-  Heart,
-  Inbox,
-  LogOut,
   Mail,
-  MoreHorizontal,
   Paperclip,
   Pencil,
   Plus,
   Search,
-  Settings2,
   SlidersHorizontal,
   Upload,
   X,
@@ -31,10 +22,8 @@ import {
   GroupedItemIndent,
   useCollapsedCompanyGroups,
 } from "@/components/company-group-rows";
-import { BrandMark } from "@/components/brand-mark";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
-import { usePathname, useRouter } from "nlite/navigation";
 import {
   ApplicationFields,
   CompanyMark,
@@ -44,21 +33,11 @@ import {
   StageBadge,
   WishlistStatusBadge,
 } from "@/components/workspace-fields";
-import { LeadDetailDrawer, LeadsView } from "@/components/leads-workspace";
-import { WishlistDetailDrawer, WishlistView } from "@/components/wishlist-workspace";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { LeadDetailDrawer } from "@/components/leads-workspace";
+import { WishlistDetailDrawer } from "@/components/wishlist-workspace";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Command as CommandPalette,
-  CommandDialog,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
 import {
   Dialog,
   DialogContent,
@@ -78,7 +57,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Kbd } from "@/components/ui/kbd";
 import {
   Popover,
   PopoverContent,
@@ -105,24 +83,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarInset,
-  SidebarMenu,
-  SidebarMenuBadge,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-  SidebarSeparator,
-  SidebarTrigger,
-  useSidebar,
-} from "@/components/ui/sidebar";
-import {
   Table,
   TableBody,
   TableCell,
@@ -130,14 +90,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { signOut } from "@/lib/auth-client";
 import {
   emptyFormValues,
   formatCompensation,
   formatDisplayDate,
   formValuesToApplicationPatch,
-  formValuesToLeadPatch,
-  formValuesToWishlistPatch,
   isPriority,
   isReplyStatus,
   isSortKey,
@@ -146,102 +103,36 @@ import {
   nextStepSummary,
   priorities,
   replyStatuses,
-  screenFromPathname,
-  screenPath,
   sortLabels,
   sources,
   stages,
-  userInitials,
   valuesFromApplication,
   workModes,
   type Application,
   type ApplicationFormValues,
+  type ApplicationListItem,
   type Company,
-  type CoverLetter,
+  type CoverLetterListItem,
   type Lead,
+  type LeadListItem,
   type Priority,
   type ReplyStatus,
   type Resume,
   type SavedView,
-  type Screen,
   type SortKey,
   type Source,
   type Stage,
   type Wishlist,
+  type WishlistListItem,
   type WorkMode,
-  type WorkspaceUser,
 } from "@/lib/domain";
-import {
-  bulkApplicationsRequest,
-  bulkLeadsRequest,
-  bulkWishlistsRequest,
-  createApplicationRequest,
-  createCompanyRequest,
-  createCoverTextRequest,
-  createLeadRequest,
-  createViewRequest,
-  createWishlistRequest,
-  deleteApplicationRequest,
-  deleteCompanyRequest,
-  deleteCoverRequest,
-  deleteLeadRequest,
-  deleteResumeRequest,
-  deleteViewRequest,
-  deleteWishlistRequest,
-  fetchWorkspace,
-  patchApplicationRequest,
-  patchCompanyRequest,
-  patchCoverRequest,
-  patchLeadRequest,
-  patchResumeRequest,
-  patchWishlistRequest,
-  uploadCoverRequest,
-  uploadResumeRequest,
-} from "@/lib/workspace-api";
+import { useApplicationQuery, useCoverLetterQuery } from "@/hooks/use-workspace";
 import { groupByCompany } from "@/lib/group-by-company";
 
 type Density = "comfortable" | "compact";
 
 function isDensity(value: string | null): value is Density {
   return value === "comfortable" || value === "compact";
-}
-
-const densityListeners = new Set<() => void>();
-
-function readDensity(): Density {
-  const stored = window.localStorage.getItem("trackr-density");
-  return isDensity(stored) ? stored : "comfortable";
-}
-
-function subscribeDensity(onStoreChange: () => void) {
-  densityListeners.add(onStoreChange);
-  return () => {
-    densityListeners.delete(onStoreChange);
-  };
-}
-
-function writeDensity(value: Density) {
-  window.localStorage.setItem("trackr-density", value);
-  for (const listener of densityListeners) listener();
-}
-
-const groupByCompanyListeners = new Set<() => void>();
-
-function readGroupByCompany() {
-  const stored = window.localStorage.getItem("trackr-group-by-company");
-  return stored !== "false";
-}
-
-function subscribeGroupByCompany(onStoreChange: () => void) {
-  groupByCompanyListeners.add(onStoreChange);
-  return () => {
-    groupByCompanyListeners.delete(onStoreChange);
-  };
-}
-
-function writeGroupByCompany(value: boolean) {
-  window.localStorage.setItem("trackr-group-by-company", String(value));
-  for (const listener of groupByCompanyListeners) listener();
 }
 
 function relativeFollowUp(iso: string) {
@@ -255,7 +146,7 @@ function relativeFollowUp(iso: string) {
   return formatDisplayDate(iso);
 }
 
-function computeStats(applications: Application[], companies: Company[]) {
+function computeStats(applications: ApplicationListItem[], companies: Company[]) {
   const active = applications.filter((item) => !item.archived);
   const inProgress = active.filter(
     (item) => item.stage === "Screening" || item.stage === "Interview" || item.stage === "Offer",
@@ -300,7 +191,7 @@ function StatStrip({
   applications,
   companies,
 }: {
-  applications: Application[];
+  applications: ApplicationListItem[];
   companies: Company[];
 }) {
   const stats = computeStats(applications, companies);
@@ -317,176 +208,8 @@ function StatStrip({
   );
 }
 
-function AppSidebar({
-  screen,
-  applicationCount,
-  leadCount,
-  wishlistCount,
-  user,
-}: {
-  screen: Screen;
-  applicationCount: number;
-  leadCount: number;
-  wishlistCount: number;
-  user: WorkspaceUser;
-}) {
-  const router = useRouter();
-  const { setOpenMobile } = useSidebar();
-
-  const navigate = (path: string) => {
-    router.push(path);
-    setOpenMobile(false);
-  };
-
-  return (
-    <Sidebar className="border-r border-border">
-      <SidebarHeader className="px-4 pt-5 pb-3">
-        <BrandMark />
-      </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={screen === "applications"}
-                  onClick={() => navigate(screenPath("applications"))}
-                >
-                  <Inbox />
-                  Applications
-                  <SidebarMenuBadge>{applicationCount}</SidebarMenuBadge>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={screen === "leads"}
-                  onClick={() => navigate(screenPath("leads"))}
-                >
-                  <Mail />
-                  Leads
-                  <SidebarMenuBadge>{leadCount}</SidebarMenuBadge>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={screen === "wishlist"}
-                  onClick={() => navigate(screenPath("wishlist"))}
-                >
-                  <Heart />
-                  Wishlist
-                  <SidebarMenuBadge>{wishlistCount}</SidebarMenuBadge>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel>Library</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {(
-                [
-                  ["companies", Building2, "Companies"],
-                  ["resumes", FileText, "Resumes"],
-                  ["cover-letters", FolderOpen, "Cover letters"],
-                  ["archive", Archive, "Archive"],
-                ] as const
-              ).map(([id, Icon, label]) => (
-                <SidebarMenuItem key={id}>
-                  <SidebarMenuButton
-                    isActive={screen === id}
-                    onClick={() => navigate(screenPath(id))}
-                  >
-                    <Icon />
-                    {label}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton onClick={() => navigate("/settings")}>
-              <Settings2 />
-              Settings
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton onClick={() => navigate("/help")}>
-              <CircleHelp />
-              Help center
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-        <SidebarSeparator />
-        <DropdownMenu>
-          <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-sidebar-accent">
-            <Avatar size="sm">
-              <AvatarFallback>{userInitials(user.name)}</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{user.name}</p>
-              <p className="truncate text-xs text-muted-foreground">{user.title || user.email}</p>
-            </div>
-            <MoreHorizontal className="ml-auto size-4 text-muted-foreground" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="top" align="start" className="w-56">
-            <div className="px-1.5 py-1.5 text-xs font-medium text-muted-foreground">
-              {user.email}
-            </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate("/settings")}>
-              <Settings2 />
-              Settings
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/help")}>
-              <CircleHelp />
-              Help center
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              variant="destructive"
-              onClick={() => {
-                setOpenMobile(false);
-                void signOut({
-                  fetchOptions: {
-                    onSuccess: () => {
-                      router.push("/sign-in");
-                    },
-                  },
-                });
-              }}
-            >
-              <LogOut />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarFooter>
-    </Sidebar>
-  );
-}
-
-function Header({ onSearch }: { onSearch: () => void }) {
-  return (
-    <header className="flex h-12 shrink-0 items-center gap-3 px-4 md:px-6">
-      <SidebarTrigger className="-ml-1" />
-      <div className="ml-auto flex items-center gap-2">
-        <Button variant="outline" className="hidden md:inline-flex" onClick={onSearch}>
-          Search
-          <Kbd>⌘K</Kbd>
-        </Button>
-      </div>
-    </header>
-  );
-}
-
 function DetailDrawer({
-  item,
+  id,
   company,
   companies,
   resumes,
@@ -502,11 +225,11 @@ function DetailDrawer({
   onCreateCoverText,
   onUploadCover,
 }: {
-  item: Application;
+  id: string;
   company: Company | undefined;
   companies: Company[];
   resumes: Resume[];
-  coverLetters: CoverLetter[];
+  coverLetters: CoverLetterListItem[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPatch: (id: string, patch: Partial<Application>) => Promise<void>;
@@ -518,13 +241,23 @@ function DetailDrawer({
   onCreateCoverText: (name: string, body: string) => Promise<string>;
   onUploadCover: (file: File) => Promise<string>;
 }) {
-  const [draft, setDraft] = useState(() => valuesFromApplication(item));
+  const { data: item, isPending, isError, error } = useApplicationQuery(open ? id : null);
+  const [draft, setDraft] = useState<ApplicationFormValues | null>(null);
+  const [draftSourceId, setDraftSourceId] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  if (item && draftSourceId !== item.id) {
+    setDraftSourceId(item.id);
+    setDraft(valuesFromApplication(item));
+  } else if (!item && draftSourceId !== null) {
+    setDraftSourceId(null);
+    setDraft(null);
+  }
+
   function setValues(patch: Partial<ApplicationFormValues>) {
-    if (readOnly) return;
-    setDraft((current) => ({ ...current, ...patch }));
+    if (readOnly || !draft) return;
+    setDraft((current) => (current ? { ...current, ...patch } : current));
   }
 
   function flashSaved() {
@@ -533,12 +266,12 @@ function DetailDrawer({
   }
 
   function patchImmediate(patch: Partial<Application>) {
-    if (readOnly) return;
+    if (readOnly || !item) return;
     void onPatch(item.id, patch).then(flashSaved);
   }
 
   function saveAll() {
-    if (readOnly) return;
+    if (readOnly || !draft || !item) return;
     const patch = formValuesToApplicationPatch(draft);
     if (!patch) return;
     void onPatch(item.id, patch).then(flashSaved);
@@ -556,104 +289,117 @@ function DetailDrawer({
               )}
             </SheetTitle>
             <SheetDescription>
-              {company?.name ?? "Unknown"} · {item.role}
+              {company?.name ?? "Unknown"}
+              {item ? ` · ${item.role}` : ""}
               {readOnly ? " · Archived" : ""}
             </SheetDescription>
           </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div {...(readOnly ? { inert: true } : {})}>
-              <div className="flex items-start gap-3 px-4 pt-4">
-                {company && <CompanyMark logo={company.logo} color={company.color} large />}
-                <div className="min-w-0">
-                  <p className="font-semibold">{company?.name ?? "Unknown"}</p>
-                  <p className="text-sm text-muted-foreground">{draft.role}</p>
+          {isPending || !item || !draft ? (
+            <p className="px-4 py-8 text-sm text-muted-foreground">
+              {isError
+                ? error instanceof Error
+                  ? error.message
+                  : "Could not load application"
+                : "Loading details…"}
+            </p>
+          ) : (
+            <>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <div {...(readOnly ? { inert: true } : {})}>
+                  <div className="flex items-start gap-3 px-4 pt-4">
+                    {company && <CompanyMark logo={company.logo} color={company.color} large />}
+                    <div className="min-w-0">
+                      <p className="font-semibold">{company?.name ?? "Unknown"}</p>
+                      <p className="text-sm text-muted-foreground">{draft.role}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 px-4 pt-4">
+                    <Field>
+                      <FieldLabel>Status</FieldLabel>
+                      <NativeSelectField
+                        value={draft.stage}
+                        onChange={(stage) => {
+                          setValues({ stage });
+                          patchImmediate({ stage });
+                        }}
+                        options={stages}
+                        guard={isStage}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel>Priority</FieldLabel>
+                      <NativeSelectField
+                        value={draft.priority}
+                        onChange={(priority) => {
+                          setValues({ priority });
+                          patchImmediate({ priority });
+                        }}
+                        options={priorities}
+                        guard={isPriority}
+                      />
+                    </Field>
+                    <Field className="col-span-2">
+                      <FieldLabel>Reply status</FieldLabel>
+                      <NativeSelectField
+                        value={draft.replyStatus}
+                        onChange={(replyStatus) => {
+                          setValues({ replyStatus });
+                          patchImmediate({ replyStatus });
+                        }}
+                        options={replyStatuses}
+                        guard={isReplyStatus}
+                      />
+                    </Field>
+                  </div>
+                  <div className="p-4">
+                    <ApplicationFields
+                      companies={companies}
+                      resumes={resumes}
+                      coverLetters={coverLetters}
+                      values={draft}
+                      setValues={(patch) => {
+                        setValues(patch);
+                        const immediateKeys = [
+                          "workMode",
+                          "resumeId",
+                          "coverLetterId",
+                          "replyStatus",
+                          "source",
+                          "jobType",
+                          "reminderTime",
+                        ] as const;
+                        const immediate: Partial<Application> = {};
+                        for (const key of immediateKeys) {
+                          if (key in patch) {
+                            Object.assign(immediate, { [key]: patch[key] });
+                          }
+                        }
+                        if (Object.keys(immediate).length > 0) patchImmediate(immediate);
+                      }}
+                      onCreateCompany={onCreateCompany}
+                      onUploadResume={onUploadResume}
+                      onCreateCoverText={onCreateCoverText}
+                      onUploadCover={onUploadCover}
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3 px-4 pt-4">
-                <Field>
-                  <FieldLabel>Status</FieldLabel>
-                  <NativeSelectField
-                    value={draft.stage}
-                    onChange={(stage) => {
-                      setValues({ stage });
-                      patchImmediate({ stage });
-                    }}
-                    options={stages}
-                    guard={isStage}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel>Priority</FieldLabel>
-                  <NativeSelectField
-                    value={draft.priority}
-                    onChange={(priority) => {
-                      setValues({ priority });
-                      patchImmediate({ priority });
-                    }}
-                    options={priorities}
-                    guard={isPriority}
-                  />
-                </Field>
-                <Field className="col-span-2">
-                  <FieldLabel>Reply status</FieldLabel>
-                  <NativeSelectField
-                    value={draft.replyStatus}
-                    onChange={(replyStatus) => {
-                      setValues({ replyStatus });
-                      patchImmediate({ replyStatus });
-                    }}
-                    options={replyStatuses}
-                    guard={isReplyStatus}
-                  />
-                </Field>
-              </div>
-              <div className="p-4">
-                <ApplicationFields
-                  companies={companies}
-                  resumes={resumes}
-                  coverLetters={coverLetters}
-                  values={draft}
-                  setValues={(patch) => {
-                    setValues(patch);
-                    const immediateKeys = [
-                      "workMode",
-                      "resumeId",
-                      "coverLetterId",
-                      "replyStatus",
-                      "source",
-                      "jobType",
-                      "reminderTime",
-                    ] as const;
-                    const immediate: Partial<Application> = {};
-                    for (const key of immediateKeys) {
-                      if (key in patch) {
-                        Object.assign(immediate, { [key]: patch[key] });
-                      }
-                    }
-                    if (Object.keys(immediate).length > 0) patchImmediate(immediate);
-                  }}
-                  onCreateCompany={onCreateCompany}
-                  onUploadResume={onUploadResume}
-                  onCreateCoverText={onCreateCoverText}
-                  onUploadCover={onUploadCover}
-                />
-              </div>
-            </div>
-          </div>
-          <SheetFooter className="shrink-0 border-t">
-            <p className="mr-auto text-xs text-muted-foreground">
-              Applied {formatDisplayDate(item.appliedDate)}
-              {formatCompensation(item) !== "—" && ` · ${formatCompensation(item)}`}
-            </p>
-            <Button variant="outline" onClick={() => setConfirmDelete(true)}>
-              Delete
-            </Button>
-            {readOnly ? (
-              <Button onClick={() => void onRestore?.()}>Restore</Button>
-            ) : (
-              <Button onClick={saveAll}>Save changes</Button>
-            )}
-          </SheetFooter>
+              <SheetFooter className="shrink-0 border-t">
+                <p className="mr-auto text-xs text-muted-foreground">
+                  Applied {formatDisplayDate(item.appliedDate)}
+                  {formatCompensation(item) !== "—" && ` · ${formatCompensation(item)}`}
+                </p>
+                <Button variant="outline" onClick={() => setConfirmDelete(true)}>
+                  Delete
+                </Button>
+                {readOnly ? (
+                  <Button onClick={() => void onRestore?.()}>Restore</Button>
+                ) : (
+                  <Button onClick={saveAll}>Save changes</Button>
+                )}
+              </SheetFooter>
+            </>
+          )}
         </SheetContent>
       </Sheet>
       <ConfirmDialog
@@ -661,13 +407,13 @@ function DetailDrawer({
         onOpenChange={setConfirmDelete}
         title="Delete this application?"
         description="This permanently removes the application. This cannot be undone."
-        onConfirm={() => onDelete(item.id)}
+        onConfirm={() => onDelete(id)}
       />
     </>
   );
 }
 
-function ApplicationsView({
+export function ApplicationsView({
   applications,
   companies,
   resumes,
@@ -693,10 +439,10 @@ function ApplicationsView({
   onDeleteView,
   onApplyView,
 }: {
-  applications: Application[];
+  applications: ApplicationListItem[];
   companies: Company[];
   resumes: Resume[];
-  coverLetters: CoverLetter[];
+  coverLetters: CoverLetterListItem[];
   savedViews: SavedView[];
   year: string;
   setYear: (year: string) => void;
@@ -1076,7 +822,7 @@ function ApplicationsView({
           {groupByCompanyEnabled
             ? companyGroups.flatMap((group) => {
                 const groupSelected = group.items.filter((item) => selected.includes(item.id));
-                const renderRow = (item: Application, grouped: boolean) => {
+                const renderRow = (item: ApplicationListItem, grouped: boolean) => {
                   const company = companyById[item.companyId];
                   return (
                     <TableRow
@@ -1242,7 +988,7 @@ function ApplicationsView({
       {active && (
         <DetailDrawer
           key={active.id}
-          item={active}
+          id={active.id}
           company={companyById[active.companyId]}
           companies={companies}
           resumes={resumes}
@@ -1277,7 +1023,7 @@ function ApplicationsView({
   );
 }
 
-function CompaniesView({
+export function CompaniesView({
   companies,
   applications,
   leads,
@@ -1290,8 +1036,8 @@ function CompaniesView({
   onOpenLead,
 }: {
   companies: Company[];
-  applications: Application[];
-  leads: Lead[];
+  applications: ApplicationListItem[];
+  leads: LeadListItem[];
   focusId?: string | null;
   onFocusConsumed?: () => void;
   onCreate: (name: string, extra?: { website?: string }) => Promise<string>;
@@ -1336,7 +1082,7 @@ function CompaniesView({
         : { id: "", name: "", website: "", location: "", logo: "" };
 
   const activityByCompany = useMemo(() => {
-    const map = new Map<string, { applications: Application[]; leads: Lead[] }>();
+    const map = new Map<string, { applications: ApplicationListItem[]; leads: LeadListItem[] }>();
     for (const company of companies) {
       map.set(company.id, { applications: [], leads: [] });
     }
@@ -1574,7 +1320,7 @@ function CompaniesView({
   );
 }
 
-function ResumesView({
+export function ResumesView({
   resumes,
   applications,
   companies,
@@ -1583,7 +1329,7 @@ function ResumesView({
   onDelete,
 }: {
   resumes: Resume[];
-  applications: Application[];
+  applications: ApplicationListItem[];
   companies: Company[];
   onUpload: (file: File) => Promise<string>;
   onRename: (id: string, name: string) => Promise<void>;
@@ -1750,7 +1496,7 @@ function ResumesView({
   );
 }
 
-function CoverLettersView({
+export function CoverLettersView({
   coverLetters,
   applications,
   companies,
@@ -1759,8 +1505,8 @@ function CoverLettersView({
   onPatch,
   onDelete,
 }: {
-  coverLetters: CoverLetter[];
-  applications: Application[];
+  coverLetters: CoverLetterListItem[];
+  applications: ApplicationListItem[];
   companies: Company[];
   onCreateText: (name: string, body: string) => Promise<string>;
   onUpload: (file: File) => Promise<string>;
@@ -1773,14 +1519,27 @@ function CoverLettersView({
   const [draftName, setDraftName] = useState("");
   const [draftBody, setDraftBody] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const active = coverLetters.find((c) => c.id === activeId) ?? null;
+  const listActive = coverLetters.find((c) => c.id === activeId) ?? null;
+  const { data: activeDetail, isPending: detailPending } = useCoverLetterQuery(activeId);
+  const active = activeDetail ?? listActive;
   const [editName, setEditName] = useState("");
   const [editBody, setEditBody] = useState("");
+  const [editSourceId, setEditSourceId] = useState<string | null>(null);
   const companyById = useMemo(
     () => Object.fromEntries(companies.map((c) => [c.id, c])),
     [companies],
   );
   const usedBy = active ? applications.filter((a) => a.coverLetterId === active.id) : [];
+
+  if (activeDetail && editSourceId !== activeDetail.id) {
+    setEditSourceId(activeDetail.id);
+    setEditName(activeDetail.name);
+    setEditBody(activeDetail.kind === "text" ? activeDetail.body : "");
+  } else if (!activeDetail && editSourceId !== null && !activeId) {
+    setEditSourceId(null);
+    setEditName("");
+    setEditBody("");
+  }
 
   return (
     <>
@@ -1880,7 +1639,7 @@ function CoverLettersView({
                 onClick={() => {
                   setActiveId(c.id);
                   setEditName(c.name);
-                  setEditBody(c.kind === "text" ? c.body : "");
+                  setEditBody("");
                 }}
                 className="flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors hover:bg-accent/50"
               >
@@ -1892,7 +1651,7 @@ function CoverLettersView({
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{c.name}</p>
                   <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                    {c.kind === "file" ? c.fileName : c.body}
+                    {c.kind === "file" ? c.fileName : "Text cover letter"}
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
@@ -1952,6 +1711,8 @@ function CoverLettersView({
                           Open file
                         </a>
                       </div>
+                    ) : detailPending ? (
+                      <p className="text-sm text-muted-foreground">Loading letter…</p>
                     ) : (
                       <Textarea
                         value={editBody}
@@ -2028,7 +1789,7 @@ function CoverLettersView({
   );
 }
 
-function ArchiveView({
+export function ArchiveView({
   applications,
   leads,
   wishlists,
@@ -2052,12 +1813,12 @@ function ArchiveView({
   onCreateCoverText,
   onUploadCover,
 }: {
-  applications: Application[];
-  leads: Lead[];
-  wishlists: Wishlist[];
+  applications: ApplicationListItem[];
+  leads: LeadListItem[];
+  wishlists: WishlistListItem[];
   companies: Company[];
   resumes: Resume[];
-  coverLetters: CoverLetter[];
+  coverLetters: CoverLetterListItem[];
   focusId?: string | null;
   focusKind?: "application" | "lead" | "wishlist" | null;
   onFocusConsumed?: () => void;
@@ -2109,9 +1870,9 @@ function ArchiveView({
 
   const archivedItems = useMemo(() => {
     type ArchivedItem =
-      | { kind: "application"; item: Application; sortAt: string }
-      | { kind: "lead"; item: Lead; sortAt: string }
-      | { kind: "wishlist"; item: Wishlist; sortAt: string };
+      | { kind: "application"; item: ApplicationListItem; sortAt: string }
+      | { kind: "lead"; item: LeadListItem; sortAt: string }
+      | { kind: "wishlist"; item: WishlistListItem; sortAt: string };
 
     const rows: ArchivedItem[] = [
       ...applications.map((item) => ({
@@ -2227,7 +1988,7 @@ function ArchiveView({
       {activeApplication && (
         <DetailDrawer
           key={activeApplication.id}
-          item={activeApplication}
+          id={activeApplication.id}
           company={companyById[activeApplication.companyId]}
           companies={companies}
           resumes={resumes}
@@ -2255,7 +2016,7 @@ function ArchiveView({
       {activeLead && (
         <LeadDetailDrawer
           key={activeLead.id}
-          item={activeLead}
+          id={activeLead.id}
           company={companyById[activeLead.companyId]}
           companies={companies}
           resumes={resumes}
@@ -2283,7 +2044,7 @@ function ArchiveView({
       {activeWishlist && (
         <WishlistDetailDrawer
           key={activeWishlist.id}
-          item={activeWishlist}
+          id={activeWishlist.id}
           company={companyById[activeWishlist.companyId]}
           companies={companies}
           open
@@ -2307,7 +2068,7 @@ function ArchiveView({
   );
 }
 
-function AddModal({
+export function AddModal({
   open,
   onOpenChange,
   companies,
@@ -2323,7 +2084,7 @@ function AddModal({
   onOpenChange: (open: boolean) => void;
   companies: Company[];
   resumes: Resume[];
-  coverLetters: CoverLetter[];
+  coverLetters: CoverLetterListItem[];
   onCreateCompany: (name: string) => Promise<string>;
   onUploadResume: (file: File) => Promise<string>;
   onCreateCoverText: (name: string, body: string) => Promise<string>;
@@ -2387,824 +2148,5 @@ function AddModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-export default function JobHuntWorkspace({ user: initialUser }: { user: WorkspaceUser }) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const screen = screenFromPathname(pathname);
-  const [modal, setModal] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchFocus, setSearchFocus] = useState<
-    | { kind: "application"; id: string }
-    | { kind: "company"; id: string }
-    | { kind: "lead"; id: string }
-    | { kind: "wishlist"; id: string }
-    | null
-  >(null);
-  const [user, setUser] = useState(initialUser);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [resumes, setResumes] = useState<Resume[]>([]);
-  const [coverLetters, setCoverLetters] = useState<CoverLetter[]>([]);
-  const [applications, setApplications] = useState<Application[]>([]);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [wishlists, setWishlists] = useState<Wishlist[]>([]);
-  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
-  const [year, setYear] = useState("all");
-  const density = useSyncExternalStore(subscribeDensity, readDensity, (): Density => "comfortable");
-  const groupByCompanyEnabled = useSyncExternalStore(
-    subscribeGroupByCompany,
-    readGroupByCompany,
-    () => true,
-  );
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    void fetchWorkspace()
-      .then((payload) => {
-        setUser(payload.user);
-        setCompanies(payload.companies);
-        setResumes(payload.resumes);
-        setCoverLetters(payload.coverLetters);
-        setApplications(payload.applications);
-        setLeads(payload.leads);
-        setWishlists(payload.wishlists);
-        setSavedViews(payload.savedViews);
-      })
-      .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : "Could not load workspace");
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setSearchOpen((open) => !open);
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  function fail(cause: unknown) {
-    setError(cause instanceof Error ? cause.message : "Something went wrong");
-  }
-
-  async function saveView(view: Omit<SavedView, "id">) {
-    try {
-      const saved = await createViewRequest(view);
-      setSavedViews((prev) => [saved, ...prev]);
-    } catch (cause) {
-      fail(cause);
-    }
-  }
-
-  async function deleteView(id: string) {
-    try {
-      await deleteViewRequest(id);
-      setSavedViews((prev) => prev.filter((view) => view.id !== id));
-    } catch (cause) {
-      fail(cause);
-    }
-  }
-
-  async function createCompany(name: string, extra?: { website?: string; location?: string }) {
-    const company = await createCompanyRequest(name, extra);
-    setCompanies((prev) => [company, ...prev]);
-    return company.id;
-  }
-
-  function fillLocalCompanyFields(
-    companyId: string,
-    fields: { website?: string; location?: string },
-  ) {
-    const website = fields.website?.trim() ?? "";
-    const location = fields.location?.trim() ?? "";
-    if (!website && !location) return;
-    setCompanies((prev) =>
-      prev.map((company) => {
-        if (company.id !== companyId) return company;
-        return {
-          ...company,
-          website: company.website || website,
-          location: company.location || location,
-        };
-      }),
-    );
-  }
-
-  async function uploadResume(file: File) {
-    const resume = await uploadResumeRequest(file);
-    setResumes((prev) => [resume, ...prev]);
-    return resume.id;
-  }
-
-  async function createCoverText(name: string, body: string) {
-    const letter = await createCoverTextRequest(name, body);
-    setCoverLetters((prev) => [letter, ...prev]);
-    return letter.id;
-  }
-
-  async function uploadCover(file: File) {
-    const letter = await uploadCoverRequest(file);
-    setCoverLetters((prev) => [letter, ...prev]);
-    return letter.id;
-  }
-
-  async function patchApplication(id: string, patch: Partial<Application>) {
-    const updated = await patchApplicationRequest(id, patch);
-    setApplications((prev) => prev.map((item) => (item.id === id ? updated : item)));
-    fillLocalCompanyFields(updated.companyId, {
-      website: updated.companyWebsite,
-      location: updated.location,
-    });
-  }
-
-  async function patchLead(id: string, patch: Partial<Lead>) {
-    const updated = await patchLeadRequest(id, patch);
-    setLeads((prev) => prev.map((item) => (item.id === id ? updated : item)));
-    fillLocalCompanyFields(updated.companyId, { website: updated.companyWebsite });
-  }
-
-  async function patchWishlist(id: string, patch: Partial<Wishlist>) {
-    const updated = await patchWishlistRequest(id, patch);
-    setWishlists((prev) => prev.map((item) => (item.id === id ? updated : item)));
-    fillLocalCompanyFields(updated.companyId, { website: updated.companyWebsite });
-  }
-
-  const activeApplications = applications.filter((item) => !item.archived);
-  const archivedApplications = applications.filter((item) => item.archived);
-  const activeLeads = leads.filter((item) => !item.archived);
-  const archivedLeads = leads.filter((item) => item.archived);
-  const activeWishlists = wishlists.filter((item) => !item.archived);
-  const archivedWishlists = wishlists.filter((item) => item.archived);
-
-  return (
-    <SidebarProvider className="h-svh overflow-hidden">
-      <AppSidebar
-        screen={screen}
-        applicationCount={activeApplications.length}
-        leadCount={activeLeads.length}
-        wishlistCount={activeWishlists.length}
-        user={user}
-      />
-      <SidebarInset className="min-h-0 overflow-hidden">
-        <Header onSearch={() => setSearchOpen(true)} />
-        {error && (
-          <div className="flex items-center justify-between border-b bg-destructive/10 px-4 py-2 text-sm text-destructive">
-            <span>{error}</span>
-            <Button size="xs" variant="ghost" onClick={() => setError(null)}>
-              Dismiss
-            </Button>
-          </div>
-        )}
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {loading ? (
-            <p className="px-7 py-12 text-sm text-muted-foreground">Loading workspace…</p>
-          ) : (
-            <>
-              {screen === "applications" && (
-                <ApplicationsView
-                  applications={activeApplications}
-                  companies={companies}
-                  resumes={resumes}
-                  coverLetters={coverLetters}
-                  savedViews={savedViews.filter((view) => view.screen === "applications")}
-                  year={year}
-                  setYear={setYear}
-                  density={density}
-                  setDensity={writeDensity}
-                  groupByCompany={groupByCompanyEnabled}
-                  setGroupByCompany={writeGroupByCompany}
-                  focusId={searchFocus?.kind === "application" ? searchFocus.id : null}
-                  onFocusConsumed={() => setSearchFocus(null)}
-                  onAdd={() => setModal(true)}
-                  onPatch={async (id, patch) => {
-                    try {
-                      await patchApplication(id, patch);
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onDelete={async (id) => {
-                    try {
-                      await deleteApplicationRequest(id);
-                      setApplications((prev) => prev.filter((item) => item.id !== id));
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onBulk={async (ids, action) => {
-                    try {
-                      await bulkApplicationsRequest(ids, action);
-                      if (action === "delete") {
-                        setApplications((prev) => prev.filter((item) => !ids.includes(item.id)));
-                      } else {
-                        const archivedAt = new Date().toISOString();
-                        setApplications((prev) =>
-                          prev.map((item) =>
-                            ids.includes(item.id)
-                              ? { ...item, archived: true, updatedAt: archivedAt }
-                              : item,
-                          ),
-                        );
-                      }
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onCreateCompany={async (name) => {
-                    try {
-                      return await createCompany(name);
-                    } catch (cause) {
-                      fail(cause);
-                      throw cause;
-                    }
-                  }}
-                  onUploadResume={async (file) => {
-                    try {
-                      return await uploadResume(file);
-                    } catch (cause) {
-                      fail(cause);
-                      throw cause;
-                    }
-                  }}
-                  onCreateCoverText={async (name, body) => {
-                    try {
-                      return await createCoverText(name, body);
-                    } catch (cause) {
-                      fail(cause);
-                      throw cause;
-                    }
-                  }}
-                  onUploadCover={async (file) => {
-                    try {
-                      return await uploadCover(file);
-                    } catch (cause) {
-                      fail(cause);
-                      throw cause;
-                    }
-                  }}
-                  onSaveView={saveView}
-                  onDeleteView={deleteView}
-                  onApplyView={(view) => setYear(view.year)}
-                />
-              )}
-              {screen === "leads" && (
-                <LeadsView
-                  leads={activeLeads}
-                  companies={companies}
-                  resumes={resumes}
-                  coverLetters={coverLetters}
-                  density={density}
-                  setDensity={writeDensity}
-                  groupByCompany={groupByCompanyEnabled}
-                  setGroupByCompany={writeGroupByCompany}
-                  savedViews={savedViews.filter((view) => view.screen === "leads")}
-                  onSaveView={saveView}
-                  onDeleteView={deleteView}
-                  focusId={searchFocus?.kind === "lead" ? searchFocus.id : null}
-                  onFocusConsumed={() => setSearchFocus(null)}
-                  onPatch={async (id, patch) => {
-                    try {
-                      await patchLead(id, patch);
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onDelete={async (id) => {
-                    try {
-                      await deleteLeadRequest(id);
-                      setLeads((prev) => prev.filter((item) => item.id !== id));
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onBulk={async (ids, action) => {
-                    try {
-                      await bulkLeadsRequest(ids, action);
-                      if (action === "delete") {
-                        setLeads((prev) => prev.filter((item) => !ids.includes(item.id)));
-                      } else {
-                        const archivedAt = new Date().toISOString();
-                        setLeads((prev) =>
-                          prev.map((item) =>
-                            ids.includes(item.id)
-                              ? { ...item, archived: true, updatedAt: archivedAt }
-                              : item,
-                          ),
-                        );
-                      }
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onCreateCompany={async (name) => {
-                    try {
-                      return await createCompany(name);
-                    } catch (cause) {
-                      fail(cause);
-                      throw cause;
-                    }
-                  }}
-                  onUploadResume={async (file) => {
-                    try {
-                      return await uploadResume(file);
-                    } catch (cause) {
-                      fail(cause);
-                      throw cause;
-                    }
-                  }}
-                  onCreateCoverText={async (name, body) => {
-                    try {
-                      return await createCoverText(name, body);
-                    } catch (cause) {
-                      fail(cause);
-                      throw cause;
-                    }
-                  }}
-                  onUploadCover={async (file) => {
-                    try {
-                      return await uploadCover(file);
-                    } catch (cause) {
-                      fail(cause);
-                      throw cause;
-                    }
-                  }}
-                  onCreate={async (data) => {
-                    const patch = formValuesToLeadPatch(data);
-                    if (!patch) return;
-                    try {
-                      const created = await createLeadRequest(patch);
-                      setLeads((prev) => [created, ...prev]);
-                      fillLocalCompanyFields(created.companyId, {
-                        website: created.companyWebsite,
-                      });
-                    } catch (cause) {
-                      fail(cause);
-                      throw cause;
-                    }
-                  }}
-                />
-              )}
-              {screen === "wishlist" && (
-                <WishlistView
-                  wishlists={activeWishlists}
-                  companies={companies}
-                  density={density}
-                  setDensity={writeDensity}
-                  groupByCompany={groupByCompanyEnabled}
-                  setGroupByCompany={writeGroupByCompany}
-                  savedViews={savedViews.filter((view) => view.screen === "wishlist")}
-                  onSaveView={saveView}
-                  onDeleteView={deleteView}
-                  focusId={searchFocus?.kind === "wishlist" ? searchFocus.id : null}
-                  onFocusConsumed={() => setSearchFocus(null)}
-                  onPatch={async (id, patch) => {
-                    try {
-                      await patchWishlist(id, patch);
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onDelete={async (id) => {
-                    try {
-                      await deleteWishlistRequest(id);
-                      setWishlists((prev) => prev.filter((item) => item.id !== id));
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onBulk={async (ids, action) => {
-                    try {
-                      await bulkWishlistsRequest(ids, action);
-                      if (action === "delete") {
-                        setWishlists((prev) => prev.filter((item) => !ids.includes(item.id)));
-                      } else {
-                        const archivedAt = new Date().toISOString();
-                        setWishlists((prev) =>
-                          prev.map((item) =>
-                            ids.includes(item.id)
-                              ? { ...item, archived: true, updatedAt: archivedAt }
-                              : item,
-                          ),
-                        );
-                      }
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onCreateCompany={async (name) => {
-                    try {
-                      return await createCompany(name);
-                    } catch (cause) {
-                      fail(cause);
-                      throw cause;
-                    }
-                  }}
-                  onCreate={async (data) => {
-                    const patch = formValuesToWishlistPatch(data);
-                    if (!patch) return;
-                    try {
-                      const created = await createWishlistRequest(patch);
-                      setWishlists((prev) => [created, ...prev]);
-                      fillLocalCompanyFields(created.companyId, {
-                        website: created.companyWebsite,
-                      });
-                    } catch (cause) {
-                      fail(cause);
-                      throw cause;
-                    }
-                  }}
-                />
-              )}
-              {screen === "companies" && (
-                <CompaniesView
-                  companies={companies}
-                  applications={activeApplications}
-                  leads={activeLeads}
-                  focusId={searchFocus?.kind === "company" ? searchFocus.id : null}
-                  onFocusConsumed={() => setSearchFocus(null)}
-                  onCreate={async (name, extra) => {
-                    try {
-                      return await createCompany(name, extra);
-                    } catch (cause) {
-                      fail(cause);
-                      throw cause;
-                    }
-                  }}
-                  onPatch={async (id, patch) => {
-                    try {
-                      const company = await patchCompanyRequest(id, patch);
-                      setCompanies((prev) => prev.map((item) => (item.id === id ? company : item)));
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onDelete={async (id) => {
-                    try {
-                      await deleteCompanyRequest(id);
-                      setCompanies((prev) => prev.filter((item) => item.id !== id));
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onOpenApplication={(id) => {
-                    router.push(screenPath("applications"));
-                    setSearchFocus({ kind: "application", id });
-                  }}
-                  onOpenLead={(id) => {
-                    router.push(screenPath("leads"));
-                    setSearchFocus({ kind: "lead", id });
-                  }}
-                />
-              )}
-              {screen === "resumes" && (
-                <ResumesView
-                  resumes={resumes}
-                  applications={applications}
-                  companies={companies}
-                  onUpload={async (file) => {
-                    try {
-                      return await uploadResume(file);
-                    } catch (cause) {
-                      fail(cause);
-                      throw cause;
-                    }
-                  }}
-                  onRename={async (id, name) => {
-                    try {
-                      const resume = await patchResumeRequest(id, { name });
-                      setResumes((prev) => prev.map((item) => (item.id === id ? resume : item)));
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onDelete={async (id) => {
-                    try {
-                      await deleteResumeRequest(id);
-                      setResumes((prev) => prev.filter((item) => item.id !== id));
-                      setLeads((prev) =>
-                        prev.map((item) =>
-                          item.resumeId === id ? { ...item, resumeId: null } : item,
-                        ),
-                      );
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                />
-              )}
-              {screen === "cover-letters" && (
-                <CoverLettersView
-                  coverLetters={coverLetters}
-                  applications={applications}
-                  companies={companies}
-                  onCreateText={async (name, body) => {
-                    try {
-                      return await createCoverText(name, body);
-                    } catch (cause) {
-                      fail(cause);
-                      throw cause;
-                    }
-                  }}
-                  onUpload={async (file) => {
-                    try {
-                      return await uploadCover(file);
-                    } catch (cause) {
-                      fail(cause);
-                      throw cause;
-                    }
-                  }}
-                  onPatch={async (id, patch) => {
-                    try {
-                      const letter = await patchCoverRequest(id, patch);
-                      setCoverLetters((prev) =>
-                        prev.map((item) => (item.id === id ? letter : item)),
-                      );
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onDelete={async (id) => {
-                    try {
-                      await deleteCoverRequest(id);
-                      setCoverLetters((prev) => prev.filter((item) => item.id !== id));
-                      setApplications((prev) =>
-                        prev.map((item) =>
-                          item.coverLetterId === id ? { ...item, coverLetterId: null } : item,
-                        ),
-                      );
-                      setLeads((prev) =>
-                        prev.map((item) =>
-                          item.coverLetterId === id ? { ...item, coverLetterId: null } : item,
-                        ),
-                      );
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                />
-              )}
-              {screen === "archive" && (
-                <ArchiveView
-                  applications={archivedApplications}
-                  leads={archivedLeads}
-                  wishlists={archivedWishlists}
-                  companies={companies}
-                  resumes={resumes}
-                  coverLetters={coverLetters}
-                  focusId={
-                    searchFocus?.kind === "application" ||
-                    searchFocus?.kind === "lead" ||
-                    searchFocus?.kind === "wishlist"
-                      ? searchFocus.id
-                      : null
-                  }
-                  focusKind={
-                    searchFocus?.kind === "application" ||
-                    searchFocus?.kind === "lead" ||
-                    searchFocus?.kind === "wishlist"
-                      ? searchFocus.kind
-                      : null
-                  }
-                  onFocusConsumed={() => setSearchFocus(null)}
-                  onPatchApplication={async (id, patch) => {
-                    try {
-                      await patchApplication(id, patch);
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onDeleteApplication={async (id) => {
-                    try {
-                      await deleteApplicationRequest(id);
-                      setApplications((prev) => prev.filter((item) => item.id !== id));
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onRestoreApplications={async (ids) => {
-                    try {
-                      await bulkApplicationsRequest(ids, "unarchive");
-                      const restoredAt = new Date().toISOString();
-                      setApplications((prev) =>
-                        prev.map((item) =>
-                          ids.includes(item.id)
-                            ? { ...item, archived: false, updatedAt: restoredAt }
-                            : item,
-                        ),
-                      );
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onPatchLead={async (id, patch) => {
-                    try {
-                      await patchLead(id, patch);
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onDeleteLead={async (id) => {
-                    try {
-                      await deleteLeadRequest(id);
-                      setLeads((prev) => prev.filter((item) => item.id !== id));
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onRestoreLeads={async (ids) => {
-                    try {
-                      await bulkLeadsRequest(ids, "unarchive");
-                      const restoredAt = new Date().toISOString();
-                      setLeads((prev) =>
-                        prev.map((item) =>
-                          ids.includes(item.id)
-                            ? { ...item, archived: false, updatedAt: restoredAt }
-                            : item,
-                        ),
-                      );
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onPatchWishlist={async (id, patch) => {
-                    try {
-                      await patchWishlist(id, patch);
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onDeleteWishlist={async (id) => {
-                    try {
-                      await deleteWishlistRequest(id);
-                      setWishlists((prev) => prev.filter((item) => item.id !== id));
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onRestoreWishlists={async (ids) => {
-                    try {
-                      await bulkWishlistsRequest(ids, "unarchive");
-                      const restoredAt = new Date().toISOString();
-                      setWishlists((prev) =>
-                        prev.map((item) =>
-                          ids.includes(item.id)
-                            ? { ...item, archived: false, updatedAt: restoredAt }
-                            : item,
-                        ),
-                      );
-                    } catch (cause) {
-                      fail(cause);
-                    }
-                  }}
-                  onCreateCompany={createCompany}
-                  onUploadResume={uploadResume}
-                  onCreateCoverText={createCoverText}
-                  onUploadCover={uploadCover}
-                />
-              )}
-            </>
-          )}
-        </div>
-      </SidebarInset>
-      <AddModal
-        open={modal}
-        onOpenChange={setModal}
-        companies={companies}
-        resumes={resumes}
-        coverLetters={coverLetters}
-        onCreateCompany={createCompany}
-        onUploadResume={uploadResume}
-        onCreateCoverText={createCoverText}
-        onUploadCover={uploadCover}
-        onSave={async (data) => {
-          const patch = formValuesToApplicationPatch(data);
-          if (!patch) return;
-          try {
-            const created = await createApplicationRequest(patch);
-            setApplications((prev) => [created, ...prev]);
-            fillLocalCompanyFields(created.companyId, {
-              website: created.companyWebsite,
-              location: created.location,
-            });
-          } catch (cause) {
-            fail(cause);
-            throw cause;
-          }
-        }}
-      />
-      <CommandDialog
-        open={searchOpen}
-        onOpenChange={setSearchOpen}
-        title="Quick search"
-        className="sm:max-w-xl"
-      >
-        <CommandPalette className="min-h-80">
-          <CommandInput placeholder="Search applications, leads, wishlist, companies..." />
-          <CommandList className="max-h-96">
-            <CommandEmpty>No matches.</CommandEmpty>
-            <CommandGroup heading="Go to">
-              {(
-                [
-                  ["applications", "Applications"],
-                  ["leads", "Leads"],
-                  ["wishlist", "Wishlist"],
-                  ["companies", "Companies"],
-                  ["resumes", "Resumes"],
-                  ["cover-letters", "Cover letters"],
-                  ["archive", "Archive"],
-                ] as const
-              ).map(([id, label]) => (
-                <CommandItem
-                  key={id}
-                  onSelect={() => {
-                    router.push(screenPath(id));
-                    setSearchOpen(false);
-                  }}
-                >
-                  {label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-            <CommandGroup heading="Applications">
-              {applications.slice(0, 12).map((item) => {
-                const company = companies.find((c) => c.id === item.companyId);
-                return (
-                  <CommandItem
-                    key={item.id}
-                    value={`${company?.name ?? ""} ${item.role}`}
-                    onSelect={() => {
-                      setSearchFocus({ kind: "application", id: item.id });
-                      router.push(screenPath(item.archived ? "archive" : "applications"));
-                      setSearchOpen(false);
-                    }}
-                  >
-                    {company?.name ?? "Unknown"} · {item.role}
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-            <CommandGroup heading="Leads">
-              {leads.slice(0, 12).map((item) => {
-                const company = companies.find((c) => c.id === item.companyId);
-                return (
-                  <CommandItem
-                    key={item.id}
-                    value={`${company?.name ?? ""} ${item.personName} ${item.platform}`}
-                    onSelect={() => {
-                      setSearchFocus({ kind: "lead", id: item.id });
-                      router.push(screenPath(item.archived ? "archive" : "leads"));
-                      setSearchOpen(false);
-                    }}
-                  >
-                    {company?.name ?? "Unknown"} · {item.personName}
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-            <CommandGroup heading="Wishlist">
-              {wishlists.slice(0, 12).map((item) => {
-                const company = companies.find((c) => c.id === item.companyId);
-                return (
-                  <CommandItem
-                    key={item.id}
-                    value={`${company?.name ?? ""} ${item.interest}`}
-                    onSelect={() => {
-                      setSearchFocus({ kind: "wishlist", id: item.id });
-                      router.push(screenPath(item.archived ? "archive" : "wishlist"));
-                      setSearchOpen(false);
-                    }}
-                  >
-                    {company?.name ?? "Unknown"}
-                    {item.interest ? ` · ${item.interest}` : ""}
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-            <CommandGroup heading="Companies">
-              {companies.slice(0, 8).map((company) => (
-                <CommandItem
-                  key={company.id}
-                  value={company.name}
-                  onSelect={() => {
-                    setSearchFocus({ kind: "company", id: company.id });
-                    router.push(screenPath("companies"));
-                    setSearchOpen(false);
-                  }}
-                >
-                  {company.name}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </CommandPalette>
-      </CommandDialog>
-    </SidebarProvider>
   );
 }

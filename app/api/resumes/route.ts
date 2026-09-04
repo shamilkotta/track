@@ -1,5 +1,14 @@
 import { errorResponse, json, requireApiUser } from "@/lib/http";
-import { createResume } from "@/lib/workspace-store";
+import { createResume, listResumes } from "@/lib/workspace-store";
+
+export async function GET(request: Request) {
+  try {
+    const user = await requireApiUser(request);
+    return json(await listResumes(user.id));
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
 
 export async function POST(request: Request) {
   try {

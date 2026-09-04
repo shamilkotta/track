@@ -1,5 +1,15 @@
 import { asRecord, errorResponse, json, readJson, requireApiUser } from "@/lib/http";
-import { deleteWishlist, updateWishlist } from "@/lib/workspace-store";
+import { deleteWishlist, getWishlist, updateWishlist } from "@/lib/workspace-store";
+
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const user = await requireApiUser(request);
+    const { id } = await context.params;
+    return json(await getWishlist(user.id, id));
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {

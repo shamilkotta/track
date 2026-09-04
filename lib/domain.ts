@@ -245,6 +245,104 @@ export type WorkspacePayload = {
   savedViews: SavedView[];
 };
 
+/** List-row fields for applications (heavy detail fields omitted). */
+export type ApplicationListItem = Pick<
+  Application,
+  | "id"
+  | "companyId"
+  | "role"
+  | "source"
+  | "location"
+  | "workMode"
+  | "stage"
+  | "priority"
+  | "replyStatus"
+  | "appliedDate"
+  | "nextStepDate"
+  | "nextStepLabel"
+  | "reminderTime"
+  | "resumeId"
+  | "coverLetterId"
+  | "tags"
+  | "archived"
+  | "createdAt"
+  | "updatedAt"
+>;
+
+/** List-row fields for leads. */
+export type LeadListItem = Pick<
+  Lead,
+  | "id"
+  | "companyId"
+  | "personName"
+  | "personRole"
+  | "platform"
+  | "status"
+  | "priority"
+  | "sentDate"
+  | "nextStepDate"
+  | "nextStepLabel"
+  | "reminderTime"
+  | "resumeId"
+  | "coverLetterId"
+  | "tags"
+  | "archived"
+  | "createdAt"
+  | "updatedAt"
+>;
+
+/** Contact fields shown on wishlist list rows. */
+export type WishlistContactSummary = Pick<WishlistContact, "id" | "name" | "role">;
+
+/** List-row fields for wishlist (notes + full contact details omitted). */
+export type WishlistListItem = Pick<
+  Wishlist,
+  | "id"
+  | "companyId"
+  | "interest"
+  | "status"
+  | "priority"
+  | "nextStepDate"
+  | "nextStepLabel"
+  | "reminderTime"
+  | "tags"
+  | "archived"
+  | "createdAt"
+  | "updatedAt"
+> & {
+  contacts: WishlistContactSummary[];
+};
+
+/** Cover letter picker/list entry without text body. */
+export type CoverLetterListItem =
+  | { id: string; name: string; kind: "text" }
+  | { id: string; name: string; kind: "file"; fileName: string };
+
+export type ArchiveScope = "active" | "archived" | "all";
+
+export type WorkspaceSearchHit = {
+  id: string;
+  title: string;
+  subtitle: string;
+  companyId: string;
+  archived: boolean;
+};
+
+export type WorkspaceSummary = {
+  user: WorkspaceUser;
+  counts: {
+    applications: number;
+    leads: number;
+    wishlists: number;
+  };
+  search: {
+    applications: WorkspaceSearchHit[];
+    leads: WorkspaceSearchHit[];
+    wishlists: WorkspaceSearchHit[];
+    companies: Array<{ id: string; name: string }>;
+  };
+};
+
 export const screenTitles: Record<Screen, string> = {
   applications: "Applications",
   leads: "Leads",

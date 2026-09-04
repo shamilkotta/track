@@ -1,5 +1,14 @@
 import { asRecord, errorResponse, json, readJson, requireApiUser, requireString } from "@/lib/http";
-import { createCompany } from "@/lib/workspace-store";
+import { createCompany, listCompanies } from "@/lib/workspace-store";
+
+export async function GET(request: Request) {
+  try {
+    const user = await requireApiUser(request);
+    return json(await listCompanies(user.id));
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
 
 export async function POST(request: Request) {
   try {

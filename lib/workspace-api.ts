@@ -14,14 +14,21 @@ import {
   isWishlistStatus,
   isWorkMode,
   type Application,
+  type ApplicationListItem,
+  type ArchiveScope,
   type Company,
   type CoverLetter,
+  type CoverLetterListItem,
   type Lead,
+  type LeadListItem,
   type Resume,
   type SavedView,
+  type SavedViewScreen,
   type Wishlist,
   type WishlistContact,
-  type WorkspacePayload,
+  type WishlistListItem,
+  type WorkspaceSearchHit,
+  type WorkspaceSummary,
   type WorkspaceUser,
 } from "@/lib/domain";
 import { redirect } from "nlite/navigation";
@@ -100,6 +107,144 @@ function parseCoverLetter(value: unknown): CoverLetter | null {
     name: value.name,
     kind: "text",
     body: requiredString(value, "body"),
+  };
+}
+
+function parseCoverLetterListItem(value: unknown): CoverLetterListItem | null {
+  if (!isRecord(value) || typeof value.id !== "string" || typeof value.name !== "string")
+    return null;
+  if (value.kind === "file") {
+    return {
+      id: value.id,
+      name: value.name,
+      kind: "file",
+      fileName: requiredString(value, "fileName") || value.name,
+    };
+  }
+  if (value.kind === "text") {
+    return { id: value.id, name: value.name, kind: "text" };
+  }
+  return null;
+}
+
+function parseApplicationListItem(value: unknown): ApplicationListItem | null {
+  if (!isRecord(value) || typeof value.id !== "string") return null;
+  if (typeof value.companyId !== "string" || typeof value.role !== "string") return null;
+  return {
+    id: value.id,
+    companyId: value.companyId,
+    role: value.role,
+    source: isSource(value.source) ? value.source : "Other",
+    location: requiredString(value, "location"),
+    workMode: isWorkMode(value.workMode) ? value.workMode : "Remote",
+    stage: isStage(value.stage) ? value.stage : "Applied",
+    priority: isPriority(value.priority) ? value.priority : "Medium",
+    replyStatus: isReplyStatus(value.replyStatus) ? value.replyStatus : "No reply yet",
+    appliedDate: requiredString(value, "appliedDate"),
+    nextStepDate: requiredString(value, "nextStepDate"),
+    nextStepLabel: requiredString(value, "nextStepLabel"),
+    reminderTime: isReminderTime(value.reminderTime) ? value.reminderTime : "None",
+    resumeId: typeof value.resumeId === "string" ? value.resumeId.trim() || null : null,
+    coverLetterId: typeof value.coverLetterId === "string" ? value.coverLetterId : null,
+    tags: isStringArray(value.tags) ? value.tags : [],
+    archived: value.archived === true,
+    createdAt: requiredString(value, "createdAt"),
+    updatedAt: requiredString(value, "updatedAt"),
+  };
+}
+
+function parseLeadListItem(value: unknown): LeadListItem | null {
+  if (!isRecord(value) || typeof value.id !== "string") return null;
+  if (typeof value.companyId !== "string" || typeof value.personName !== "string") return null;
+  return {
+    id: value.id,
+    companyId: value.companyId,
+    personName: value.personName,
+    personRole: requiredString(value, "personRole"),
+    platform: isLeadPlatform(value.platform) ? value.platform : "Other",
+    status: isLeadStatus(value.status) ? value.status : "Draft",
+    priority: isPriority(value.priority) ? value.priority : "Medium",
+    sentDate: requiredString(value, "sentDate"),
+    nextStepDate: requiredString(value, "nextStepDate"),
+    nextStepLabel: requiredString(value, "nextStepLabel"),
+    reminderTime: isReminderTime(value.reminderTime) ? value.reminderTime : "None",
+    resumeId: typeof value.resumeId === "string" ? value.resumeId : null,
+    coverLetterId: typeof value.coverLetterId === "string" ? value.coverLetterId : null,
+    tags: isStringArray(value.tags) ? value.tags : [],
+    archived: value.archived === true,
+    createdAt: requiredString(value, "createdAt"),
+    updatedAt: requiredString(value, "updatedAt"),
+  };
+}
+
+function parseWishlistListItem(value: unknown): WishlistListItem | null {
+  if (!isRecord(value) || typeof value.id !== "string") return null;
+  if (typeof value.companyId !== "string") return null;
+  return {
+    id: value.id,
+    companyId: value.companyId,
+    interest: requiredString(value, "interest"),
+    status: isWishlistStatus(value.status) ? value.status : "Interested",
+    priority: isPriority(value.priority) ? value.priority : "Medium",
+    nextStepDate: requiredString(value, "nextStepDate"),
+    nextStepLabel: requiredString(value, "nextStepLabel"),
+    reminderTime: isReminderTime(value.reminderTime) ? value.reminderTime : "None",
+    tags: isStringArray(value.tags) ? value.tags : [],
+    archived: value.archived === true,
+    createdAt: requiredString(value, "createdAt"),
+    updatedAt: requiredString(value, "updatedAt"),
+    contacts: Array.isArray(value.contacts)
+      ? value.contacts
+          .map((item) => {
+            if (!isRecord(item)) return null;
+            return {
+              id: typeof item.id === "string" && item.id ? item.id : crypto.randomUUID(),
+              name: requiredString(item, "name"),
+              role: requiredString(item, "role"),
+            };
+          })
+          .filter((item): item is NonNullable<typeof item> => !!item)
+      : [],
+  };
+}
+
+function parseSearchHit(value: unknown): WorkspaceSearchHit | null {
+  if (!isRecord(value) || typeof value.id !== "string") return null;
+  return {
+    id: value.id,
+    title: requiredString(value, "title"),
+    subtitle: requiredString(value, "subtitle"),
+    companyId: requiredString(value, "companyId"),
+    archived: value.archived === true,
+  };
+}
+
+function parseWorkspaceSummary(value: unknown): WorkspaceSummary {
+  if (!isRecord(value)) throw new Error("Invalid workspace summary");
+  const counts = isRecord(value.counts) ? value.counts : {};
+  const search = isRecord(value.search) ? value.search : {};
+  return {
+    user: parseUser(value.user),
+    counts: {
+      applications: typeof counts.applications === "number" ? counts.applications : 0,
+      leads: typeof counts.leads === "number" ? counts.leads : 0,
+      wishlists: typeof counts.wishlists === "number" ? counts.wishlists : 0,
+    },
+    search: {
+      applications: parseList(search.applications, parseSearchHit),
+      leads: parseList(search.leads, parseSearchHit),
+      wishlists: parseList(search.wishlists, parseSearchHit),
+      companies: Array.isArray(search.companies)
+        ? search.companies
+            .map((item) => {
+              if (!isRecord(item) || typeof item.id !== "string" || typeof item.name !== "string") {
+                return null;
+              }
+              return { id: item.id, name: item.name };
+            })
+            .filter((item): item is { id: string; name: string } => !!item)
+        : [],
+    },
   };
 }
 
@@ -239,22 +384,86 @@ function parseList<T>(value: unknown, parseItem: (item: unknown) => T | null): T
   return value.map(parseItem).filter((item): item is T => item !== null);
 }
 
-export function parseWorkspace(value: unknown): WorkspacePayload {
-  if (!isRecord(value)) throw new Error("Invalid workspace");
-  return {
-    user: parseUser(value.user),
-    companies: parseList(value.companies, parseCompany),
-    resumes: parseList(value.resumes, parseResume),
-    coverLetters: parseList(value.coverLetters, parseCoverLetter),
-    applications: parseList(value.applications, parseApplication),
-    leads: parseList(value.leads, parseLead),
-    wishlists: parseList(value.wishlists, parseWishlist),
-    savedViews: parseList(value.savedViews, parseSavedView),
-  };
+export function parseWorkspace(value: unknown): WorkspaceSummary {
+  return parseWorkspaceSummary(value);
 }
 
+export function fetchWorkspaceSummary() {
+  return api("/api/workspace", undefined, parseWorkspaceSummary);
+}
+
+export function fetchApplications(scope: ArchiveScope = "active") {
+  return api(`/api/applications?scope=${scope}`, undefined, (value) =>
+    parseList(value, parseApplicationListItem),
+  );
+}
+
+export function fetchApplication(id: string) {
+  return api(`/api/applications/${id}`, undefined, (value) => {
+    const application = parseApplication(value);
+    if (!application) throw new Error("Could not load application");
+    return application;
+  });
+}
+
+export function fetchLeads(scope: ArchiveScope = "active") {
+  return api(`/api/leads?scope=${scope}`, undefined, (value) =>
+    parseList(value, parseLeadListItem),
+  );
+}
+
+export function fetchLead(id: string) {
+  return api(`/api/leads/${id}`, undefined, (value) => {
+    const lead = parseLead(value);
+    if (!lead) throw new Error("Could not load lead");
+    return lead;
+  });
+}
+
+export function fetchWishlists(scope: ArchiveScope = "active") {
+  return api(`/api/wishlists?scope=${scope}`, undefined, (value) =>
+    parseList(value, parseWishlistListItem),
+  );
+}
+
+export function fetchWishlist(id: string) {
+  return api(`/api/wishlists/${id}`, undefined, (value) => {
+    const item = parseWishlist(value);
+    if (!item) throw new Error("Could not load wishlist item");
+    return item;
+  });
+}
+
+export function fetchCompanies() {
+  return api("/api/companies", undefined, (value) => parseList(value, parseCompany));
+}
+
+export function fetchResumes() {
+  return api("/api/resumes", undefined, (value) => parseList(value, parseResume));
+}
+
+export function fetchCoverLetters() {
+  return api("/api/cover-letters", undefined, (value) =>
+    parseList(value, parseCoverLetterListItem),
+  );
+}
+
+export function fetchCoverLetter(id: string) {
+  return api(`/api/cover-letters/${id}`, undefined, (value) => {
+    const letter = parseCoverLetter(value);
+    if (!letter) throw new Error("Could not load cover letter");
+    return letter;
+  });
+}
+
+export function fetchSavedViews(screen?: SavedViewScreen) {
+  const url = screen ? `/api/views?screen=${screen}` : "/api/views";
+  return api(url, undefined, (value) => parseList(value, parseSavedView));
+}
+
+/** @deprecated Use fetchWorkspaceSummary */
 export function fetchWorkspace() {
-  return api("/api/workspace", undefined, parseWorkspace);
+  return fetchWorkspaceSummary();
 }
 
 export function createCompanyRequest(

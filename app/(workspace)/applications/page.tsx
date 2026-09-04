@@ -1,3 +1,7 @@
-export default function ApplicationsPage() {
-  return null;
+"use client";
+
+import ApplicationsPage from "@/components/workspace/applications-page";
+
+export default function Page() {
+  return <ApplicationsPage />;
 }

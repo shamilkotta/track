@@ -49,7 +49,7 @@ import {
   workModes,
   type ApplicationFormValues,
   type Company,
-  type CoverLetter,
+  type CoverLetterListItem,
   type Currency,
   type JobType,
   type LeadFormValues,
@@ -76,7 +76,7 @@ type ResumeOption =
 
 type CoverLetterOption =
   | { kind: "none"; id: "none"; label: string }
-  | { kind: "letter"; id: string; label: string; letter: CoverLetter }
+  | { kind: "letter"; id: string; label: string; letter: CoverLetterListItem }
   | { kind: "write"; id: "write"; label: string }
   | { kind: "upload"; id: "upload"; label: string };
 
@@ -420,7 +420,7 @@ export function CoverLetterPicker({
   onCreateText,
   onUpload,
 }: {
-  coverLetters: CoverLetter[];
+  coverLetters: CoverLetterListItem[];
   value: string | null;
   onChange: (id: string | null) => void;
   onCreateText: (name: string, body: string) => Promise<string>;
@@ -583,7 +583,7 @@ export function CoverLetterPicker({
       )}
       {selected?.kind === "text" && !writing && (
         <p className="line-clamp-3 rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-          {selected.body}
+          Text cover letter
         </p>
       )}
     </div>
@@ -603,7 +603,7 @@ export function ApplicationFields({
 }: {
   companies: Company[];
   resumes: Resume[];
-  coverLetters: CoverLetter[];
+  coverLetters: CoverLetterListItem[];
   values: ApplicationFormValues;
   setValues: (patch: Partial<ApplicationFormValues>) => void;
   onCreateCompany: (name: string) => Promise<string>;
@@ -953,7 +953,7 @@ export function LeadFields({
 }: {
   companies: Company[];
   resumes: Resume[];
-  coverLetters: CoverLetter[];
+  coverLetters: CoverLetterListItem[];
   values: LeadFormValues;
   setValues: (patch: Partial<LeadFormValues>) => void;
   onCreateCompany: (name: string) => Promise<string>;

@@ -29,26 +29,36 @@ import {
   isWishlistStatus,
   isWorkMode,
   type Application,
+  type ApplicationListItem,
+  type ArchiveScope,
   type Company,
   type CoverLetter,
+  type CoverLetterListItem,
   type Lead,
+  type LeadListItem,
   type Resume,
   type SavedView,
+  type SavedViewScreen,
   type Wishlist,
   type WishlistContact,
-  type WorkspacePayload,
+  type WishlistListItem,
+  type WorkspaceSummary,
 } from "@/lib/domain";
 import { deleteUserFile, putUserFile } from "@/lib/files";
 import { HttpError, newId, now, requireString, stringField } from "@/lib/http";
 import {
   contactsToJson,
   mapApplication,
+  mapApplicationListItem,
   mapCompany,
   mapCoverLetter,
+  mapCoverLetterListItem,
   mapLead,
+  mapLeadListItem,
   mapResume,
   mapSavedView,
   mapWishlist,
+  mapWishlistListItem,
   parseIdList,
   tagsToJson,
 } from "@/lib/mappers";
@@ -80,39 +90,47 @@ async function ownedCoverLetter(userId: string, coverLetterId: string) {
   return row;
 }
 
-export async function loadWorkspace(user: AuthUser): Promise<WorkspacePayload> {
+export async function loadWorkspaceSummary(user: AuthUser): Promise<WorkspaceSummary> {
   const database = db();
-  const [companyRows, resumeRows, letterRows, applicationRows, leadRows, wishlistRows, viewRows] =
-    await Promise.all([
-      database.query.companies.findMany({
-        where: eq(companies.userId, user.id),
-        orderBy: desc(companies.createdAt),
-      }),
-      database.query.resumes.findMany({
-        where: eq(resumes.userId, user.id),
-        orderBy: desc(resumes.createdAt),
-      }),
-      database.query.coverLetters.findMany({
-        where: eq(coverLetters.userId, user.id),
-        orderBy: desc(coverLetters.createdAt),
-      }),
-      database.query.applications.findMany({
-        where: eq(applications.userId, user.id),
-        orderBy: desc(applications.createdAt),
-      }),
-      database.query.leads.findMany({
-        where: eq(leads.userId, user.id),
-        orderBy: desc(leads.createdAt),
-      }),
-      database.query.wishlists.findMany({
-        where: eq(wishlists.userId, user.id),
-        orderBy: desc(wishlists.createdAt),
-      }),
-      database.query.savedViews.findMany({
-        where: eq(savedViews.userId, user.id),
-        orderBy: desc(savedViews.createdAt),
-      }),
-    ]);
+  const [companyRows, applicationRows, leadRows, wishlistRows] = await Promise.all([
+    database.query.companies.findMany({
+      where: eq(companies.userId, user.id),
+      orderBy: desc(companies.createdAt),
+      columns: { id: true, name: true },
+    }),
+    database.query.applications.findMany({
+      where: eq(applications.userId, user.id),
+      orderBy: desc(applications.createdAt),
+      columns: {
+        id: true,
+        companyId: true,
+        role: true,
+        archived: true,
+      },
+    }),
+    database.query.leads.findMany({
+      where: eq(leads.userId, user.id),
+      orderBy: desc(leads.createdAt),
+      columns: {
+        id: true,
+        companyId: true,
+        personName: true,
+        archived: true,
+      },
+    }),
+    database.query.wishlists.findMany({
+      where: eq(wishlists.userId, user.id),
+      orderBy: desc(wishlists.createdAt),
+      columns: {
+        id: true,
+        companyId: true,
+        interest: true,
+        archived: true,
+      },
+    }),
+  ]);
+
+  const companyName = new Map(companyRows.map((row) => [row.id, row.name]));
 
   return {
     user: {
@@ -122,14 +140,156 @@ export async function loadWorkspace(user: AuthUser): Promise<WorkspacePayload> {
       image: user.image ?? null,
       title: typeof user.title === "string" ? user.title : "",
     },
-    companies: companyRows.map(mapCompany),
-    resumes: resumeRows.map(mapResume),
-    coverLetters: letterRows.map(mapCoverLetter),
-    applications: applicationRows.map(mapApplication),
-    leads: leadRows.map(mapLead),
-    wishlists: wishlistRows.map(mapWishlist),
-    savedViews: viewRows.map(mapSavedView),
+    counts: {
+      applications: applicationRows.filter((row) => !row.archived).length,
+      leads: leadRows.filter((row) => !row.archived).length,
+      wishlists: wishlistRows.filter((row) => !row.archived).length,
+    },
+    search: {
+      applications: applicationRows.map((row) => ({
+        id: row.id,
+        title: row.role,
+        subtitle: companyName.get(row.companyId) ?? "Unknown",
+        companyId: row.companyId,
+        archived: row.archived,
+      })),
+      leads: leadRows.map((row) => ({
+        id: row.id,
+        title: row.personName,
+        subtitle: companyName.get(row.companyId) ?? "Unknown",
+        companyId: row.companyId,
+        archived: row.archived,
+      })),
+      wishlists: wishlistRows.map((row) => ({
+        id: row.id,
+        title: row.interest || "Wishlist",
+        subtitle: companyName.get(row.companyId) ?? "Unknown",
+        companyId: row.companyId,
+        archived: row.archived,
+      })),
+      companies: companyRows.map((row) => ({ id: row.id, name: row.name })),
+    },
   };
+}
+
+function archivedFilter(scope: ArchiveScope) {
+  if (scope === "active") return false;
+  if (scope === "archived") return true;
+  return null;
+}
+
+export async function listApplications(
+  userId: string,
+  scope: ArchiveScope = "all",
+): Promise<ApplicationListItem[]> {
+  const archived = archivedFilter(scope);
+  const rows = await db().query.applications.findMany({
+    where:
+      archived === null
+        ? eq(applications.userId, userId)
+        : and(eq(applications.userId, userId), eq(applications.archived, archived)),
+    orderBy: desc(applications.createdAt),
+  });
+  return rows.map(mapApplicationListItem);
+}
+
+export async function getApplication(userId: string, id: string): Promise<Application> {
+  const row = await db().query.applications.findFirst({
+    where: and(eq(applications.id, id), eq(applications.userId, userId)),
+  });
+  if (!row) throw new HttpError(404, "Application not found");
+  return mapApplication(row);
+}
+
+export async function listLeads(
+  userId: string,
+  scope: ArchiveScope = "all",
+): Promise<LeadListItem[]> {
+  const archived = archivedFilter(scope);
+  const rows = await db().query.leads.findMany({
+    where:
+      archived === null
+        ? eq(leads.userId, userId)
+        : and(eq(leads.userId, userId), eq(leads.archived, archived)),
+    orderBy: desc(leads.createdAt),
+  });
+  return rows.map(mapLeadListItem);
+}
+
+export async function getLead(userId: string, id: string): Promise<Lead> {
+  const row = await db().query.leads.findFirst({
+    where: and(eq(leads.id, id), eq(leads.userId, userId)),
+  });
+  if (!row) throw new HttpError(404, "Lead not found");
+  return mapLead(row);
+}
+
+export async function listWishlists(
+  userId: string,
+  scope: ArchiveScope = "all",
+): Promise<WishlistListItem[]> {
+  const archived = archivedFilter(scope);
+  const rows = await db().query.wishlists.findMany({
+    where:
+      archived === null
+        ? eq(wishlists.userId, userId)
+        : and(eq(wishlists.userId, userId), eq(wishlists.archived, archived)),
+    orderBy: desc(wishlists.createdAt),
+  });
+  return rows.map(mapWishlistListItem);
+}
+
+export async function getWishlist(userId: string, id: string): Promise<Wishlist> {
+  const row = await db().query.wishlists.findFirst({
+    where: and(eq(wishlists.id, id), eq(wishlists.userId, userId)),
+  });
+  if (!row) throw new HttpError(404, "Wishlist item not found");
+  return mapWishlist(row);
+}
+
+export async function listCompanies(userId: string): Promise<Company[]> {
+  const rows = await db().query.companies.findMany({
+    where: eq(companies.userId, userId),
+    orderBy: desc(companies.createdAt),
+  });
+  return rows.map(mapCompany);
+}
+
+export async function listResumes(userId: string): Promise<Resume[]> {
+  const rows = await db().query.resumes.findMany({
+    where: eq(resumes.userId, userId),
+    orderBy: desc(resumes.createdAt),
+  });
+  return rows.map(mapResume);
+}
+
+export async function listCoverLetters(userId: string): Promise<CoverLetterListItem[]> {
+  const rows = await db().query.coverLetters.findMany({
+    where: eq(coverLetters.userId, userId),
+    orderBy: desc(coverLetters.createdAt),
+  });
+  return rows.map(mapCoverLetterListItem);
+}
+
+export async function getCoverLetter(userId: string, id: string): Promise<CoverLetter> {
+  const row = await db().query.coverLetters.findFirst({
+    where: and(eq(coverLetters.id, id), eq(coverLetters.userId, userId)),
+  });
+  if (!row) throw new HttpError(404, "Cover letter not found");
+  return mapCoverLetter(row);
+}
+
+export async function listSavedViews(
+  userId: string,
+  screen?: SavedViewScreen,
+): Promise<SavedView[]> {
+  const rows = await db().query.savedViews.findMany({
+    where: screen
+      ? and(eq(savedViews.userId, userId), eq(savedViews.screen, screen))
+      : eq(savedViews.userId, userId),
+    orderBy: desc(savedViews.createdAt),
+  });
+  return rows.map(mapSavedView);
 }
 
 export async function createCompany(

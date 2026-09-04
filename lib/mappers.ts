@@ -14,13 +14,17 @@ import {
   isWishlistStatus,
   isWorkMode,
   type Application,
+  type ApplicationListItem,
   type Company,
   type CoverLetter,
+  type CoverLetterListItem,
   type Lead,
+  type LeadListItem,
   type Resume,
   type SavedView,
   type Wishlist,
   type WishlistContact,
+  type WishlistListItem,
   type WorkspaceUser,
 } from "@/lib/domain";
 import type {
@@ -138,6 +142,22 @@ export function mapCoverLetter(row: CoverLetterRow): CoverLetter {
   };
 }
 
+export function mapCoverLetterListItem(row: CoverLetterRow): CoverLetterListItem {
+  if (row.kind === "file") {
+    return {
+      id: row.id,
+      name: row.name,
+      kind: "file",
+      fileName: row.fileName ?? row.name,
+    };
+  }
+  return {
+    id: row.id,
+    name: row.name,
+    kind: "text",
+  };
+}
+
 export function mapApplication(row: ApplicationRow): Application {
   return {
     id: row.id,
@@ -178,6 +198,31 @@ export function mapApplication(row: ApplicationRow): Application {
   };
 }
 
+export function mapApplicationListItem(row: ApplicationRow): ApplicationListItem {
+  const full = mapApplication(row);
+  return {
+    id: full.id,
+    companyId: full.companyId,
+    role: full.role,
+    source: full.source,
+    location: full.location,
+    workMode: full.workMode,
+    stage: full.stage,
+    priority: full.priority,
+    replyStatus: full.replyStatus,
+    appliedDate: full.appliedDate,
+    nextStepDate: full.nextStepDate,
+    nextStepLabel: full.nextStepLabel,
+    reminderTime: full.reminderTime,
+    resumeId: full.resumeId,
+    coverLetterId: full.coverLetterId,
+    tags: full.tags,
+    archived: full.archived,
+    createdAt: full.createdAt,
+    updatedAt: full.updatedAt,
+  };
+}
+
 export function mapLead(row: LeadRow): Lead {
   return {
     id: row.id,
@@ -205,6 +250,29 @@ export function mapLead(row: LeadRow): Lead {
   };
 }
 
+export function mapLeadListItem(row: LeadRow): LeadListItem {
+  const full = mapLead(row);
+  return {
+    id: full.id,
+    companyId: full.companyId,
+    personName: full.personName,
+    personRole: full.personRole,
+    platform: full.platform,
+    status: full.status,
+    priority: full.priority,
+    sentDate: full.sentDate,
+    nextStepDate: full.nextStepDate,
+    nextStepLabel: full.nextStepLabel,
+    reminderTime: full.reminderTime,
+    resumeId: full.resumeId,
+    coverLetterId: full.coverLetterId,
+    tags: full.tags,
+    archived: full.archived,
+    createdAt: full.createdAt,
+    updatedAt: full.updatedAt,
+  };
+}
+
 export function mapWishlist(row: WishlistRow): Wishlist {
   return {
     id: row.id,
@@ -222,6 +290,29 @@ export function mapWishlist(row: WishlistRow): Wishlist {
     archived: row.archived,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+export function mapWishlistListItem(row: WishlistRow): WishlistListItem {
+  const full = mapWishlist(row);
+  return {
+    id: full.id,
+    companyId: full.companyId,
+    interest: full.interest,
+    status: full.status,
+    priority: full.priority,
+    nextStepDate: full.nextStepDate,
+    nextStepLabel: full.nextStepLabel,
+    reminderTime: full.reminderTime,
+    tags: full.tags,
+    archived: full.archived,
+    createdAt: full.createdAt,
+    updatedAt: full.updatedAt,
+    contacts: full.contacts.map((contact) => ({
+      id: contact.id,
+      name: contact.name,
+      role: contact.role,
+    })),
   };
 }
 

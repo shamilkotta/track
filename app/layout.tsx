@@ -1,4 +1,5 @@
 import type { Metadata } from "nlite";
+import { QueryProvider } from "@/components/query-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -46,7 +47,9 @@ export default function RootLayout({
       />
       <link rel="stylesheet" href="/assets/vercel-brand.css" precedence="vbg" />
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-        <TooltipProvider>{children}</TooltipProvider>
+        <QueryProvider>
+          <TooltipProvider>{children}</TooltipProvider>
+        </QueryProvider>
       </ThemeProvider>
     </>
   );

@@ -1,5 +1,14 @@
 import { asRecord, errorResponse, json, readJson, requireApiUser } from "@/lib/http";
-import { createCoverLetter } from "@/lib/workspace-store";
+import { createCoverLetter, listCoverLetters } from "@/lib/workspace-store";
+
+export async function GET(request: Request) {
+  try {
+    const user = await requireApiUser(request);
+    return json(await listCoverLetters(user.id));
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
 
 export async function POST(request: Request) {
   try {

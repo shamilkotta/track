@@ -80,9 +80,10 @@ import {
   priorities,
   valuesFromLead,
   type Company,
-  type CoverLetter,
+  type CoverLetterListItem,
   type Lead,
   type LeadFormValues,
+  type LeadListItem,
   type LeadPlatform,
   type LeadSortKey,
   type LeadStatus,
@@ -91,6 +92,7 @@ import {
   type SavedView,
 } from "@/lib/domain";
 import { groupByCompany } from "@/lib/group-by-company";
+import { useLeadQuery } from "@/hooks/use-workspace";
 
 type Density = "comfortable" | "compact";
 
@@ -109,7 +111,7 @@ function relativeFollowUp(iso: string) {
   return formatDisplayDate(iso);
 }
 
-function computeLeadStats(leads: Lead[], companies: Company[]) {
+function computeLeadStats(leads: LeadListItem[], companies: Company[]) {
   const active = leads.filter((item) => !item.archived);
   const inProgress = active.filter(
     (item) =>
@@ -157,7 +159,7 @@ function computeLeadStats(leads: Lead[], companies: Company[]) {
   ];
 }
 
-function LeadStatStrip({ leads, companies }: { leads: Lead[]; companies: Company[] }) {
+function LeadStatStrip({ leads, companies }: { leads: LeadListItem[]; companies: Company[] }) {
   const stats = computeLeadStats(leads, companies);
   return (
     <div className="track-stat-strip mx-4 mb-6 md:mx-7">
@@ -173,7 +175,7 @@ function LeadStatStrip({ leads, companies }: { leads: Lead[]; companies: Company
 }
 
 export function LeadDetailDrawer({
-  item,
+  id,
   company,
   companies,
   resumes,
@@ -189,11 +191,11 @@ export function LeadDetailDrawer({
   onCreateCoverText,
   onUploadCover,
 }: {
-  item: Lead;
+  id: string;
   company: Company | undefined;
   companies: Company[];
   resumes: Resume[];
-  coverLetters: CoverLetter[];
+  coverLetters: CoverLetterListItem[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPatch: (id: string, patch: Partial<Lead>) => Promise<void>;
@@ -205,13 +207,23 @@ export function LeadDetailDrawer({
   onCreateCoverText: (name: string, body: string) => Promise<string>;
   onUploadCover: (file: File) => Promise<string>;
 }) {
-  const [draft, setDraft] = useState(() => valuesFromLead(item));
+  const { data: item, isPending, isError, error } = useLeadQuery(open ? id : null);
+  const [draft, setDraft] = useState<LeadFormValues | null>(null);
+  const [draftSourceId, setDraftSourceId] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  if (item && draftSourceId !== item.id) {
+    setDraftSourceId(item.id);
+    setDraft(valuesFromLead(item));
+  } else if (!item && draftSourceId !== null) {
+    setDraftSourceId(null);
+    setDraft(null);
+  }
+
   function setValues(patch: Partial<LeadFormValues>) {
-    if (readOnly) return;
-    setDraft((current) => ({ ...current, ...patch }));
+    if (readOnly || !draft) return;
+    setDraft((current) => (current ? { ...current, ...patch } : current));
   }
 
   function flashSaved() {
@@ -220,12 +232,12 @@ export function LeadDetailDrawer({
   }
 
   function patchImmediate(patch: Partial<Lead>) {
-    if (readOnly) return;
+    if (readOnly || !item) return;
     void onPatch(item.id, patch).then(flashSaved);
   }
 
   function saveAll() {
-    if (readOnly) return;
+    if (readOnly || !draft || !item) return;
     const patch = formValuesToLeadPatch(draft);
     if (!patch) return;
     void onPatch(item.id, patch).then(flashSaved);
@@ -246,64 +258,77 @@ export function LeadDetailDrawer({
               )}
             </SheetTitle>
             <SheetDescription>
-              {company?.name ?? "Unknown"} · {item.personName}
+              {company?.name ?? "Unknown"}
+              {item ? ` · ${item.personName}` : ""}
               {readOnly ? " · Archived" : ""}
             </SheetDescription>
           </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div {...(readOnly ? { inert: true } : {})}>
-              <div className="flex items-start gap-3 px-4 pt-4">
-                {company && <CompanyMark logo={company.logo} color={company.color} large />}
-                <div className="min-w-0">
-                  <p className="font-semibold">{company?.name ?? "Unknown"}</p>
-                  <p className="text-sm text-muted-foreground">{draft.personName}</p>
+          {isPending || !item || !draft ? (
+            <p className="px-4 py-8 text-sm text-muted-foreground">
+              {isError
+                ? error instanceof Error
+                  ? error.message
+                  : "Could not load lead"
+                : "Loading details…"}
+            </p>
+          ) : (
+            <>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <div {...(readOnly ? { inert: true } : {})}>
+                  <div className="flex items-start gap-3 px-4 pt-4">
+                    {company && <CompanyMark logo={company.logo} color={company.color} large />}
+                    <div className="min-w-0">
+                      <p className="font-semibold">{company?.name ?? "Unknown"}</p>
+                      <p className="text-sm text-muted-foreground">{draft.personName}</p>
+                    </div>
+                  </div>
+                  <div className="p-4 pt-4">
+                    <LeadFields
+                      companies={companies}
+                      resumes={resumes}
+                      coverLetters={coverLetters}
+                      values={draft}
+                      setValues={(patch) => {
+                        setValues(patch);
+                        const immediateKeys = [
+                          "status",
+                          "priority",
+                          "platform",
+                          "resumeId",
+                          "coverLetterId",
+                          "reminderTime",
+                        ] as const;
+                        const immediate: Partial<Lead> = {};
+                        for (const key of immediateKeys) {
+                          if (key in patch) {
+                            Object.assign(immediate, { [key]: patch[key] });
+                          }
+                        }
+                        if (Object.keys(immediate).length > 0) patchImmediate(immediate);
+                      }}
+                      onCreateCompany={onCreateCompany}
+                      onUploadResume={onUploadResume}
+                      onCreateCoverText={onCreateCoverText}
+                      onUploadCover={onUploadCover}
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="p-4 pt-4">
-                <LeadFields
-                  companies={companies}
-                  resumes={resumes}
-                  coverLetters={coverLetters}
-                  values={draft}
-                  setValues={(patch) => {
-                    setValues(patch);
-                    const immediateKeys = [
-                      "status",
-                      "priority",
-                      "platform",
-                      "resumeId",
-                      "coverLetterId",
-                      "reminderTime",
-                    ] as const;
-                    const immediate: Partial<Lead> = {};
-                    for (const key of immediateKeys) {
-                      if (key in patch) {
-                        Object.assign(immediate, { [key]: patch[key] });
-                      }
-                    }
-                    if (Object.keys(immediate).length > 0) patchImmediate(immediate);
-                  }}
-                  onCreateCompany={onCreateCompany}
-                  onUploadResume={onUploadResume}
-                  onCreateCoverText={onCreateCoverText}
-                  onUploadCover={onUploadCover}
-                />
-              </div>
-            </div>
-          </div>
-          <SheetFooter className="shrink-0 border-t">
-            <p className="mr-auto text-xs text-muted-foreground">
-              Sent {formatDisplayDate(item.sentDate)} · {item.platform}
-            </p>
-            <Button variant="outline" onClick={() => setConfirmDelete(true)}>
-              Delete
-            </Button>
-            {readOnly ? (
-              <Button onClick={() => void onRestore?.()}>Restore</Button>
-            ) : (
-              <Button onClick={saveAll}>Save changes</Button>
-            )}
-          </SheetFooter>
+              <SheetFooter className="shrink-0 border-t">
+                <p className="mr-auto text-xs text-muted-foreground">
+                  Sent {formatDisplayDate(item.sentDate)} · {item.platform}
+                </p>
+                <Button variant="outline" onClick={() => setConfirmDelete(true)}>
+                  Delete
+                </Button>
+                {readOnly ? (
+                  <Button onClick={() => void onRestore?.()}>Restore</Button>
+                ) : (
+                  <Button onClick={saveAll}>Save changes</Button>
+                )}
+              </SheetFooter>
+            </>
+          )}
         </SheetContent>
       </Sheet>
       <ConfirmDialog
@@ -311,7 +336,7 @@ export function LeadDetailDrawer({
         onOpenChange={setConfirmDelete}
         title="Delete this lead?"
         description="This permanently removes the lead. This cannot be undone."
-        onConfirm={() => onDelete(item.id)}
+        onConfirm={() => onDelete(id)}
       />
     </>
   );
@@ -333,7 +358,7 @@ function AddLeadModal({
   onOpenChange: (open: boolean) => void;
   companies: Company[];
   resumes: Resume[];
-  coverLetters: CoverLetter[];
+  coverLetters: CoverLetterListItem[];
   onCreateCompany: (name: string) => Promise<string>;
   onUploadResume: (file: File) => Promise<string>;
   onCreateCoverText: (name: string, body: string) => Promise<string>;
@@ -425,10 +450,10 @@ export function LeadsView({
   onSaveView,
   onDeleteView,
 }: {
-  leads: Lead[];
+  leads: LeadListItem[];
   companies: Company[];
   resumes: Resume[];
-  coverLetters: CoverLetter[];
+  coverLetters: CoverLetterListItem[];
   density: Density;
   setDensity: (density: Density) => void;
   groupByCompany: boolean;
@@ -724,7 +749,7 @@ export function LeadsView({
           {groupByCompanyEnabled
             ? companyGroups.flatMap((group) => {
                 const groupSelected = group.items.filter((item) => selected.includes(item.id));
-                const renderRow = (item: Lead, grouped: boolean) => {
+                const renderRow = (item: LeadListItem, grouped: boolean) => {
                   const company = companyById[item.companyId];
                   return (
                     <TableRow
@@ -909,7 +934,7 @@ export function LeadsView({
       {active && (
         <LeadDetailDrawer
           key={active.id}
-          item={active}
+          id={active.id}
           company={companyById[active.companyId]}
           companies={companies}
           resumes={resumes}

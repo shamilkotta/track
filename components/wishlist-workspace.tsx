@@ -15,6 +15,7 @@ import {
   WishlistStatusBadge,
 } from "@/components/workspace-fields";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -446,7 +447,7 @@ function WishlistStatStrip({ items, companies }: { items: Wishlist[]; companies:
   );
 }
 
-function WishlistDetailDrawer({
+export function WishlistDetailDrawer({
   item,
   company,
   companies,
@@ -467,6 +468,7 @@ function WishlistDetailDrawer({
 }) {
   const [draft, setDraft] = useState(() => valuesFromWishlist(item));
   const [savedFlash, setSavedFlash] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   function setValues(patch: Partial<WishlistFormValues>) {
     setDraft((current) => ({ ...current, ...patch }));
@@ -488,67 +490,73 @@ function WishlistDetailDrawer({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        className="w-full gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-2xl"
-        initialFocus={false}
-      >
-        <SheetHeader className="shrink-0 border-b">
-          <SheetTitle className="flex items-center gap-2">
-            Wishlist details
-            {savedFlash && <span className="text-xs font-normal text-muted-foreground">Saved</span>}
-          </SheetTitle>
-          <SheetDescription>
-            {company?.name ?? "Unknown"}
-            {item.interest ? ` · ${item.interest}` : ""}
-          </SheetDescription>
-        </SheetHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="flex items-start gap-3 px-4 pt-4">
-            {company && <CompanyMark logo={company.logo} color={company.color} large />}
-            <div className="min-w-0">
-              <p className="font-semibold">{company?.name ?? "Unknown"}</p>
-              <p className="text-sm text-muted-foreground">
-                {draft.interest || "No interest noted"}
-              </p>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          className="gap-0 overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-2xl"
+          initialFocus={false}
+        >
+          <SheetHeader className="shrink-0 border-b">
+            <SheetTitle className="flex items-center gap-2">
+              Wishlist details
+              {savedFlash && (
+                <span className="text-xs font-normal text-muted-foreground">Saved</span>
+              )}
+            </SheetTitle>
+            <SheetDescription>
+              {company?.name ?? "Unknown"}
+              {item.interest ? ` · ${item.interest}` : ""}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="flex items-start gap-3 px-4 pt-4">
+              {company && <CompanyMark logo={company.logo} color={company.color} large />}
+              <div className="min-w-0">
+                <p className="font-semibold">{company?.name ?? "Unknown"}</p>
+                <p className="text-sm text-muted-foreground">
+                  {draft.interest || "No interest noted"}
+                </p>
+              </div>
+            </div>
+            <div className="p-4 pt-4">
+              <WishlistFields
+                companies={companies}
+                values={draft}
+                setValues={(patch) => {
+                  setValues(patch);
+                  const immediateKeys = ["status", "priority", "reminderTime"] as const;
+                  const immediate: Partial<Wishlist> = {};
+                  for (const key of immediateKeys) {
+                    if (key in patch) {
+                      Object.assign(immediate, { [key]: patch[key] });
+                    }
+                  }
+                  if (Object.keys(immediate).length > 0) patchImmediate(immediate);
+                }}
+                onCreateCompany={onCreateCompany}
+              />
             </div>
           </div>
-          <div className="p-4 pt-4">
-            <WishlistFields
-              companies={companies}
-              values={draft}
-              setValues={(patch) => {
-                setValues(patch);
-                const immediateKeys = ["status", "priority", "reminderTime"] as const;
-                const immediate: Partial<Wishlist> = {};
-                for (const key of immediateKeys) {
-                  if (key in patch) {
-                    Object.assign(immediate, { [key]: patch[key] });
-                  }
-                }
-                if (Object.keys(immediate).length > 0) patchImmediate(immediate);
-              }}
-              onCreateCompany={onCreateCompany}
-            />
-          </div>
-        </div>
-        <SheetFooter className="shrink-0 border-t">
-          <p className="mr-auto text-xs text-muted-foreground">
-            {item.contacts.length} contact{item.contacts.length === 1 ? "" : "s"} ·{" "}
-            {formatDisplayDate(item.createdAt.slice(0, 10))}
-          </p>
-          <Button
-            variant="outline"
-            onClick={() => {
-              if (window.confirm("Delete this wishlist item?")) void onDelete(item.id);
-            }}
-          >
-            Delete
-          </Button>
-          <Button onClick={saveAll}>Save changes</Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+          <SheetFooter className="shrink-0 border-t">
+            <p className="mr-auto text-xs text-muted-foreground">
+              {item.contacts.length} contact{item.contacts.length === 1 ? "" : "s"} ·{" "}
+              {formatDisplayDate(item.createdAt.slice(0, 10))}
+            </p>
+            <Button variant="outline" onClick={() => setConfirmDelete(true)}>
+              Delete
+            </Button>
+            <Button onClick={saveAll}>Save changes</Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete this wishlist item?"
+        description="This permanently removes the wishlist entry. This cannot be undone."
+        onConfirm={() => onDelete(item.id)}
+      />
+    </>
   );
 }
 
@@ -662,6 +670,7 @@ export function WishlistView({
   const [sort, setSort] = useState<WishlistSortKey>("recent");
   const [selectedPriorities, setSelectedPriorities] = useState<Priority[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const { isCollapsed, toggle } = useCollapsedCompanyGroups();
 
@@ -877,10 +886,15 @@ export function WishlistView({
         />
         {selected.length > 0 && (
           <div className="flex items-center gap-1">
-            <Button variant="secondary" onClick={() => void onBulk(selected, "archive")}>
-              Archive {selected.length}
+            <Button
+              variant="secondary"
+              onClick={() => {
+                void onBulk(selected, "archive").then(() => setSelected([]));
+              }}
+            >
+              Archive
             </Button>
-            <Button variant="outline" onClick={() => void onBulk(selected, "delete")}>
+            <Button variant="outline" onClick={() => setConfirmBulkDelete(true)}>
               Delete
             </Button>
             <Button variant="ghost" onClick={() => setSelected([])}>
@@ -888,7 +902,7 @@ export function WishlistView({
             </Button>
           </div>
         )}
-        <Button className="ml-auto md:hidden" variant="outline" onClick={() => setModal(true)}>
+        <Button className="ml-auto md:hidden" onClick={() => setModal(true)}>
           <Plus /> New
         </Button>
       </div>
@@ -1091,6 +1105,7 @@ export function WishlistView({
           onDelete={async (id) => {
             await onDelete(id);
             setActiveId(null);
+            setSelected((prev) => prev.filter((selectedId) => selectedId !== id));
           }}
           onCreateCompany={onCreateCompany}
         />
@@ -1101,6 +1116,16 @@ export function WishlistView({
         companies={companies}
         onCreateCompany={onCreateCompany}
         onSave={onCreate}
+      />
+      <ConfirmDialog
+        open={confirmBulkDelete}
+        onOpenChange={setConfirmBulkDelete}
+        title={`Delete ${selected.length} wishlist item${selected.length === 1 ? "" : "s"}?`}
+        description="Selected wishlist items will be permanently removed. This cannot be undone."
+        onConfirm={async () => {
+          await onBulk(selected, "delete");
+          setSelected([]);
+        }}
       />
     </>
   );

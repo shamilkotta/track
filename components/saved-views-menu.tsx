@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ListFilter, Plus, X } from "lucide-react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -37,6 +38,7 @@ export function SavedViewsMenu({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState("");
   const [pending, setPending] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<SavedView | null>(null);
 
   function closeDialog() {
     setDialogOpen(false);
@@ -78,7 +80,7 @@ export function SavedViewsMenu({
                 className="text-muted-foreground hover:text-destructive"
                 onClick={(event) => {
                   event.stopPropagation();
-                  void onDelete(view.id);
+                  setDeleteTarget(view);
                 }}
               >
                 <X className="size-3.5" />
@@ -130,6 +132,22 @@ export function SavedViewsMenu({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Delete saved view?"
+        description={
+          deleteTarget
+            ? `“${deleteTarget.name}” will be removed. This cannot be undone.`
+            : undefined
+        }
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          await onDelete(deleteTarget.id);
+        }}
+      />
     </>
   );
 }

@@ -21,7 +21,6 @@ import {
   Search,
   Settings2,
   SlidersHorizontal,
-  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -33,17 +32,20 @@ import {
   useCollapsedCompanyGroups,
 } from "@/components/company-group-rows";
 import { BrandMark } from "@/components/brand-mark";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { usePathname, useRouter } from "nlite/navigation";
 import {
   ApplicationFields,
   CompanyMark,
+  LeadStatusBadge,
   NativeSelectField,
   PriorityBadge,
   StageBadge,
+  WishlistStatusBadge,
 } from "@/components/workspace-fields";
-import { LeadsView } from "@/components/leads-workspace";
-import { WishlistView } from "@/components/wishlist-workspace";
+import { LeadDetailDrawer, LeadsView } from "@/components/leads-workspace";
+import { WishlistDetailDrawer, WishlistView } from "@/components/wishlist-workspace";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -118,6 +120,7 @@ import {
   SidebarProvider,
   SidebarSeparator,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   Table,
@@ -328,6 +331,12 @@ function AppSidebar({
   user: WorkspaceUser;
 }) {
   const router = useRouter();
+  const { setOpenMobile } = useSidebar();
+
+  const navigate = (path: string) => {
+    router.push(path);
+    setOpenMobile(false);
+  };
 
   return (
     <Sidebar className="border-r border-border">
@@ -342,7 +351,7 @@ function AppSidebar({
               <SidebarMenuItem>
                 <SidebarMenuButton
                   isActive={screen === "applications"}
-                  onClick={() => router.push(screenPath("applications"))}
+                  onClick={() => navigate(screenPath("applications"))}
                 >
                   <Inbox />
                   Applications
@@ -352,7 +361,7 @@ function AppSidebar({
               <SidebarMenuItem>
                 <SidebarMenuButton
                   isActive={screen === "leads"}
-                  onClick={() => router.push(screenPath("leads"))}
+                  onClick={() => navigate(screenPath("leads"))}
                 >
                   <Mail />
                   Leads
@@ -362,7 +371,7 @@ function AppSidebar({
               <SidebarMenuItem>
                 <SidebarMenuButton
                   isActive={screen === "wishlist"}
-                  onClick={() => router.push(screenPath("wishlist"))}
+                  onClick={() => navigate(screenPath("wishlist"))}
                 >
                   <Heart />
                   Wishlist
@@ -387,7 +396,7 @@ function AppSidebar({
                 <SidebarMenuItem key={id}>
                   <SidebarMenuButton
                     isActive={screen === id}
-                    onClick={() => router.push(screenPath(id))}
+                    onClick={() => navigate(screenPath(id))}
                   >
                     <Icon />
                     {label}
@@ -401,13 +410,13 @@ function AppSidebar({
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={() => router.push("/settings")}>
+            <SidebarMenuButton onClick={() => navigate("/settings")}>
               <Settings2 />
               Settings
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={() => router.push("/help")}>
+            <SidebarMenuButton onClick={() => navigate("/help")}>
               <CircleHelp />
               Help center
             </SidebarMenuButton>
@@ -430,11 +439,11 @@ function AppSidebar({
               {user.email}
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/settings")}>
+            <DropdownMenuItem onClick={() => navigate("/settings")}>
               <Settings2 />
               Settings
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/help")}>
+            <DropdownMenuItem onClick={() => navigate("/help")}>
               <CircleHelp />
               Help center
             </DropdownMenuItem>
@@ -442,6 +451,7 @@ function AppSidebar({
             <DropdownMenuItem
               variant="destructive"
               onClick={() => {
+                setOpenMobile(false);
                 void signOut({
                   fetchOptions: {
                     onSuccess: () => {
@@ -506,6 +516,7 @@ function DetailDrawer({
 }) {
   const [draft, setDraft] = useState(() => valuesFromApplication(item));
   const [savedFlash, setSavedFlash] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   function setValues(patch: Partial<ApplicationFormValues>) {
     setDraft((current) => ({ ...current, ...patch }));
@@ -527,112 +538,118 @@ function DetailDrawer({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-2xl">
-        <SheetHeader className="shrink-0 border-b">
-          <SheetTitle className="flex items-center gap-2">
-            Application details
-            {savedFlash && <span className="text-xs font-normal text-muted-foreground">Saved</span>}
-          </SheetTitle>
-          <SheetDescription>
-            {company?.name ?? "Unknown"} · {item.role}
-          </SheetDescription>
-        </SheetHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="flex items-start gap-3 px-4 pt-4">
-            {company && <CompanyMark logo={company.logo} color={company.color} large />}
-            <div className="min-w-0">
-              <p className="font-semibold">{company?.name ?? "Unknown"}</p>
-              <p className="text-sm text-muted-foreground">{draft.role}</p>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent className="gap-0 overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
+          <SheetHeader className="shrink-0 border-b">
+            <SheetTitle className="flex items-center gap-2">
+              Application details
+              {savedFlash && (
+                <span className="text-xs font-normal text-muted-foreground">Saved</span>
+              )}
+            </SheetTitle>
+            <SheetDescription>
+              {company?.name ?? "Unknown"} · {item.role}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="flex items-start gap-3 px-4 pt-4">
+              {company && <CompanyMark logo={company.logo} color={company.color} large />}
+              <div className="min-w-0">
+                <p className="font-semibold">{company?.name ?? "Unknown"}</p>
+                <p className="text-sm text-muted-foreground">{draft.role}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 px-4 pt-4">
+              <Field>
+                <FieldLabel>Status</FieldLabel>
+                <NativeSelectField
+                  value={draft.stage}
+                  onChange={(stage) => {
+                    setValues({ stage });
+                    patchImmediate({ stage });
+                  }}
+                  options={stages}
+                  guard={isStage}
+                />
+              </Field>
+              <Field>
+                <FieldLabel>Priority</FieldLabel>
+                <NativeSelectField
+                  value={draft.priority}
+                  onChange={(priority) => {
+                    setValues({ priority });
+                    patchImmediate({ priority });
+                  }}
+                  options={priorities}
+                  guard={isPriority}
+                />
+              </Field>
+              <Field className="col-span-2">
+                <FieldLabel>Reply status</FieldLabel>
+                <NativeSelectField
+                  value={draft.replyStatus}
+                  onChange={(replyStatus) => {
+                    setValues({ replyStatus });
+                    patchImmediate({ replyStatus });
+                  }}
+                  options={replyStatuses}
+                  guard={isReplyStatus}
+                />
+              </Field>
+            </div>
+            <div className="p-4">
+              <ApplicationFields
+                companies={companies}
+                resumes={resumes}
+                coverLetters={coverLetters}
+                values={draft}
+                setValues={(patch) => {
+                  setValues(patch);
+                  const immediateKeys = [
+                    "workMode",
+                    "resumeId",
+                    "coverLetterId",
+                    "replyStatus",
+                    "source",
+                    "jobType",
+                    "reminderTime",
+                  ] as const;
+                  const immediate: Partial<Application> = {};
+                  for (const key of immediateKeys) {
+                    if (key in patch) {
+                      Object.assign(immediate, { [key]: patch[key] });
+                    }
+                  }
+                  if (Object.keys(immediate).length > 0) patchImmediate(immediate);
+                }}
+                onCreateCompany={onCreateCompany}
+                onUploadResume={onUploadResume}
+                onCreateCoverText={onCreateCoverText}
+                onUploadCover={onUploadCover}
+              />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 px-4 pt-4">
-            <Field>
-              <FieldLabel>Status</FieldLabel>
-              <NativeSelectField
-                value={draft.stage}
-                onChange={(stage) => {
-                  setValues({ stage });
-                  patchImmediate({ stage });
-                }}
-                options={stages}
-                guard={isStage}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Priority</FieldLabel>
-              <NativeSelectField
-                value={draft.priority}
-                onChange={(priority) => {
-                  setValues({ priority });
-                  patchImmediate({ priority });
-                }}
-                options={priorities}
-                guard={isPriority}
-              />
-            </Field>
-            <Field className="col-span-2">
-              <FieldLabel>Reply status</FieldLabel>
-              <NativeSelectField
-                value={draft.replyStatus}
-                onChange={(replyStatus) => {
-                  setValues({ replyStatus });
-                  patchImmediate({ replyStatus });
-                }}
-                options={replyStatuses}
-                guard={isReplyStatus}
-              />
-            </Field>
-          </div>
-          <div className="p-4">
-            <ApplicationFields
-              companies={companies}
-              resumes={resumes}
-              coverLetters={coverLetters}
-              values={draft}
-              setValues={(patch) => {
-                setValues(patch);
-                const immediateKeys = [
-                  "workMode",
-                  "resumeId",
-                  "coverLetterId",
-                  "replyStatus",
-                  "source",
-                  "jobType",
-                  "reminderTime",
-                ] as const;
-                const immediate: Partial<Application> = {};
-                for (const key of immediateKeys) {
-                  if (key in patch) {
-                    Object.assign(immediate, { [key]: patch[key] });
-                  }
-                }
-                if (Object.keys(immediate).length > 0) patchImmediate(immediate);
-              }}
-              onCreateCompany={onCreateCompany}
-              onUploadResume={onUploadResume}
-              onCreateCoverText={onCreateCoverText}
-              onUploadCover={onUploadCover}
-            />
-          </div>
-        </div>
-        <SheetFooter className="shrink-0 border-t">
-          <p className="mr-auto text-xs text-muted-foreground">
-            Applied {formatDisplayDate(item.appliedDate)}
-            {formatCompensation(item) !== "—" && ` · ${formatCompensation(item)}`}
-          </p>
-          <Button
-            variant="outline"
-            onClick={() => {
-              if (window.confirm("Delete this application?")) void onDelete(item.id);
-            }}
-          >
-            Delete
-          </Button>
-          <Button onClick={saveAll}>Save changes</Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+          <SheetFooter className="shrink-0 border-t">
+            <p className="mr-auto text-xs text-muted-foreground">
+              Applied {formatDisplayDate(item.appliedDate)}
+              {formatCompensation(item) !== "—" && ` · ${formatCompensation(item)}`}
+            </p>
+            <Button variant="outline" onClick={() => setConfirmDelete(true)}>
+              Delete
+            </Button>
+            <Button onClick={saveAll}>Save changes</Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete this application?"
+        description="This permanently removes the application. This cannot be undone."
+        onConfirm={() => onDelete(item.id)}
+      />
+    </>
   );
 }
 
@@ -696,6 +713,7 @@ function ApplicationsView({
   const [selectedSources, setSelectedSources] = useState<Source[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const { isCollapsed, toggle } = useCollapsedCompanyGroups();
 
   useEffect(() => {
@@ -813,7 +831,7 @@ function ApplicationsView({
             </DropdownMenuContent>
           </DropdownMenu>
           <Button onClick={onAdd}>
-            <Plus /> New entry
+            <Plus /> New application
           </Button>
         </div>
       </div>
@@ -913,7 +931,7 @@ function ApplicationsView({
                     setSelectedSources([]);
                   }}
                 >
-                  Clear extra filters
+                  Clear filters
                 </Button>
               )}
             </div>
@@ -1009,10 +1027,15 @@ function ApplicationsView({
         />
         {selected.length > 0 && (
           <div className="flex items-center gap-1">
-            <Button variant="secondary" onClick={() => void onBulk(selected, "archive")}>
-              Archive {selected.length}
+            <Button
+              variant="secondary"
+              onClick={() => {
+                void onBulk(selected, "archive").then(() => setSelected([]));
+              }}
+            >
+              Archive
             </Button>
-            <Button variant="outline" onClick={() => void onBulk(selected, "delete")}>
+            <Button variant="outline" onClick={() => setConfirmBulkDelete(true)}>
               Delete
             </Button>
             <Button variant="ghost" onClick={() => setSelected([])}>
@@ -1020,6 +1043,9 @@ function ApplicationsView({
             </Button>
           </div>
         )}
+        <Button className="ml-auto md:hidden" onClick={onAdd}>
+          <Plus /> New
+        </Button>
       </div>
       <Table>
         <TableHeader className="hidden md:table-header-group">
@@ -1215,6 +1241,7 @@ function ApplicationsView({
           onDelete={async (id) => {
             await onDelete(id);
             setActiveId(null);
+            setSelected((prev) => prev.filter((selectedId) => selectedId !== id));
           }}
           onCreateCompany={onCreateCompany}
           onUploadResume={onUploadResume}
@@ -1222,6 +1249,16 @@ function ApplicationsView({
           onUploadCover={onUploadCover}
         />
       )}
+      <ConfirmDialog
+        open={confirmBulkDelete}
+        onOpenChange={setConfirmBulkDelete}
+        title={`Delete ${selected.length} application${selected.length === 1 ? "" : "s"}?`}
+        description="Selected applications will be permanently removed. This cannot be undone."
+        onConfirm={async () => {
+          await onBulk(selected, "delete");
+          setSelected([]);
+        }}
+      />
     </>
   );
 }
@@ -1254,6 +1291,7 @@ function CompaniesView({
   const [newName, setNewName] = useState("");
   const [newWebsite, setNewWebsite] = useState("");
   const [savingCreate, setSavingCreate] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const active = companies.find((c) => c.id === activeId) ?? null;
   const [draft, setDraft] = useState({ name: "", website: "", location: "", logo: "" });
 
@@ -1316,11 +1354,11 @@ function CompaniesView({
           }}
         >
           <PopoverTrigger render={<Button />}>
-            <Plus /> Add company
+            <Plus /> New company
           </PopoverTrigger>
           <PopoverContent align="end" className="w-80 gap-3 p-3">
             <PopoverHeader>
-              <PopoverTitle>Add company</PopoverTitle>
+              <PopoverTitle>New company</PopoverTitle>
               <PopoverDescription>Name and optional website URL.</PopoverDescription>
             </PopoverHeader>
             <FieldGroup className="gap-3">
@@ -1356,7 +1394,7 @@ function CompaniesView({
                       .finally(() => setSavingCreate(false));
                   }}
                 >
-                  Add
+                  Save company
                 </Button>
               </div>
             </FieldGroup>
@@ -1434,7 +1472,7 @@ function CompaniesView({
             if (!open) setActiveId(null);
           }}
         >
-          <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-md">
+          <SheetContent className="flex flex-col gap-0 overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md">
             <SheetHeader className="border-b">
               <SheetTitle>Edit company</SheetTitle>
               <SheetDescription>Shared across every application for this company.</SheetDescription>
@@ -1482,12 +1520,7 @@ function CompaniesView({
               </div>
             )}
             <SheetFooter className="border-t">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (active && window.confirm("Delete this company?")) void onDelete(active.id);
-                }}
-              >
+              <Button variant="outline" onClick={() => setConfirmDelete(true)}>
                 Delete
               </Button>
               <Button
@@ -1496,12 +1529,23 @@ function CompaniesView({
                   void onPatch(active.id, draft).then(() => setActiveId(null));
                 }}
               >
-                Save
+                Save changes
               </Button>
             </SheetFooter>
           </SheetContent>
         </Sheet>
       </div>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete this company?"
+        description="The company will be permanently removed if it is not used by any applications or leads."
+        onConfirm={async () => {
+          if (!active) return;
+          await onDelete(active.id);
+          setActiveId(null);
+        }}
+      />
     </>
   );
 }
@@ -1524,6 +1568,7 @@ function ResumesView({
   const fileRef = useRef<HTMLInputElement>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [name, setName] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const active = resumes.find((r) => r.id === activeId) ?? null;
   const companyById = useMemo(
     () => Object.fromEntries(companies.map((c) => [c.id, c])),
@@ -1590,7 +1635,7 @@ function ResumesView({
             if (!open) setActiveId(null);
           }}
         >
-          <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-xl">
+          <SheetContent className="flex flex-col gap-0 overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
             <SheetHeader className="border-b">
               <SheetTitle>{active?.name ?? "Resume"}</SheetTitle>
               <SheetDescription>Full resume details</SheetDescription>
@@ -1652,12 +1697,7 @@ function ResumesView({
               </ScrollArea>
             )}
             <SheetFooter className="border-t">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (active && window.confirm("Delete this resume?")) void onDelete(active.id);
-                }}
-              >
+              <Button variant="outline" onClick={() => setConfirmDelete(true)}>
                 Delete
               </Button>
               <Button
@@ -1665,12 +1705,23 @@ function ResumesView({
                   if (active) void onRename(active.id, name);
                 }}
               >
-                Save
+                Save changes
               </Button>
             </SheetFooter>
           </SheetContent>
         </Sheet>
       </div>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete this resume?"
+        description="The resume file will be permanently removed. This cannot be undone."
+        onConfirm={async () => {
+          if (!active) return;
+          await onDelete(active.id);
+          setActiveId(null);
+        }}
+      />
     </>
   );
 }
@@ -1697,6 +1748,7 @@ function CoverLettersView({
   const [writing, setWriting] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [draftBody, setDraftBody] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const active = coverLetters.find((c) => c.id === activeId) ?? null;
   const [editName, setEditName] = useState("");
   const [editBody, setEditBody] = useState("");
@@ -1725,7 +1777,7 @@ function CoverLettersView({
             }}
           >
             <PopoverTrigger render={<Button />}>
-              <Pencil /> Write
+              <Pencil /> Write cover letter
             </PopoverTrigger>
             <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] gap-3 p-3">
               <PopoverHeader>
@@ -1771,14 +1823,14 @@ function CoverLettersView({
                       });
                     }}
                   >
-                    Save
+                    Save cover letter
                   </Button>
                 </div>
               </FieldGroup>
             </PopoverContent>
           </Popover>
           <Button onClick={() => fileRef.current?.click()}>
-            <Upload /> Upload
+            <Upload /> Upload cover letter
           </Button>
         </div>
         <input
@@ -1840,7 +1892,7 @@ function CoverLettersView({
             if (!open) setActiveId(null);
           }}
         >
-          <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 data-[side=right]:sm:max-w-xl">
+          <SheetContent className="flex flex-col gap-0 overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
             <SheetHeader className="border-b">
               <SheetTitle>{active?.name ?? "Cover letter"}</SheetTitle>
               <SheetDescription>
@@ -1919,14 +1971,7 @@ function CoverLettersView({
               </ScrollArea>
             )}
             <SheetFooter className="border-t">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (active && window.confirm("Delete this cover letter?"))
-                    void onDelete(active.id);
-                }}
-              >
-                <Trash2 />
+              <Button variant="outline" onClick={() => setConfirmDelete(true)}>
                 Delete
               </Button>
               <Button
@@ -1938,119 +1983,275 @@ function CoverLettersView({
                   });
                 }}
               >
-                Save
+                Save changes
               </Button>
             </SheetFooter>
           </SheetContent>
         </Sheet>
       </div>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete this cover letter?"
+        description="The cover letter will be permanently removed. This cannot be undone."
+        onConfirm={async () => {
+          if (!active) return;
+          await onDelete(active.id);
+          setActiveId(null);
+        }}
+      />
     </>
   );
 }
 
 function ArchiveView({
   applications,
+  leads,
+  wishlists,
   companies,
   resumes,
   coverLetters,
   focusId = null,
+  focusKind = null,
   onFocusConsumed,
-  onPatch,
-  onDelete,
+  onPatchApplication,
+  onDeleteApplication,
+  onRestoreApplications,
+  onPatchLead,
+  onDeleteLead,
+  onRestoreLeads,
+  onPatchWishlist,
+  onDeleteWishlist,
+  onRestoreWishlists,
   onCreateCompany,
   onUploadResume,
   onCreateCoverText,
   onUploadCover,
-  onRestore,
 }: {
   applications: Application[];
+  leads: Lead[];
+  wishlists: Wishlist[];
   companies: Company[];
   resumes: Resume[];
   coverLetters: CoverLetter[];
   focusId?: string | null;
+  focusKind?: "application" | "lead" | "wishlist" | null;
   onFocusConsumed?: () => void;
-  onPatch: (id: string, patch: Partial<Application>) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
+  onPatchApplication: (id: string, patch: Partial<Application>) => Promise<void>;
+  onDeleteApplication: (id: string) => Promise<void>;
+  onRestoreApplications: (ids: string[]) => Promise<void>;
+  onPatchLead: (id: string, patch: Partial<Lead>) => Promise<void>;
+  onDeleteLead: (id: string) => Promise<void>;
+  onRestoreLeads: (ids: string[]) => Promise<void>;
+  onPatchWishlist: (id: string, patch: Partial<Wishlist>) => Promise<void>;
+  onDeleteWishlist: (id: string) => Promise<void>;
+  onRestoreWishlists: (ids: string[]) => Promise<void>;
   onCreateCompany: (name: string) => Promise<string>;
   onUploadResume: (file: File) => Promise<string>;
   onCreateCoverText: (name: string, body: string) => Promise<string>;
   onUploadCover: (file: File) => Promise<string>;
-  onRestore: (ids: string[]) => Promise<void>;
 }) {
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [active, setActive] = useState<
+    | { kind: "application"; id: string }
+    | { kind: "lead"; id: string }
+    | { kind: "wishlist"; id: string }
+    | null
+  >(null);
   const companyById = useMemo(
     () => Object.fromEntries(companies.map((c) => [c.id, c])),
     [companies],
   );
-  const active = applications.find((a) => a.id === activeId) ?? null;
+  const activeApplication =
+    active?.kind === "application"
+      ? (applications.find((item) => item.id === active.id) ?? null)
+      : null;
+  const activeLead =
+    active?.kind === "lead" ? (leads.find((item) => item.id === active.id) ?? null) : null;
+  const activeWishlist =
+    active?.kind === "wishlist" ? (wishlists.find((item) => item.id === active.id) ?? null) : null;
+  const isEmpty = applications.length === 0 && leads.length === 0 && wishlists.length === 0;
 
   useEffect(() => {
-    if (!focusId) return;
-    setActiveId(focusId);
+    if (!focusId || !focusKind) return;
+    setActive({ kind: focusKind, id: focusId });
     onFocusConsumed?.();
-  }, [focusId, onFocusConsumed]);
-
-  if (applications.length === 0) {
-    return (
-      <div className="px-4 pb-8 pt-7 md:px-7">
-        <h1>Archive</h1>
-        <p className="track-page-lede">Closed and withdrawn applications land here.</p>
-        <p className="mt-10 text-sm text-muted-foreground">No archived applications yet.</p>
-      </div>
-    );
-  }
+  }, [focusId, focusKind, onFocusConsumed]);
 
   return (
     <div className="px-4 pb-8 pt-7 md:px-7">
       <div className="mb-8">
         <h1>Archive</h1>
-        <p className="track-page-lede">Closed and withdrawn applications land here.</p>
+        <p className="track-page-lede">Closed applications, leads, and wishlist items land here.</p>
       </div>
-      <div className="flex flex-col gap-0 divide-y border-y">
-        {applications.map((item) => {
-          const company = companyById[item.companyId];
-          return (
-            <div key={item.id} className="flex items-center gap-3 px-1 py-3">
-              <button
-                type="button"
-                className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                onClick={() => setActiveId(item.id)}
-              >
-                {company && <CompanyMark logo={company.logo} color={company.color} />}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{company?.name ?? "Unknown"}</p>
-                  <p className="truncate text-xs text-muted-foreground">{item.role}</p>
-                </div>
-                <StageBadge stage={item.stage} />
-              </button>
-              <Button variant="outline" onClick={() => void onRestore([item.id])}>
-                Restore
-              </Button>
-            </div>
-          );
-        })}
-      </div>
-      {active && (
+      {isEmpty ? (
+        <p className="text-sm text-muted-foreground">Nothing archived yet.</p>
+      ) : (
+        <div className="flex flex-col gap-8">
+          {applications.length > 0 && (
+            <section>
+              <h2 className="mb-3 text-sm font-medium text-muted-foreground">Applications</h2>
+              <div className="flex flex-col gap-0 divide-y border-y">
+                {applications.map((item) => {
+                  const company = companyById[item.companyId];
+                  return (
+                    <div key={item.id} className="flex items-center gap-3 px-1 py-3">
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                        onClick={() => setActive({ kind: "application", id: item.id })}
+                      >
+                        {company && <CompanyMark logo={company.logo} color={company.color} />}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {company?.name ?? "Unknown"}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">{item.role}</p>
+                        </div>
+                        <StageBadge stage={item.stage} />
+                      </button>
+                      <Button
+                        variant="outline"
+                        onClick={() => void onRestoreApplications([item.id])}
+                      >
+                        Restore
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+          {leads.length > 0 && (
+            <section>
+              <h2 className="mb-3 text-sm font-medium text-muted-foreground">Leads</h2>
+              <div className="flex flex-col gap-0 divide-y border-y">
+                {leads.map((item) => {
+                  const company = companyById[item.companyId];
+                  return (
+                    <div key={item.id} className="flex items-center gap-3 px-1 py-3">
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                        onClick={() => setActive({ kind: "lead", id: item.id })}
+                      >
+                        {company && <CompanyMark logo={company.logo} color={company.color} />}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {company?.name ?? "Unknown"}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {item.personName}
+                            {item.personRole ? ` · ${item.personRole}` : ""}
+                          </p>
+                        </div>
+                        <LeadStatusBadge status={item.status} />
+                      </button>
+                      <Button variant="outline" onClick={() => void onRestoreLeads([item.id])}>
+                        Restore
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+          {wishlists.length > 0 && (
+            <section>
+              <h2 className="mb-3 text-sm font-medium text-muted-foreground">Wishlist</h2>
+              <div className="flex flex-col gap-0 divide-y border-y">
+                {wishlists.map((item) => {
+                  const company = companyById[item.companyId];
+                  return (
+                    <div key={item.id} className="flex items-center gap-3 px-1 py-3">
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                        onClick={() => setActive({ kind: "wishlist", id: item.id })}
+                      >
+                        {company && <CompanyMark logo={company.logo} color={company.color} />}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {company?.name ?? "Unknown"}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {item.interest || "No interest noted"}
+                          </p>
+                        </div>
+                        <WishlistStatusBadge status={item.status} />
+                      </button>
+                      <Button variant="outline" onClick={() => void onRestoreWishlists([item.id])}>
+                        Restore
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+        </div>
+      )}
+      {activeApplication && (
         <DetailDrawer
-          key={active.id}
-          item={active}
-          company={companyById[active.companyId]}
+          key={activeApplication.id}
+          item={activeApplication}
+          company={companyById[activeApplication.companyId]}
           companies={companies}
           resumes={resumes}
           coverLetters={coverLetters}
           open
           onOpenChange={(open) => {
-            if (!open) setActiveId(null);
+            if (!open) setActive(null);
           }}
-          onPatch={onPatch}
+          onPatch={onPatchApplication}
           onDelete={async (id) => {
-            await onDelete(id);
-            setActiveId(null);
+            await onDeleteApplication(id);
+            setActive(null);
           }}
           onCreateCompany={onCreateCompany}
           onUploadResume={onUploadResume}
           onCreateCoverText={onCreateCoverText}
           onUploadCover={onUploadCover}
+        />
+      )}
+      {activeLead && (
+        <LeadDetailDrawer
+          key={activeLead.id}
+          item={activeLead}
+          company={companyById[activeLead.companyId]}
+          companies={companies}
+          resumes={resumes}
+          coverLetters={coverLetters}
+          open
+          onOpenChange={(open) => {
+            if (!open) setActive(null);
+          }}
+          onPatch={onPatchLead}
+          onDelete={async (id) => {
+            await onDeleteLead(id);
+            setActive(null);
+          }}
+          onCreateCompany={onCreateCompany}
+          onUploadResume={onUploadResume}
+          onCreateCoverText={onCreateCoverText}
+          onUploadCover={onUploadCover}
+        />
+      )}
+      {activeWishlist && (
+        <WishlistDetailDrawer
+          key={activeWishlist.id}
+          item={activeWishlist}
+          company={companyById[activeWishlist.companyId]}
+          companies={companies}
+          open
+          onOpenChange={(open) => {
+            if (!open) setActive(null);
+          }}
+          onPatch={onPatchWishlist}
+          onDelete={async (id) => {
+            await onDeleteWishlist(id);
+            setActive(null);
+          }}
+          onCreateCompany={onCreateCompany}
         />
       )}
     </div>
@@ -2288,7 +2489,9 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
   const activeApplications = applications.filter((item) => !item.archived);
   const archivedApplications = applications.filter((item) => item.archived);
   const activeLeads = leads.filter((item) => !item.archived);
+  const archivedLeads = leads.filter((item) => item.archived);
   const activeWishlists = wishlists.filter((item) => !item.archived);
+  const archivedWishlists = wishlists.filter((item) => item.archived);
 
   return (
     <SidebarProvider className="h-svh overflow-hidden">
@@ -2691,19 +2894,34 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
               {screen === "archive" && (
                 <ArchiveView
                   applications={archivedApplications}
+                  leads={archivedLeads}
+                  wishlists={archivedWishlists}
                   companies={companies}
                   resumes={resumes}
                   coverLetters={coverLetters}
-                  focusId={searchFocus?.kind === "application" ? searchFocus.id : null}
+                  focusId={
+                    searchFocus?.kind === "application" ||
+                    searchFocus?.kind === "lead" ||
+                    searchFocus?.kind === "wishlist"
+                      ? searchFocus.id
+                      : null
+                  }
+                  focusKind={
+                    searchFocus?.kind === "application" ||
+                    searchFocus?.kind === "lead" ||
+                    searchFocus?.kind === "wishlist"
+                      ? searchFocus.kind
+                      : null
+                  }
                   onFocusConsumed={() => setSearchFocus(null)}
-                  onPatch={async (id, patch) => {
+                  onPatchApplication={async (id, patch) => {
                     try {
                       await patchApplication(id, patch);
                     } catch (cause) {
                       fail(cause);
                     }
                   }}
-                  onDelete={async (id) => {
+                  onDeleteApplication={async (id) => {
                     try {
                       await deleteApplicationRequest(id);
                       setApplications((prev) => prev.filter((item) => item.id !== id));
@@ -2711,11 +2929,7 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                       fail(cause);
                     }
                   }}
-                  onCreateCompany={createCompany}
-                  onUploadResume={uploadResume}
-                  onCreateCoverText={createCoverText}
-                  onUploadCover={uploadCover}
-                  onRestore={async (ids) => {
+                  onRestoreApplications={async (ids) => {
                     try {
                       await bulkApplicationsRequest(ids, "unarchive");
                       setApplications((prev) =>
@@ -2727,6 +2941,64 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                       fail(cause);
                     }
                   }}
+                  onPatchLead={async (id, patch) => {
+                    try {
+                      await patchLead(id, patch);
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onDeleteLead={async (id) => {
+                    try {
+                      await deleteLeadRequest(id);
+                      setLeads((prev) => prev.filter((item) => item.id !== id));
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onRestoreLeads={async (ids) => {
+                    try {
+                      await bulkLeadsRequest(ids, "unarchive");
+                      setLeads((prev) =>
+                        prev.map((item) =>
+                          ids.includes(item.id) ? { ...item, archived: false } : item,
+                        ),
+                      );
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onPatchWishlist={async (id, patch) => {
+                    try {
+                      await patchWishlist(id, patch);
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onDeleteWishlist={async (id) => {
+                    try {
+                      await deleteWishlistRequest(id);
+                      setWishlists((prev) => prev.filter((item) => item.id !== id));
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onRestoreWishlists={async (ids) => {
+                    try {
+                      await bulkWishlistsRequest(ids, "unarchive");
+                      setWishlists((prev) =>
+                        prev.map((item) =>
+                          ids.includes(item.id) ? { ...item, archived: false } : item,
+                        ),
+                      );
+                    } catch (cause) {
+                      fail(cause);
+                    }
+                  }}
+                  onCreateCompany={createCompany}
+                  onUploadResume={uploadResume}
+                  onCreateCoverText={createCoverText}
+                  onUploadCover={uploadCover}
                 />
               )}
             </>
@@ -2819,7 +3091,7 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                     value={`${company?.name ?? ""} ${item.personName} ${item.platform}`}
                     onSelect={() => {
                       setSearchFocus({ kind: "lead", id: item.id });
-                      router.push(screenPath("leads"));
+                      router.push(screenPath(item.archived ? "archive" : "leads"));
                       setSearchOpen(false);
                     }}
                   >
@@ -2837,7 +3109,7 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                     value={`${company?.name ?? ""} ${item.interest}`}
                     onSelect={() => {
                       setSearchFocus({ kind: "wishlist", id: item.id });
-                      router.push(screenPath("wishlist"));
+                      router.push(screenPath(item.archived ? "archive" : "wishlist"));
                       setSearchOpen(false);
                     }}
                   >

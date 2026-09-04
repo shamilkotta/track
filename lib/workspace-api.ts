@@ -144,6 +144,7 @@ function parseApplication(value: unknown): Application | null {
     tags: isStringArray(value.tags) ? value.tags : [],
     archived: value.archived === true,
     createdAt: requiredString(value, "createdAt"),
+    updatedAt: requiredString(value, "updatedAt"),
   };
 }
 
@@ -172,6 +173,7 @@ function parseLead(value: unknown): Lead | null {
     tags: isStringArray(value.tags) ? value.tags : [],
     archived: value.archived === true,
     createdAt: requiredString(value, "createdAt"),
+    updatedAt: requiredString(value, "updatedAt"),
   };
 }
 
@@ -208,6 +210,7 @@ function parseWishlist(value: unknown): Wishlist | null {
     tags: isStringArray(value.tags) ? value.tags : [],
     archived: value.archived === true,
     createdAt: requiredString(value, "createdAt"),
+    updatedAt: requiredString(value, "updatedAt"),
   };
 }
 

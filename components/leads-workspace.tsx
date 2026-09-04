@@ -182,6 +182,8 @@ export function LeadDetailDrawer({
   onOpenChange,
   onPatch,
   onDelete,
+  onRestore,
+  readOnly = false,
   onCreateCompany,
   onUploadResume,
   onCreateCoverText,
@@ -196,6 +198,8 @@ export function LeadDetailDrawer({
   onOpenChange: (open: boolean) => void;
   onPatch: (id: string, patch: Partial<Lead>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onRestore?: () => Promise<void>;
+  readOnly?: boolean;
   onCreateCompany: (name: string) => Promise<string>;
   onUploadResume: (file: File) => Promise<string>;
   onCreateCoverText: (name: string, body: string) => Promise<string>;
@@ -206,6 +210,7 @@ export function LeadDetailDrawer({
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   function setValues(patch: Partial<LeadFormValues>) {
+    if (readOnly) return;
     setDraft((current) => ({ ...current, ...patch }));
   }
 
@@ -215,10 +220,12 @@ export function LeadDetailDrawer({
   }
 
   function patchImmediate(patch: Partial<Lead>) {
+    if (readOnly) return;
     void onPatch(item.id, patch).then(flashSaved);
   }
 
   function saveAll() {
+    if (readOnly) return;
     const patch = formValuesToLeadPatch(draft);
     if (!patch) return;
     void onPatch(item.id, patch).then(flashSaved);
@@ -240,45 +247,48 @@ export function LeadDetailDrawer({
             </SheetTitle>
             <SheetDescription>
               {company?.name ?? "Unknown"} · {item.personName}
+              {readOnly ? " · Archived" : ""}
             </SheetDescription>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="flex items-start gap-3 px-4 pt-4">
-              {company && <CompanyMark logo={company.logo} color={company.color} large />}
-              <div className="min-w-0">
-                <p className="font-semibold">{company?.name ?? "Unknown"}</p>
-                <p className="text-sm text-muted-foreground">{draft.personName}</p>
+            <div {...(readOnly ? { inert: true } : {})}>
+              <div className="flex items-start gap-3 px-4 pt-4">
+                {company && <CompanyMark logo={company.logo} color={company.color} large />}
+                <div className="min-w-0">
+                  <p className="font-semibold">{company?.name ?? "Unknown"}</p>
+                  <p className="text-sm text-muted-foreground">{draft.personName}</p>
+                </div>
               </div>
-            </div>
-            <div className="p-4 pt-4">
-              <LeadFields
-                companies={companies}
-                resumes={resumes}
-                coverLetters={coverLetters}
-                values={draft}
-                setValues={(patch) => {
-                  setValues(patch);
-                  const immediateKeys = [
-                    "status",
-                    "priority",
-                    "platform",
-                    "resumeId",
-                    "coverLetterId",
-                    "reminderTime",
-                  ] as const;
-                  const immediate: Partial<Lead> = {};
-                  for (const key of immediateKeys) {
-                    if (key in patch) {
-                      Object.assign(immediate, { [key]: patch[key] });
+              <div className="p-4 pt-4">
+                <LeadFields
+                  companies={companies}
+                  resumes={resumes}
+                  coverLetters={coverLetters}
+                  values={draft}
+                  setValues={(patch) => {
+                    setValues(patch);
+                    const immediateKeys = [
+                      "status",
+                      "priority",
+                      "platform",
+                      "resumeId",
+                      "coverLetterId",
+                      "reminderTime",
+                    ] as const;
+                    const immediate: Partial<Lead> = {};
+                    for (const key of immediateKeys) {
+                      if (key in patch) {
+                        Object.assign(immediate, { [key]: patch[key] });
+                      }
                     }
-                  }
-                  if (Object.keys(immediate).length > 0) patchImmediate(immediate);
-                }}
-                onCreateCompany={onCreateCompany}
-                onUploadResume={onUploadResume}
-                onCreateCoverText={onCreateCoverText}
-                onUploadCover={onUploadCover}
-              />
+                    if (Object.keys(immediate).length > 0) patchImmediate(immediate);
+                  }}
+                  onCreateCompany={onCreateCompany}
+                  onUploadResume={onUploadResume}
+                  onCreateCoverText={onCreateCoverText}
+                  onUploadCover={onUploadCover}
+                />
+              </div>
             </div>
           </div>
           <SheetFooter className="shrink-0 border-t">
@@ -288,7 +298,11 @@ export function LeadDetailDrawer({
             <Button variant="outline" onClick={() => setConfirmDelete(true)}>
               Delete
             </Button>
-            <Button onClick={saveAll}>Save changes</Button>
+            {readOnly ? (
+              <Button onClick={() => void onRestore?.()}>Restore</Button>
+            ) : (
+              <Button onClick={saveAll}>Save changes</Button>
+            )}
           </SheetFooter>
         </SheetContent>
       </Sheet>
@@ -334,7 +348,7 @@ function AddLeadModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="shrink-0 border-b p-4 pr-12">
-          <DialogTitle>Add lead</DialogTitle>
+          <DialogTitle>New lead</DialogTitle>
           <DialogDescription>
             Track outreach across Twitter, LinkedIn, cold email, and more.
           </DialogDescription>

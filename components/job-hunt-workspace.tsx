@@ -495,6 +495,8 @@ function DetailDrawer({
   onOpenChange,
   onPatch,
   onDelete,
+  onRestore,
+  readOnly = false,
   onCreateCompany,
   onUploadResume,
   onCreateCoverText,
@@ -509,6 +511,8 @@ function DetailDrawer({
   onOpenChange: (open: boolean) => void;
   onPatch: (id: string, patch: Partial<Application>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onRestore?: () => Promise<void>;
+  readOnly?: boolean;
   onCreateCompany: (name: string) => Promise<string>;
   onUploadResume: (file: File) => Promise<string>;
   onCreateCoverText: (name: string, body: string) => Promise<string>;
@@ -519,6 +523,7 @@ function DetailDrawer({
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   function setValues(patch: Partial<ApplicationFormValues>) {
+    if (readOnly) return;
     setDraft((current) => ({ ...current, ...patch }));
   }
 
@@ -528,10 +533,12 @@ function DetailDrawer({
   }
 
   function patchImmediate(patch: Partial<Application>) {
+    if (readOnly) return;
     void onPatch(item.id, patch).then(flashSaved);
   }
 
   function saveAll() {
+    if (readOnly) return;
     const patch = formValuesToApplicationPatch(draft);
     if (!patch) return;
     void onPatch(item.id, patch).then(flashSaved);
@@ -550,84 +557,87 @@ function DetailDrawer({
             </SheetTitle>
             <SheetDescription>
               {company?.name ?? "Unknown"} · {item.role}
+              {readOnly ? " · Archived" : ""}
             </SheetDescription>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="flex items-start gap-3 px-4 pt-4">
-              {company && <CompanyMark logo={company.logo} color={company.color} large />}
-              <div className="min-w-0">
-                <p className="font-semibold">{company?.name ?? "Unknown"}</p>
-                <p className="text-sm text-muted-foreground">{draft.role}</p>
+            <div {...(readOnly ? { inert: true } : {})}>
+              <div className="flex items-start gap-3 px-4 pt-4">
+                {company && <CompanyMark logo={company.logo} color={company.color} large />}
+                <div className="min-w-0">
+                  <p className="font-semibold">{company?.name ?? "Unknown"}</p>
+                  <p className="text-sm text-muted-foreground">{draft.role}</p>
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 px-4 pt-4">
-              <Field>
-                <FieldLabel>Status</FieldLabel>
-                <NativeSelectField
-                  value={draft.stage}
-                  onChange={(stage) => {
-                    setValues({ stage });
-                    patchImmediate({ stage });
-                  }}
-                  options={stages}
-                  guard={isStage}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Priority</FieldLabel>
-                <NativeSelectField
-                  value={draft.priority}
-                  onChange={(priority) => {
-                    setValues({ priority });
-                    patchImmediate({ priority });
-                  }}
-                  options={priorities}
-                  guard={isPriority}
-                />
-              </Field>
-              <Field className="col-span-2">
-                <FieldLabel>Reply status</FieldLabel>
-                <NativeSelectField
-                  value={draft.replyStatus}
-                  onChange={(replyStatus) => {
-                    setValues({ replyStatus });
-                    patchImmediate({ replyStatus });
-                  }}
-                  options={replyStatuses}
-                  guard={isReplyStatus}
-                />
-              </Field>
-            </div>
-            <div className="p-4">
-              <ApplicationFields
-                companies={companies}
-                resumes={resumes}
-                coverLetters={coverLetters}
-                values={draft}
-                setValues={(patch) => {
-                  setValues(patch);
-                  const immediateKeys = [
-                    "workMode",
-                    "resumeId",
-                    "coverLetterId",
-                    "replyStatus",
-                    "source",
-                    "jobType",
-                    "reminderTime",
-                  ] as const;
-                  const immediate: Partial<Application> = {};
-                  for (const key of immediateKeys) {
-                    if (key in patch) {
-                      Object.assign(immediate, { [key]: patch[key] });
+              <div className="grid grid-cols-2 gap-3 px-4 pt-4">
+                <Field>
+                  <FieldLabel>Status</FieldLabel>
+                  <NativeSelectField
+                    value={draft.stage}
+                    onChange={(stage) => {
+                      setValues({ stage });
+                      patchImmediate({ stage });
+                    }}
+                    options={stages}
+                    guard={isStage}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>Priority</FieldLabel>
+                  <NativeSelectField
+                    value={draft.priority}
+                    onChange={(priority) => {
+                      setValues({ priority });
+                      patchImmediate({ priority });
+                    }}
+                    options={priorities}
+                    guard={isPriority}
+                  />
+                </Field>
+                <Field className="col-span-2">
+                  <FieldLabel>Reply status</FieldLabel>
+                  <NativeSelectField
+                    value={draft.replyStatus}
+                    onChange={(replyStatus) => {
+                      setValues({ replyStatus });
+                      patchImmediate({ replyStatus });
+                    }}
+                    options={replyStatuses}
+                    guard={isReplyStatus}
+                  />
+                </Field>
+              </div>
+              <div className="p-4">
+                <ApplicationFields
+                  companies={companies}
+                  resumes={resumes}
+                  coverLetters={coverLetters}
+                  values={draft}
+                  setValues={(patch) => {
+                    setValues(patch);
+                    const immediateKeys = [
+                      "workMode",
+                      "resumeId",
+                      "coverLetterId",
+                      "replyStatus",
+                      "source",
+                      "jobType",
+                      "reminderTime",
+                    ] as const;
+                    const immediate: Partial<Application> = {};
+                    for (const key of immediateKeys) {
+                      if (key in patch) {
+                        Object.assign(immediate, { [key]: patch[key] });
+                      }
                     }
-                  }
-                  if (Object.keys(immediate).length > 0) patchImmediate(immediate);
-                }}
-                onCreateCompany={onCreateCompany}
-                onUploadResume={onUploadResume}
-                onCreateCoverText={onCreateCoverText}
-                onUploadCover={onUploadCover}
-              />
+                    if (Object.keys(immediate).length > 0) patchImmediate(immediate);
+                  }}
+                  onCreateCompany={onCreateCompany}
+                  onUploadResume={onUploadResume}
+                  onCreateCoverText={onCreateCoverText}
+                  onUploadCover={onUploadCover}
+                />
+              </div>
             </div>
           </div>
           <SheetFooter className="shrink-0 border-t">
@@ -638,7 +648,11 @@ function DetailDrawer({
             <Button variant="outline" onClick={() => setConfirmDelete(true)}>
               Delete
             </Button>
-            <Button onClick={saveAll}>Save changes</Button>
+            {readOnly ? (
+              <Button onClick={() => void onRestore?.()}>Restore</Button>
+            ) : (
+              <Button onClick={saveAll}>Save changes</Button>
+            )}
           </SheetFooter>
         </SheetContent>
       </Sheet>
@@ -2071,6 +2085,33 @@ function ArchiveView({
     active?.kind === "wishlist" ? (wishlists.find((item) => item.id === active.id) ?? null) : null;
   const isEmpty = applications.length === 0 && leads.length === 0 && wishlists.length === 0;
 
+  const archivedItems = useMemo(() => {
+    type ArchivedItem =
+      | { kind: "application"; item: Application; sortAt: string }
+      | { kind: "lead"; item: Lead; sortAt: string }
+      | { kind: "wishlist"; item: Wishlist; sortAt: string };
+
+    const rows: ArchivedItem[] = [
+      ...applications.map((item) => ({
+        kind: "application" as const,
+        item,
+        sortAt: item.updatedAt || item.createdAt,
+      })),
+      ...leads.map((item) => ({
+        kind: "lead" as const,
+        item,
+        sortAt: item.updatedAt || item.createdAt,
+      })),
+      ...wishlists.map((item) => ({
+        kind: "wishlist" as const,
+        item,
+        sortAt: item.updatedAt || item.createdAt,
+      })),
+    ];
+
+    return rows.sort((a, b) => b.sortAt.localeCompare(a.sortAt));
+  }, [applications, leads, wishlists]);
+
   useEffect(() => {
     if (!focusId || !focusKind) return;
     setActive({ kind: focusKind, id: focusId });
@@ -2086,108 +2127,85 @@ function ArchiveView({
       {isEmpty ? (
         <p className="text-sm text-muted-foreground">Nothing archived yet.</p>
       ) : (
-        <div className="flex flex-col gap-8">
-          {applications.length > 0 && (
-            <section>
-              <h2 className="mb-3 text-sm font-medium text-muted-foreground">Applications</h2>
-              <div className="flex flex-col gap-0 divide-y border-y">
-                {applications.map((item) => {
-                  const company = companyById[item.companyId];
-                  return (
-                    <div key={item.id} className="flex items-center gap-3 px-1 py-3">
-                      <button
-                        type="button"
-                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                        onClick={() => setActive({ kind: "application", id: item.id })}
-                      >
-                        {company && <CompanyMark logo={company.logo} color={company.color} />}
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
-                            {company?.name ?? "Unknown"}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">{item.role}</p>
-                        </div>
-                        <StageBadge stage={item.stage} />
-                      </button>
-                      <Button
-                        variant="outline"
-                        onClick={() => void onRestoreApplications([item.id])}
-                      >
-                        Restore
-                      </Button>
+        <div className="flex flex-col gap-0 divide-y border-y">
+          {archivedItems.map((row) => {
+            if (row.kind === "application") {
+              const item = row.item;
+              const company = companyById[item.companyId];
+              return (
+                <div key={`application-${item.id}`} className="flex items-center gap-3 px-1 py-3">
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    onClick={() => setActive({ kind: "application", id: item.id })}
+                  >
+                    {company && <CompanyMark logo={company.logo} color={company.color} />}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{company?.name ?? "Unknown"}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        Application · {item.role}
+                      </p>
                     </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-          {leads.length > 0 && (
-            <section>
-              <h2 className="mb-3 text-sm font-medium text-muted-foreground">Leads</h2>
-              <div className="flex flex-col gap-0 divide-y border-y">
-                {leads.map((item) => {
-                  const company = companyById[item.companyId];
-                  return (
-                    <div key={item.id} className="flex items-center gap-3 px-1 py-3">
-                      <button
-                        type="button"
-                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                        onClick={() => setActive({ kind: "lead", id: item.id })}
-                      >
-                        {company && <CompanyMark logo={company.logo} color={company.color} />}
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
-                            {company?.name ?? "Unknown"}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {item.personName}
-                            {item.personRole ? ` · ${item.personRole}` : ""}
-                          </p>
-                        </div>
-                        <LeadStatusBadge status={item.status} />
-                      </button>
-                      <Button variant="outline" onClick={() => void onRestoreLeads([item.id])}>
-                        Restore
-                      </Button>
+                    <StageBadge stage={item.stage} />
+                  </button>
+                  <Button variant="outline" onClick={() => void onRestoreApplications([item.id])}>
+                    Restore
+                  </Button>
+                </div>
+              );
+            }
+
+            if (row.kind === "lead") {
+              const item = row.item;
+              const company = companyById[item.companyId];
+              return (
+                <div key={`lead-${item.id}`} className="flex items-center gap-3 px-1 py-3">
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    onClick={() => setActive({ kind: "lead", id: item.id })}
+                  >
+                    {company && <CompanyMark logo={company.logo} color={company.color} />}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{company?.name ?? "Unknown"}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        Lead · {item.personName}
+                        {item.personRole ? ` · ${item.personRole}` : ""}
+                      </p>
                     </div>
-                  );
-                })}
+                    <LeadStatusBadge status={item.status} />
+                  </button>
+                  <Button variant="outline" onClick={() => void onRestoreLeads([item.id])}>
+                    Restore
+                  </Button>
+                </div>
+              );
+            }
+
+            const item = row.item;
+            const company = companyById[item.companyId];
+            return (
+              <div key={`wishlist-${item.id}`} className="flex items-center gap-3 px-1 py-3">
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  onClick={() => setActive({ kind: "wishlist", id: item.id })}
+                >
+                  {company && <CompanyMark logo={company.logo} color={company.color} />}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{company?.name ?? "Unknown"}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      Wishlist · {item.interest || "No interest noted"}
+                    </p>
+                  </div>
+                  <WishlistStatusBadge status={item.status} />
+                </button>
+                <Button variant="outline" onClick={() => void onRestoreWishlists([item.id])}>
+                  Restore
+                </Button>
               </div>
-            </section>
-          )}
-          {wishlists.length > 0 && (
-            <section>
-              <h2 className="mb-3 text-sm font-medium text-muted-foreground">Wishlist</h2>
-              <div className="flex flex-col gap-0 divide-y border-y">
-                {wishlists.map((item) => {
-                  const company = companyById[item.companyId];
-                  return (
-                    <div key={item.id} className="flex items-center gap-3 px-1 py-3">
-                      <button
-                        type="button"
-                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                        onClick={() => setActive({ kind: "wishlist", id: item.id })}
-                      >
-                        {company && <CompanyMark logo={company.logo} color={company.color} />}
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
-                            {company?.name ?? "Unknown"}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {item.interest || "No interest noted"}
-                          </p>
-                        </div>
-                        <WishlistStatusBadge status={item.status} />
-                      </button>
-                      <Button variant="outline" onClick={() => void onRestoreWishlists([item.id])}>
-                        Restore
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
+            );
+          })}
         </div>
       )}
       {activeApplication && (
@@ -2199,12 +2217,17 @@ function ArchiveView({
           resumes={resumes}
           coverLetters={coverLetters}
           open
+          readOnly
           onOpenChange={(open) => {
             if (!open) setActive(null);
           }}
           onPatch={onPatchApplication}
           onDelete={async (id) => {
             await onDeleteApplication(id);
+            setActive(null);
+          }}
+          onRestore={async () => {
+            await onRestoreApplications([activeApplication.id]);
             setActive(null);
           }}
           onCreateCompany={onCreateCompany}
@@ -2222,12 +2245,17 @@ function ArchiveView({
           resumes={resumes}
           coverLetters={coverLetters}
           open
+          readOnly
           onOpenChange={(open) => {
             if (!open) setActive(null);
           }}
           onPatch={onPatchLead}
           onDelete={async (id) => {
             await onDeleteLead(id);
+            setActive(null);
+          }}
+          onRestore={async () => {
+            await onRestoreLeads([activeLead.id]);
             setActive(null);
           }}
           onCreateCompany={onCreateCompany}
@@ -2243,12 +2271,17 @@ function ArchiveView({
           company={companyById[activeWishlist.companyId]}
           companies={companies}
           open
+          readOnly
           onOpenChange={(open) => {
             if (!open) setActive(null);
           }}
           onPatch={onPatchWishlist}
           onDelete={async (id) => {
             await onDeleteWishlist(id);
+            setActive(null);
+          }}
+          onRestore={async () => {
+            await onRestoreWishlists([activeWishlist.id]);
             setActive(null);
           }}
           onCreateCompany={onCreateCompany}
@@ -2289,7 +2322,7 @@ function AddModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="shrink-0 border-b p-4 pr-12">
-          <DialogTitle>Add application</DialogTitle>
+          <DialogTitle>New application</DialogTitle>
           <DialogDescription>Pick existing library items or create them inline.</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -2554,9 +2587,12 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                       if (action === "delete") {
                         setApplications((prev) => prev.filter((item) => !ids.includes(item.id)));
                       } else {
+                        const archivedAt = new Date().toISOString();
                         setApplications((prev) =>
                           prev.map((item) =>
-                            ids.includes(item.id) ? { ...item, archived: true } : item,
+                            ids.includes(item.id)
+                              ? { ...item, archived: true, updatedAt: archivedAt }
+                              : item,
                           ),
                         );
                       }
@@ -2637,9 +2673,12 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                       if (action === "delete") {
                         setLeads((prev) => prev.filter((item) => !ids.includes(item.id)));
                       } else {
+                        const archivedAt = new Date().toISOString();
                         setLeads((prev) =>
                           prev.map((item) =>
-                            ids.includes(item.id) ? { ...item, archived: true } : item,
+                            ids.includes(item.id)
+                              ? { ...item, archived: true, updatedAt: archivedAt }
+                              : item,
                           ),
                         );
                       }
@@ -2729,9 +2768,12 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                       if (action === "delete") {
                         setWishlists((prev) => prev.filter((item) => !ids.includes(item.id)));
                       } else {
+                        const archivedAt = new Date().toISOString();
                         setWishlists((prev) =>
                           prev.map((item) =>
-                            ids.includes(item.id) ? { ...item, archived: true } : item,
+                            ids.includes(item.id)
+                              ? { ...item, archived: true, updatedAt: archivedAt }
+                              : item,
                           ),
                         );
                       }
@@ -2932,9 +2974,12 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                   onRestoreApplications={async (ids) => {
                     try {
                       await bulkApplicationsRequest(ids, "unarchive");
+                      const restoredAt = new Date().toISOString();
                       setApplications((prev) =>
                         prev.map((item) =>
-                          ids.includes(item.id) ? { ...item, archived: false } : item,
+                          ids.includes(item.id)
+                            ? { ...item, archived: false, updatedAt: restoredAt }
+                            : item,
                         ),
                       );
                     } catch (cause) {
@@ -2959,9 +3004,12 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                   onRestoreLeads={async (ids) => {
                     try {
                       await bulkLeadsRequest(ids, "unarchive");
+                      const restoredAt = new Date().toISOString();
                       setLeads((prev) =>
                         prev.map((item) =>
-                          ids.includes(item.id) ? { ...item, archived: false } : item,
+                          ids.includes(item.id)
+                            ? { ...item, archived: false, updatedAt: restoredAt }
+                            : item,
                         ),
                       );
                     } catch (cause) {
@@ -2986,9 +3034,12 @@ export default function JobHuntWorkspace({ user: initialUser }: { user: Workspac
                   onRestoreWishlists={async (ids) => {
                     try {
                       await bulkWishlistsRequest(ids, "unarchive");
+                      const restoredAt = new Date().toISOString();
                       setWishlists((prev) =>
                         prev.map((item) =>
-                          ids.includes(item.id) ? { ...item, archived: false } : item,
+                          ids.includes(item.id)
+                            ? { ...item, archived: false, updatedAt: restoredAt }
+                            : item,
                         ),
                       );
                     } catch (cause) {

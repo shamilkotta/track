@@ -127,7 +127,7 @@ export function SavedViewsMenu({
               Cancel
             </Button>
             <Button disabled={!name.trim() || pending} onClick={() => void submit()}>
-              Save
+              Save view
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -139,11 +139,12 @@ export type Application = {
   tags: string[];
   archived: boolean;
   createdAt: string;
+  updatedAt: string;
 };
 
 export type ApplicationFormValues = Omit<
   Application,
-  "id" | "archived" | "createdAt" | "companyId" | "resumeId"
+  "id" | "archived" | "createdAt" | "updatedAt" | "companyId" | "resumeId"
 > & {
   companyId: string | null;
   resumeId: string | null;
@@ -171,9 +172,13 @@ export type Lead = {
   tags: string[];
   archived: boolean;
   createdAt: string;
+  updatedAt: string;
 };
 
-export type LeadFormValues = Omit<Lead, "id" | "archived" | "createdAt" | "companyId"> & {
+export type LeadFormValues = Omit<
+  Lead,
+  "id" | "archived" | "createdAt" | "updatedAt" | "companyId"
+> & {
   companyId: string | null;
 };
 
@@ -202,9 +207,13 @@ export type Wishlist = {
   tags: string[];
   archived: boolean;
   createdAt: string;
+  updatedAt: string;
 };
 
-export type WishlistFormValues = Omit<Wishlist, "id" | "archived" | "createdAt" | "companyId"> & {
+export type WishlistFormValues = Omit<
+  Wishlist,
+  "id" | "archived" | "createdAt" | "updatedAt" | "companyId"
+> & {
   companyId: string | null;
 };
 
@@ -438,13 +447,19 @@ export function emptyFormValues(resumes: Resume[]): ApplicationFormValues {
 }
 
 export function valuesFromApplication(item: Application): ApplicationFormValues {
-  const { id: _id, archived: _archived, createdAt: _createdAt, ...rest } = item;
+  const {
+    id: _id,
+    archived: _archived,
+    createdAt: _createdAt,
+    updatedAt: _updatedAt,
+    ...rest
+  } = item;
   return rest;
 }
 
 export function formValuesToApplicationPatch(
   draft: ApplicationFormValues,
-): Omit<Application, "id" | "archived" | "createdAt"> | null {
+): Omit<Application, "id" | "archived" | "createdAt" | "updatedAt"> | null {
   if (!draft.companyId || !draft.role.trim()) return null;
   return {
     companyId: draft.companyId,
@@ -505,13 +520,19 @@ export function emptyLeadFormValues(): LeadFormValues {
 }
 
 export function valuesFromLead(item: Lead): LeadFormValues {
-  const { id: _id, archived: _archived, createdAt: _createdAt, ...rest } = item;
+  const {
+    id: _id,
+    archived: _archived,
+    createdAt: _createdAt,
+    updatedAt: _updatedAt,
+    ...rest
+  } = item;
   return rest;
 }
 
 export function formValuesToLeadPatch(
   draft: LeadFormValues,
-): Omit<Lead, "id" | "archived" | "createdAt"> | null {
+): Omit<Lead, "id" | "archived" | "createdAt" | "updatedAt"> | null {
   if (!draft.companyId || !draft.personName.trim()) return null;
   return {
     companyId: draft.companyId,
@@ -564,7 +585,13 @@ export function emptyWishlistFormValues(): WishlistFormValues {
 }
 
 export function valuesFromWishlist(item: Wishlist): WishlistFormValues {
-  const { id: _id, archived: _archived, createdAt: _createdAt, ...rest } = item;
+  const {
+    id: _id,
+    archived: _archived,
+    createdAt: _createdAt,
+    updatedAt: _updatedAt,
+    ...rest
+  } = item;
   return {
     ...rest,
     contacts: rest.contacts.length > 0 ? rest.contacts : [emptyWishlistContact()],
@@ -573,7 +600,7 @@ export function valuesFromWishlist(item: Wishlist): WishlistFormValues {
 
 export function formValuesToWishlistPatch(
   draft: WishlistFormValues,
-): Omit<Wishlist, "id" | "archived" | "createdAt"> | null {
+): Omit<Wishlist, "id" | "archived" | "createdAt" | "updatedAt"> | null {
   if (!draft.companyId) return null;
   return {
     companyId: draft.companyId,

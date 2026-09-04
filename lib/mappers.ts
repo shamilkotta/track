@@ -174,6 +174,7 @@ export function mapApplication(row: ApplicationRow): Application {
     tags: parseJsonArray(row.tags),
     archived: row.archived,
     createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 
@@ -200,6 +201,7 @@ export function mapLead(row: LeadRow): Lead {
     tags: parseJsonArray(row.tags),
     archived: row.archived,
     createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 
@@ -219,6 +221,7 @@ export function mapWishlist(row: WishlistRow): Wishlist {
     tags: parseJsonArray(row.tags),
     archived: row.archived,
     createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 

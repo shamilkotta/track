@@ -16,25 +16,12 @@ import {
   useWorkspaceMutations,
 } from "@/hooks/use-workspace";
 import { formValuesToWishlistPatch, type SavedView } from "@/lib/domain";
-import {
-  readDensity,
-  readGroupByCompany,
-  subscribeDensity,
-  subscribeGroupByCompany,
-  writeDensity,
-  writeGroupByCompany,
-  type Density,
-} from "@/lib/workspace-prefs";
+import { readDensity, subscribeDensity, writeDensity, type Density } from "@/lib/workspace-prefs";
 
 export default function WishlistPage() {
   const { focus, setFocus } = useWorkspaceFocus();
   const [actionError, setActionError] = useState<string | null>(null);
   const density = useSyncExternalStore(subscribeDensity, readDensity, (): Density => "comfortable");
-  const groupByCompanyEnabled = useSyncExternalStore(
-    subscribeGroupByCompany,
-    readGroupByCompany,
-    () => true,
-  );
   const wishlistsQuery = useWishlistsQuery("active");
   const companiesQuery = useCompaniesQuery();
   const applicationsQuery = useApplicationsQuery("active");
@@ -70,8 +57,6 @@ export default function WishlistPage() {
           leads={leadsQuery.data ?? []}
           density={density}
           setDensity={writeDensity}
-          groupByCompany={groupByCompanyEnabled}
-          setGroupByCompany={writeGroupByCompany}
           savedViews={viewsQuery.data ?? []}
           onSaveView={async (view: Omit<SavedView, "id">) => {
             try {

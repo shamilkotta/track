@@ -481,7 +481,7 @@ export function LeadsView({
   const [selected, setSelected] = useState<string[]>([]);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [localActiveId, setLocalActiveId] = useState<string | null>(null);
-  const { isCollapsed, toggle } = useCollapsedCompanyGroups();
+  const { isCollapsed, toggle } = useCollapsedCompanyGroups({ defaultCollapsed: true });
   const activeId = focusId ?? localActiveId;
 
   function setActiveId(id: string | null) {

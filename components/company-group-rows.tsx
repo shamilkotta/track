@@ -11,15 +11,18 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import type { Company } from "@/lib/domain";
 import { cn } from "@/lib/utils";
 
-export function useCollapsedCompanyGroups() {
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+export function useCollapsedCompanyGroups(options?: { defaultCollapsed?: boolean }) {
+  const defaultCollapsed = options?.defaultCollapsed ?? false;
+  // Tracks ids that differ from the default: collapsed when defaultExpanded, expanded when defaultCollapsed
+  const [toggled, setToggled] = useState<Set<string>>(() => new Set());
 
   function isCollapsed(companyId: string) {
-    return collapsed.has(companyId);
+    const isToggled = toggled.has(companyId);
+    return defaultCollapsed ? !isToggled : isToggled;
   }
 
   function toggle(companyId: string) {
-    setCollapsed((prev) => {
+    setToggled((prev) => {
       const next = new Set(prev);
       if (next.has(companyId)) next.delete(companyId);
       else next.add(companyId);

@@ -606,8 +606,19 @@ export function isLearningPathColor(value: unknown): value is LearningPathColor 
 }
 
 export function productModeFromPathname(pathname: string): ProductMode {
-  return pathname === "/learning" || pathname.startsWith("/learning/") ? "learning" : "job";
+  if (pathname === "/learning" || pathname.startsWith("/learning/")) return "learning";
+  return "job";
 }
+
+const jobScreens = [
+  "applications",
+  "leads",
+  "wishlist",
+  "companies",
+  "resumes",
+  "cover-letters",
+  "archive",
+] as const;
 
 export function screenPath(screen: Screen) {
   switch (screen) {
@@ -622,7 +633,7 @@ export function screenPath(screen: Screen) {
     case "learning-resources":
       return "/learning/resources";
     default:
-      return `/${screen}`;
+      return `/job/${screen}`;
   }
 }
 
@@ -636,8 +647,17 @@ export function screenFromPathname(pathname: string): Screen {
     if (parts[1] === "resources") return "learning-resources";
     return "learning";
   }
+  if (parts[0] === "job") {
+    const segment = parts[1];
+    return segment && jobScreens.some((screen) => screen === segment)
+      ? (segment as Screen)
+      : "applications";
+  }
+  // Legacy root paths (/applications, etc.)
   const segment = parts[0];
-  return isScreen(segment) ? segment : "applications";
+  return segment && jobScreens.some((screen) => screen === segment)
+    ? (segment as Screen)
+    : "applications";
 }
 
 export function learningItemKindLabel(kind: LearningItemKind) {

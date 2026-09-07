@@ -1,7 +1,5 @@
-"use client";
-
-import CompaniesPage from "@/components/workspace/companies-page";
+import { redirect } from "nlite/navigation";
 
 export default function Page() {
-  return <CompaniesPage />;
+  redirect("/job/companies");
 }

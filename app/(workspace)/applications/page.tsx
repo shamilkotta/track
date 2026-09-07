@@ -1,7 +1,5 @@
-"use client";
-
-import ApplicationsPage from "@/components/workspace/applications-page";
+import { redirect } from "nlite/navigation";
 
 export default function Page() {
-  return <ApplicationsPage />;
+  redirect("/job/applications");
 }

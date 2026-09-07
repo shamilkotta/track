@@ -1,7 +1,5 @@
-"use client";
-
-import ArchivePage from "@/components/workspace/archive-page";
+import { redirect } from "nlite/navigation";
 
 export default function Page() {
-  return <ArchivePage />;
+  redirect("/job/archive");
 }

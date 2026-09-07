@@ -31,7 +31,6 @@ import {
   Route,
   Settings2,
 } from "lucide-react";
-import { BrandMark } from "@/components/brand-mark";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -81,6 +80,7 @@ import {
   type Screen,
   type WorkspaceUser,
 } from "@/lib/domain";
+import { cn } from "@/lib/utils";
 import { usePathname, useRouter } from "nlite/navigation";
 
 export type WorkspaceFocus =
@@ -129,24 +129,21 @@ const modeOptions: Array<{
 function ModeSwitcher({ mode }: { mode: ProductMode }) {
   const router = useRouter();
   const current = modeOptions.find((option) => option.id === mode) ?? modeOptions[0];
-  const Icon = current.icon;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 max-w-[11rem] gap-1.5 px-2.5 font-medium md:max-w-none"
-          />
-        }
+        className={cn(
+          "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left outline-none",
+          "hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+        )}
       >
-        <Icon className="size-3.5 shrink-0" />
-        <span className="truncate">{current.label}</span>
-        <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight">
+          {current.label}
+        </span>
+        <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64">
+      <DropdownMenuContent align="start" sideOffset={4} className="w-56">
         {modeOptions.map((option) => {
           const OptionIcon = option.icon;
           const active = option.id === mode;
@@ -160,7 +157,9 @@ function ModeSwitcher({ mode }: { mode: ProductMode }) {
             >
               <OptionIcon className="mt-0.5 size-4 shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">{option.label}</p>
+                <p className={cn("text-sm", active ? "font-semibold" : "font-medium")}>
+                  {option.label}
+                </p>
                 <p className="text-xs text-muted-foreground">{option.description}</p>
               </div>
               {active ? <Check className="mt-0.5 size-4 shrink-0" /> : null}
@@ -202,8 +201,8 @@ function AppSidebar({
 
   return (
     <Sidebar className="border-r border-border">
-      <SidebarHeader className="px-4 pt-5 pb-3">
-        <BrandMark />
+      <SidebarHeader className="gap-0 px-2 pt-3 pb-1">
+        <ModeSwitcher mode={mode} />
       </SidebarHeader>
       <SidebarContent>
         {mode === "job" ? (
@@ -399,11 +398,13 @@ function AppSidebar({
   );
 }
 
-function Header({ mode, onSearch }: { mode: ProductMode; onSearch: () => void }) {
+function Header({ onSearch }: { onSearch: () => void }) {
+  const { state, isMobile, openMobile } = useSidebar();
+  const showTrigger = isMobile ? !openMobile : state === "collapsed";
+
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 px-4 md:px-6">
-      <SidebarTrigger className="-ml-1" />
-      <ModeSwitcher mode={mode} />
+      {showTrigger ? <SidebarTrigger className="-ml-1" /> : null}
       <div className="ml-auto flex items-center gap-2">
         <Button variant="outline" className="hidden md:inline-flex" onClick={onSearch}>
           Search
@@ -467,7 +468,7 @@ export function WorkspaceShell({
           user={user}
         />
         <SidebarInset className="min-h-0 overflow-hidden">
-          <Header mode={mode} onSearch={() => setSearchOpen(true)} />
+          <Header onSearch={() => setSearchOpen(true)} />
           <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
         </SidebarInset>
         <CommandDialog

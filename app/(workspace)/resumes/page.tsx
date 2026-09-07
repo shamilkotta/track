@@ -1,7 +1,5 @@
-"use client";
-
-import ResumesPage from "@/components/workspace/resumes-page";
+import { redirect } from "nlite/navigation";
 
 export default function Page() {
-  return <ResumesPage />;
+  redirect("/job/resumes");
 }

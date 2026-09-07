@@ -11,15 +11,24 @@ import {
 } from "react";
 import {
   Archive,
+  Briefcase,
   Building2,
+  CalendarDays,
+  Check,
+  ChevronsUpDown,
   CircleHelp,
   FileText,
   FolderOpen,
+  GraduationCap,
   Heart,
   Inbox,
+  LayoutDashboard,
+  Library,
   LogOut,
   Mail,
   MoreHorizontal,
+  NotebookPen,
+  Route,
   Settings2,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
@@ -64,9 +73,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkspaceSummary } from "@/hooks/use-workspace";
 import { signOut } from "@/lib/auth-client";
 import {
+  productModeFromPathname,
   screenFromPathname,
   screenPath,
   userInitials,
+  type ProductMode,
   type Screen,
   type WorkspaceUser,
 } from "@/lib/domain";
@@ -92,7 +103,77 @@ export function useWorkspaceFocus() {
   return value;
 }
 
+const modeOptions: Array<{
+  id: ProductMode;
+  label: string;
+  description: string;
+  icon: typeof Briefcase;
+  home: Screen;
+}> = [
+  {
+    id: "job",
+    label: "Job search",
+    description: "Applications, leads, wishlist",
+    icon: Briefcase,
+    home: "applications",
+  },
+  {
+    id: "learning",
+    label: "Learning",
+    description: "Long paths, weeks, resources",
+    icon: GraduationCap,
+    home: "learning",
+  },
+];
+
+function ModeSwitcher({ mode }: { mode: ProductMode }) {
+  const router = useRouter();
+  const current = modeOptions.find((option) => option.id === mode) ?? modeOptions[0];
+  const Icon = current.icon;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 max-w-[11rem] gap-1.5 px-2.5 font-medium md:max-w-none"
+          />
+        }
+      >
+        <Icon className="size-3.5 shrink-0" />
+        <span className="truncate">{current.label}</span>
+        <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-64">
+        {modeOptions.map((option) => {
+          const OptionIcon = option.icon;
+          const active = option.id === mode;
+          return (
+            <DropdownMenuItem
+              key={option.id}
+              className="items-start gap-2.5 py-2"
+              onClick={() => {
+                if (!active) router.push(screenPath(option.home));
+              }}
+            >
+              <OptionIcon className="mt-0.5 size-4 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">{option.label}</p>
+                <p className="text-xs text-muted-foreground">{option.description}</p>
+              </div>
+              {active ? <Check className="mt-0.5 size-4 shrink-0" /> : null}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function AppSidebar({
+  mode,
   screen,
   applicationCount,
   leadCount,
@@ -100,6 +181,7 @@ function AppSidebar({
   countsPending,
   user,
 }: {
+  mode: ProductMode;
   screen: Screen;
   applicationCount: number;
   leadCount: number;
@@ -124,68 +206,134 @@ function AppSidebar({
         <BrandMark />
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={screen === "applications"}
-                  onClick={() => navigate(screenPath("applications"))}
-                >
-                  <Inbox />
-                  Applications
-                  <SidebarMenuBadge>{badge(applicationCount)}</SidebarMenuBadge>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={screen === "leads"}
-                  onClick={() => navigate(screenPath("leads"))}
-                >
-                  <Mail />
-                  Leads
-                  <SidebarMenuBadge>{badge(leadCount)}</SidebarMenuBadge>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={screen === "wishlist"}
-                  onClick={() => navigate(screenPath("wishlist"))}
-                >
-                  <Heart />
-                  Wishlist
-                  <SidebarMenuBadge>{badge(wishlistCount)}</SidebarMenuBadge>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel>Library</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {(
-                [
-                  ["companies", Building2, "Companies"],
-                  ["resumes", FileText, "Resumes"],
-                  ["cover-letters", FolderOpen, "Cover letters"],
-                  ["archive", Archive, "Archive"],
-                ] as const
-              ).map(([id, Icon, label]) => (
-                <SidebarMenuItem key={id}>
-                  <SidebarMenuButton
-                    isActive={screen === id}
-                    onClick={() => navigate(screenPath(id))}
-                  >
-                    <Icon />
-                    {label}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {mode === "job" ? (
+          <>
+            <SidebarGroup>
+              <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={screen === "applications"}
+                      onClick={() => navigate(screenPath("applications"))}
+                    >
+                      <Inbox />
+                      Applications
+                      <SidebarMenuBadge>{badge(applicationCount)}</SidebarMenuBadge>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={screen === "leads"}
+                      onClick={() => navigate(screenPath("leads"))}
+                    >
+                      <Mail />
+                      Leads
+                      <SidebarMenuBadge>{badge(leadCount)}</SidebarMenuBadge>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={screen === "wishlist"}
+                      onClick={() => navigate(screenPath("wishlist"))}
+                    >
+                      <Heart />
+                      Wishlist
+                      <SidebarMenuBadge>{badge(wishlistCount)}</SidebarMenuBadge>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+            <SidebarGroup>
+              <SidebarGroupLabel>Library</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {(
+                    [
+                      ["companies", Building2, "Companies"],
+                      ["resumes", FileText, "Resumes"],
+                      ["cover-letters", FolderOpen, "Cover letters"],
+                      ["archive", Archive, "Archive"],
+                    ] as const
+                  ).map(([id, Icon, label]) => (
+                    <SidebarMenuItem key={id}>
+                      <SidebarMenuButton
+                        isActive={screen === id}
+                        onClick={() => navigate(screenPath(id))}
+                      >
+                        <Icon />
+                        {label}
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        ) : (
+          <>
+            <SidebarGroup>
+              <SidebarGroupLabel>Learning</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={screen === "learning"}
+                      onClick={() => navigate(screenPath("learning"))}
+                    >
+                      <LayoutDashboard />
+                      Overview
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={screen === "learning-today"}
+                      onClick={() => navigate(screenPath("learning-today"))}
+                    >
+                      <CalendarDays />
+                      Today
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={screen === "learning-paths"}
+                      onClick={() => navigate(screenPath("learning-paths"))}
+                    >
+                      <Route />
+                      Paths
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+            <SidebarGroup>
+              <SidebarGroupLabel>Capture</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={screen === "learning-journal"}
+                      onClick={() => navigate(screenPath("learning-journal"))}
+                    >
+                      <NotebookPen />
+                      Journal
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={screen === "learning-resources"}
+                      onClick={() => navigate(screenPath("learning-resources"))}
+                    >
+                      <Library />
+                      Resources
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
@@ -251,10 +399,11 @@ function AppSidebar({
   );
 }
 
-function Header({ onSearch }: { onSearch: () => void }) {
+function Header({ mode, onSearch }: { mode: ProductMode; onSearch: () => void }) {
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 px-4 md:px-6">
       <SidebarTrigger className="-ml-1" />
+      <ModeSwitcher mode={mode} />
       <div className="ml-auto flex items-center gap-2">
         <Button variant="outline" className="hidden md:inline-flex" onClick={onSearch}>
           Search
@@ -275,6 +424,7 @@ export function WorkspaceShell({
   const pathname = usePathname();
   const router = useRouter();
   const screen = screenFromPathname(pathname);
+  const mode = productModeFromPathname(pathname);
   const [searchOpen, setSearchOpen] = useState(false);
   const [focus, setFocus] = useState<WorkspaceFocus | null>(null);
   const summaryQuery = useWorkspaceSummary(initialUser);
@@ -308,6 +458,7 @@ export function WorkspaceShell({
     <WorkspaceFocusContext.Provider value={focusValue}>
       <SidebarProvider className="h-svh overflow-hidden">
         <AppSidebar
+          mode={mode}
           screen={screen}
           applicationCount={summaryQuery.data?.counts.applications ?? 0}
           leadCount={summaryQuery.data?.counts.leads ?? 0}
@@ -316,7 +467,7 @@ export function WorkspaceShell({
           user={user}
         />
         <SidebarInset className="min-h-0 overflow-hidden">
-          <Header onSearch={() => setSearchOpen(true)} />
+          <Header mode={mode} onSearch={() => setSearchOpen(true)} />
           <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
         </SidebarInset>
         <CommandDialog
@@ -326,93 +477,125 @@ export function WorkspaceShell({
           className="sm:max-w-xl"
         >
           <CommandPalette className="min-h-80">
-            <CommandInput placeholder="Search applications, leads, wishlist, companies..." />
+            <CommandInput
+              placeholder={
+                mode === "learning"
+                  ? "Jump to learning screens..."
+                  : "Search applications, leads, wishlist, companies..."
+              }
+            />
             <CommandList className="max-h-96">
               <CommandEmpty>No matches.</CommandEmpty>
-              <CommandGroup heading="Go to">
-                {(
-                  [
-                    ["applications", "Applications"],
-                    ["leads", "Leads"],
-                    ["wishlist", "Wishlist"],
-                    ["companies", "Companies"],
-                    ["resumes", "Resumes"],
-                    ["cover-letters", "Cover letters"],
-                    ["archive", "Archive"],
-                  ] as const
-                ).map(([id, label]) => (
-                  <CommandItem
-                    key={id}
-                    onSelect={() => {
-                      router.push(screenPath(id));
-                      setSearchOpen(false);
-                    }}
-                  >
-                    {label}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandGroup heading="Applications">
-                {(searchIndex?.applications ?? []).slice(0, 12).map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    value={`${item.subtitle} ${item.title}`}
-                    onSelect={() => {
-                      setFocus({ kind: "application", id: item.id });
-                      router.push(screenPath(item.archived ? "archive" : "applications"));
-                      setSearchOpen(false);
-                    }}
-                  >
-                    {item.subtitle} · {item.title}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandGroup heading="Leads">
-                {(searchIndex?.leads ?? []).slice(0, 12).map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    value={`${item.subtitle} ${item.title}`}
-                    onSelect={() => {
-                      setFocus({ kind: "lead", id: item.id });
-                      router.push(screenPath(item.archived ? "archive" : "leads"));
-                      setSearchOpen(false);
-                    }}
-                  >
-                    {item.subtitle} · {item.title}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandGroup heading="Wishlist">
-                {(searchIndex?.wishlists ?? []).slice(0, 12).map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    value={`${item.subtitle} ${item.title}`}
-                    onSelect={() => {
-                      setFocus({ kind: "wishlist", id: item.id });
-                      router.push(screenPath(item.archived ? "archive" : "wishlist"));
-                      setSearchOpen(false);
-                    }}
-                  >
-                    {item.subtitle}
-                    {item.title ? ` · ${item.title}` : ""}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandGroup heading="Companies">
-                {(searchIndex?.companies ?? []).slice(0, 8).map((company) => (
-                  <CommandItem
-                    key={company.id}
-                    value={company.name}
-                    onSelect={() => {
-                      setFocus({ kind: "company", id: company.id });
-                      router.push(screenPath("companies"));
-                      setSearchOpen(false);
-                    }}
-                  >
-                    {company.name}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              {mode === "learning" ? (
+                <CommandGroup heading="Go to">
+                  {(
+                    [
+                      ["learning", "Overview"],
+                      ["learning-today", "Today"],
+                      ["learning-paths", "Paths"],
+                      ["learning-journal", "Journal"],
+                      ["learning-resources", "Resources"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <CommandItem
+                      key={id}
+                      onSelect={() => {
+                        router.push(screenPath(id));
+                        setSearchOpen(false);
+                      }}
+                    >
+                      {label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : (
+                <>
+                  <CommandGroup heading="Go to">
+                    {(
+                      [
+                        ["applications", "Applications"],
+                        ["leads", "Leads"],
+                        ["wishlist", "Wishlist"],
+                        ["companies", "Companies"],
+                        ["resumes", "Resumes"],
+                        ["cover-letters", "Cover letters"],
+                        ["archive", "Archive"],
+                      ] as const
+                    ).map(([id, label]) => (
+                      <CommandItem
+                        key={id}
+                        onSelect={() => {
+                          router.push(screenPath(id));
+                          setSearchOpen(false);
+                        }}
+                      >
+                        {label}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                  <CommandGroup heading="Applications">
+                    {(searchIndex?.applications ?? []).slice(0, 12).map((item) => (
+                      <CommandItem
+                        key={item.id}
+                        value={`${item.subtitle} ${item.title}`}
+                        onSelect={() => {
+                          setFocus({ kind: "application", id: item.id });
+                          router.push(screenPath(item.archived ? "archive" : "applications"));
+                          setSearchOpen(false);
+                        }}
+                      >
+                        {item.subtitle} · {item.title}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                  <CommandGroup heading="Leads">
+                    {(searchIndex?.leads ?? []).slice(0, 12).map((item) => (
+                      <CommandItem
+                        key={item.id}
+                        value={`${item.subtitle} ${item.title}`}
+                        onSelect={() => {
+                          setFocus({ kind: "lead", id: item.id });
+                          router.push(screenPath(item.archived ? "archive" : "leads"));
+                          setSearchOpen(false);
+                        }}
+                      >
+                        {item.subtitle} · {item.title}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                  <CommandGroup heading="Wishlist">
+                    {(searchIndex?.wishlists ?? []).slice(0, 12).map((item) => (
+                      <CommandItem
+                        key={item.id}
+                        value={`${item.subtitle} ${item.title}`}
+                        onSelect={() => {
+                          setFocus({ kind: "wishlist", id: item.id });
+                          router.push(screenPath(item.archived ? "archive" : "wishlist"));
+                          setSearchOpen(false);
+                        }}
+                      >
+                        {item.subtitle}
+                        {item.title ? ` · ${item.title}` : ""}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                  <CommandGroup heading="Companies">
+                    {(searchIndex?.companies ?? []).slice(0, 8).map((company) => (
+                      <CommandItem
+                        key={company.id}
+                        value={company.name}
+                        onSelect={() => {
+                          setFocus({ kind: "company", id: company.id });
+                          router.push(screenPath("companies"));
+                          setSearchOpen(false);
+                        }}
+                      >
+                        {company.name}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </>
+              )}
             </CommandList>
           </CommandPalette>
         </CommandDialog>

@@ -60,7 +60,136 @@ export type Screen =
   | "companies"
   | "resumes"
   | "cover-letters"
-  | "archive";
+  | "archive"
+  | "learning"
+  | "learning-today"
+  | "learning-paths"
+  | "learning-journal"
+  | "learning-resources";
+
+export type ProductMode = "job" | "learning";
+
+export const learningPathStatuses = ["draft", "active", "paused", "completed"] as const;
+export const learningItemKinds = [
+  "lesson",
+  "practice",
+  "project",
+  "review",
+  "reading",
+  "video",
+  "other",
+] as const;
+export const learningItemStatuses = ["todo", "in_progress", "done", "skipped"] as const;
+export const learningResourceKinds = [
+  "article",
+  "video",
+  "course",
+  "book",
+  "docs",
+  "repo",
+  "other",
+] as const;
+export const learningPathColors = ["neutral", "blue", "green", "amber", "rose", "violet"] as const;
+
+export type LearningPathStatus = (typeof learningPathStatuses)[number];
+export type LearningItemKind = (typeof learningItemKinds)[number];
+export type LearningItemStatus = (typeof learningItemStatuses)[number];
+export type LearningResourceKind = (typeof learningResourceKinds)[number];
+export type LearningPathColor = (typeof learningPathColors)[number];
+
+export type LearningPath = {
+  id: string;
+  title: string;
+  description: string;
+  goal: string;
+  status: LearningPathStatus;
+  startDate: string;
+  targetEndDate: string;
+  color: LearningPathColor;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+  progress: {
+    totalItems: number;
+    doneItems: number;
+    percent: number;
+  };
+};
+
+export type LearningModule = {
+  id: string;
+  pathId: string;
+  title: string;
+  description: string;
+  sortOrder: number;
+  startDate: string;
+  endDate: string;
+  createdAt: string;
+  updatedAt: string;
+  progress: {
+    totalItems: number;
+    doneItems: number;
+    percent: number;
+  };
+};
+
+export type LearningResource = {
+  id: string;
+  pathId: string | null;
+  itemId: string | null;
+  title: string;
+  url: string;
+  kind: LearningResourceKind;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+  pathTitle?: string;
+};
+
+export type LearningItem = {
+  id: string;
+  pathId: string;
+  moduleId: string;
+  title: string;
+  description: string;
+  kind: LearningItemKind;
+  status: LearningItemStatus;
+  dueDate: string;
+  estimatedMinutes: number;
+  sortOrder: number;
+  notes: string;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  resources: LearningResource[];
+  pathTitle?: string;
+  moduleTitle?: string;
+};
+
+export type LearningJournalEntry = {
+  id: string;
+  pathId: string | null;
+  title: string;
+  body: string;
+  entryDate: string;
+  createdAt: string;
+  updatedAt: string;
+  pathTitle?: string;
+};
+
+export type LearningPathDetail = LearningPath & {
+  modules: Array<LearningModule & { items: LearningItem[] }>;
+  resources: LearningResource[];
+};
+
+export type LearningOverview = {
+  paths: LearningPath[];
+  dueSoon: LearningItem[];
+  overdue: LearningItem[];
+  completedThisWeek: number;
+  activeMinutesRemaining: number;
+  journalStreakDays: number;
+};
 export type Stage = (typeof stages)[number];
 export type Priority = (typeof priorities)[number];
 export type WorkMode = (typeof workModes)[number];
@@ -351,6 +480,11 @@ export const screenTitles: Record<Screen, string> = {
   resumes: "Resumes",
   "cover-letters": "Cover letters",
   archive: "Archive",
+  learning: "Overview",
+  "learning-today": "Today",
+  "learning-paths": "Paths",
+  "learning-journal": "Journal",
+  "learning-resources": "Resources",
 };
 
 export const sortLabels: Record<SortKey, string> = {
@@ -442,8 +576,105 @@ export function isScreen(value: unknown): value is Screen {
     value === "companies" ||
     value === "resumes" ||
     value === "cover-letters" ||
-    value === "archive"
+    value === "archive" ||
+    value === "learning" ||
+    value === "learning-today" ||
+    value === "learning-paths" ||
+    value === "learning-journal" ||
+    value === "learning-resources"
   );
+}
+
+export function isLearningPathStatus(value: unknown): value is LearningPathStatus {
+  return typeof value === "string" && learningPathStatuses.some((s) => s === value);
+}
+
+export function isLearningItemKind(value: unknown): value is LearningItemKind {
+  return typeof value === "string" && learningItemKinds.some((k) => k === value);
+}
+
+export function isLearningItemStatus(value: unknown): value is LearningItemStatus {
+  return typeof value === "string" && learningItemStatuses.some((s) => s === value);
+}
+
+export function isLearningResourceKind(value: unknown): value is LearningResourceKind {
+  return typeof value === "string" && learningResourceKinds.some((k) => k === value);
+}
+
+export function isLearningPathColor(value: unknown): value is LearningPathColor {
+  return typeof value === "string" && learningPathColors.some((c) => c === value);
+}
+
+export function productModeFromPathname(pathname: string): ProductMode {
+  return pathname === "/learning" || pathname.startsWith("/learning/") ? "learning" : "job";
+}
+
+export function screenPath(screen: Screen) {
+  switch (screen) {
+    case "learning":
+      return "/learning";
+    case "learning-today":
+      return "/learning/today";
+    case "learning-paths":
+      return "/learning/paths";
+    case "learning-journal":
+      return "/learning/journal";
+    case "learning-resources":
+      return "/learning/resources";
+    default:
+      return `/${screen}`;
+  }
+}
+
+export function screenFromPathname(pathname: string): Screen {
+  const parts = pathname.split("/").filter(Boolean);
+  if (parts[0] === "learning") {
+    if (!parts[1]) return "learning";
+    if (parts[1] === "today") return "learning-today";
+    if (parts[1] === "paths") return "learning-paths";
+    if (parts[1] === "journal") return "learning-journal";
+    if (parts[1] === "resources") return "learning-resources";
+    return "learning";
+  }
+  const segment = parts[0];
+  return isScreen(segment) ? segment : "applications";
+}
+
+export function learningItemKindLabel(kind: LearningItemKind) {
+  switch (kind) {
+    case "lesson":
+      return "Lesson";
+    case "practice":
+      return "Practice";
+    case "project":
+      return "Project";
+    case "review":
+      return "Review";
+    case "reading":
+      return "Reading";
+    case "video":
+      return "Video";
+    default:
+      return "Other";
+  }
+}
+
+export function learningPathStatusLabel(status: LearningPathStatus) {
+  switch (status) {
+    case "draft":
+      return "Draft";
+    case "active":
+      return "Active";
+    case "paused":
+      return "Paused";
+    case "completed":
+      return "Completed";
+  }
+}
+
+export function learningProgressPercent(done: number, total: number) {
+  if (total <= 0) return 0;
+  return Math.round((done / total) * 100);
 }
 
 export function isClosedLeadStatus(value: LeadStatus): boolean {
@@ -452,15 +683,6 @@ export function isClosedLeadStatus(value: LeadStatus): boolean {
 
 export function isClosedWishlistStatus(value: WishlistStatus): boolean {
   return closedWishlistStatuses.some((s) => s === value);
-}
-
-export function screenPath(screen: Screen) {
-  return `/${screen}`;
-}
-
-export function screenFromPathname(pathname: string): Screen {
-  const segment = pathname.split("/").filter(Boolean)[0];
-  return isScreen(segment) ? segment : "applications";
 }
 
 export function isClosedStage(value: Stage): boolean {

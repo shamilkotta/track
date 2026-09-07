@@ -392,35 +392,30 @@ function AddLeadModal({
             onUploadCover={onUploadCover}
           />
         </div>
-        <DialogFooter className="m-0 shrink-0 rounded-none border-t sm:justify-between">
-          <p className="hidden text-xs text-muted-foreground sm:block">
-            Company and optional resume or cover letter stay in your library.
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                onOpenChange(false);
-                setValuesState(emptyLeadFormValues());
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              disabled={!canSave || saving}
-              onClick={() => {
-                setSaving(true);
-                void onSave(values)
-                  .then(() => {
-                    onOpenChange(false);
-                    setValuesState(emptyLeadFormValues());
-                  })
-                  .finally(() => setSaving(false));
-              }}
-            >
-              Save lead
-            </Button>
-          </div>
+        <DialogFooter className="m-0 shrink-0 rounded-none border-t">
+          <Button
+            variant="outline"
+            onClick={() => {
+              onOpenChange(false);
+              setValuesState(emptyLeadFormValues());
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            disabled={!canSave || saving}
+            onClick={() => {
+              setSaving(true);
+              void onSave(values)
+                .then(() => {
+                  onOpenChange(false);
+                  setValuesState(emptyLeadFormValues());
+                })
+                .finally(() => setSaving(false));
+            }}
+          >
+            Save lead
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

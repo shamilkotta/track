@@ -12,6 +12,12 @@ import {
 } from "@/components/workspace-fields";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -160,6 +166,10 @@ function WishlistFields({
   setValues: (patch: Partial<WishlistFormValues>) => void;
   onCreateCompany: (name: string) => Promise<string>;
 }) {
+  const [openContactIds, setOpenContactIds] = useState<string[]>(() =>
+    values.contacts[0] ? [values.contacts[0].id] : [],
+  );
+
   return (
     <div className="flex flex-col gap-7">
       <FieldSet>
@@ -264,123 +274,148 @@ function WishlistFields({
             type="button"
             size="xs"
             variant="outline"
-            onClick={() => setValues({ contacts: [...values.contacts, emptyWishlistContact()] })}
+            onClick={() => {
+              const contact = emptyWishlistContact();
+              setValues({ contacts: [...values.contacts, contact] });
+              setOpenContactIds([contact.id]);
+            }}
           >
             <Plus /> Add contact
           </Button>
         </div>
-        <div className="flex flex-col gap-4">
-          {values.contacts.map((contact, index) => (
-            <div key={contact.id} className="rounded-lg border border-foreground/10 p-3">
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs font-medium text-muted-foreground">Contact {index + 1}</p>
-                {values.contacts.length > 1 && (
-                  <Button
-                    type="button"
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={() =>
-                      setValues({
-                        contacts: values.contacts.filter((item) => item.id !== contact.id),
-                      })
-                    }
-                  >
-                    <Trash2 />
-                    <span className="sr-only">Remove contact</span>
-                  </Button>
-                )}
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel>Name</FieldLabel>
-                  <Input
-                    value={contact.name}
-                    onChange={(e) =>
-                      setValues({
-                        contacts: values.contacts.map((item) =>
-                          item.id === contact.id ? { ...item, name: e.target.value } : item,
-                        ),
-                      })
-                    }
-                    placeholder="e.g. Maya Chen"
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel>Role</FieldLabel>
-                  <Input
-                    value={contact.role}
-                    onChange={(e) =>
-                      setValues({
-                        contacts: values.contacts.map((item) =>
-                          item.id === contact.id ? { ...item, role: e.target.value } : item,
-                        ),
-                      })
-                    }
-                    placeholder="Recruiter, EM, founder..."
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel>Email</FieldLabel>
-                  <Input
-                    type="email"
-                    value={contact.email}
-                    onChange={(e) =>
-                      setValues({
-                        contacts: values.contacts.map((item) =>
-                          item.id === contact.id ? { ...item, email: e.target.value } : item,
-                        ),
-                      })
-                    }
-                    placeholder="maya@company.com"
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel>Phone</FieldLabel>
-                  <Input
-                    value={contact.phone}
-                    onChange={(e) =>
-                      setValues({
-                        contacts: values.contacts.map((item) =>
-                          item.id === contact.id ? { ...item, phone: e.target.value } : item,
-                        ),
-                      })
-                    }
-                    placeholder="+1..."
-                  />
-                </Field>
-                <Field className="sm:col-span-2">
-                  <FieldLabel>Profile / link</FieldLabel>
-                  <Input
-                    type="url"
-                    value={contact.url}
-                    onChange={(e) =>
-                      setValues({
-                        contacts: values.contacts.map((item) =>
-                          item.id === contact.id ? { ...item, url: e.target.value } : item,
-                        ),
-                      })
-                    }
-                    placeholder="https://linkedin.com/in/..."
-                  />
-                </Field>
-                <Field className="sm:col-span-2">
-                  <FieldLabel>Contact notes</FieldLabel>
-                  <Textarea
-                    value={contact.notes}
-                    onChange={(e) =>
-                      setValues({
-                        contacts: values.contacts.map((item) =>
-                          item.id === contact.id ? { ...item, notes: e.target.value } : item,
-                        ),
-                      })
-                    }
-                    placeholder="How you know them, best channel, last touch..."
-                  />
-                </Field>
-              </div>
-            </div>
-          ))}
-        </div>
+        <Accordion value={openContactIds} onValueChange={setOpenContactIds} className="gap-3">
+          {values.contacts.map((contact, index) => {
+            const title = contact.name.trim() || `Contact ${index + 1}`;
+            const subtitle = [contact.role, contact.email].filter(Boolean).join(" · ");
+            return (
+              <AccordionItem
+                key={contact.id}
+                value={contact.id}
+                className="rounded-lg border border-foreground/10 not-last:border-b-0"
+              >
+                <div className="flex items-start gap-1 pr-1">
+                  <AccordionTrigger className="px-3 py-2.5 hover:no-underline">
+                    <span className="min-w-0 flex-1 pr-2">
+                      <span className="block truncate font-medium">{title}</span>
+                      {subtitle ? (
+                        <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
+                          {subtitle}
+                        </span>
+                      ) : null}
+                    </span>
+                  </AccordionTrigger>
+                  {values.contacts.length > 1 && (
+                    <Button
+                      type="button"
+                      size="icon-xs"
+                      variant="ghost"
+                      className="mt-2 shrink-0"
+                      onClick={() => {
+                        setValues({
+                          contacts: values.contacts.filter((item) => item.id !== contact.id),
+                        });
+                        setOpenContactIds((ids) => ids.filter((id) => id !== contact.id));
+                      }}
+                    >
+                      <Trash2 />
+                      <span className="sr-only">Remove contact</span>
+                    </Button>
+                  )}
+                </div>
+                <AccordionContent className="px-3 pb-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field>
+                      <FieldLabel>Name</FieldLabel>
+                      <Input
+                        value={contact.name}
+                        onChange={(e) =>
+                          setValues({
+                            contacts: values.contacts.map((item) =>
+                              item.id === contact.id ? { ...item, name: e.target.value } : item,
+                            ),
+                          })
+                        }
+                        placeholder="e.g. Maya Chen"
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel>Role</FieldLabel>
+                      <Input
+                        value={contact.role}
+                        onChange={(e) =>
+                          setValues({
+                            contacts: values.contacts.map((item) =>
+                              item.id === contact.id ? { ...item, role: e.target.value } : item,
+                            ),
+                          })
+                        }
+                        placeholder="Recruiter, EM, founder..."
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel>Email</FieldLabel>
+                      <Input
+                        type="email"
+                        value={contact.email}
+                        onChange={(e) =>
+                          setValues({
+                            contacts: values.contacts.map((item) =>
+                              item.id === contact.id ? { ...item, email: e.target.value } : item,
+                            ),
+                          })
+                        }
+                        placeholder="maya@company.com"
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel>Phone</FieldLabel>
+                      <Input
+                        value={contact.phone}
+                        onChange={(e) =>
+                          setValues({
+                            contacts: values.contacts.map((item) =>
+                              item.id === contact.id ? { ...item, phone: e.target.value } : item,
+                            ),
+                          })
+                        }
+                        placeholder="+1..."
+                      />
+                    </Field>
+                    <Field className="sm:col-span-2">
+                      <FieldLabel>Profile / link</FieldLabel>
+                      <Input
+                        type="url"
+                        value={contact.url}
+                        onChange={(e) =>
+                          setValues({
+                            contacts: values.contacts.map((item) =>
+                              item.id === contact.id ? { ...item, url: e.target.value } : item,
+                            ),
+                          })
+                        }
+                        placeholder="https://linkedin.com/in/..."
+                      />
+                    </Field>
+                    <Field className="sm:col-span-2">
+                      <FieldLabel>Contact notes</FieldLabel>
+                      <Textarea
+                        value={contact.notes}
+                        onChange={(e) =>
+                          setValues({
+                            contacts: values.contacts.map((item) =>
+                              item.id === contact.id ? { ...item, notes: e.target.value } : item,
+                            ),
+                          })
+                        }
+                        placeholder="How you know them, best channel, last touch..."
+                      />
+                    </Field>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })}
+        </Accordion>
       </FieldSet>
 
       <FieldSet>
@@ -654,35 +689,30 @@ function AddWishlistModal({
             onCreateCompany={onCreateCompany}
           />
         </div>
-        <DialogFooter className="m-0 shrink-0 rounded-none border-t sm:justify-between">
-          <p className="hidden text-xs text-muted-foreground sm:block">
-            Company website also updates the company directory when empty.
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                onOpenChange(false);
-                setValuesState(emptyWishlistFormValues());
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              disabled={!canSave || saving}
-              onClick={() => {
-                setSaving(true);
-                void onSave(values)
-                  .then(() => {
-                    onOpenChange(false);
-                    setValuesState(emptyWishlistFormValues());
-                  })
-                  .finally(() => setSaving(false));
-              }}
-            >
-              Save wishlist
-            </Button>
-          </div>
+        <DialogFooter className="m-0 shrink-0 rounded-none border-t">
+          <Button
+            variant="outline"
+            onClick={() => {
+              onOpenChange(false);
+              setValuesState(emptyWishlistFormValues());
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            disabled={!canSave || saving}
+            onClick={() => {
+              setSaving(true);
+              void onSave(values)
+                .then(() => {
+                  onOpenChange(false);
+                  setValuesState(emptyWishlistFormValues());
+                })
+                .finally(() => setSaving(false));
+            }}
+          >
+            Save wishlist
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -998,9 +1028,7 @@ export function WishlistView({
                     checked={selected.includes(item.id)}
                     onCheckedChange={(checked) => {
                       setSelected(
-                        checked
-                          ? [...selected, item.id]
-                          : selected.filter((id) => id !== item.id),
+                        checked ? [...selected, item.id] : selected.filter((id) => id !== item.id),
                       );
                     }}
                     aria-label={`Select ${company?.name ?? "wishlist item"}`}

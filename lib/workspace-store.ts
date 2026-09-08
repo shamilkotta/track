@@ -934,8 +934,7 @@ function wishlistValues(userId: string, record: Record<string, unknown>, current
       ? stringField(record, "priority", current?.priority ?? "Medium")
       : (current?.priority ?? "Medium"),
     nextStepDate: stringField(record, "nextStepDate", current?.nextStepDate ?? ""),
-    nextStepLabel:
-      stringField(record, "nextStepLabel", current?.nextStepLabel ?? "") || "Research company",
+    nextStepLabel: stringField(record, "nextStepLabel", current?.nextStepLabel ?? ""),
     reminderTime: isReminderTime(
       stringField(record, "reminderTime", current?.reminderTime ?? "None"),
     )

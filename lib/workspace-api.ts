@@ -13,6 +13,7 @@ import {
   isStringArray,
   isWishlistStatus,
   isWorkMode,
+  resolveStepLogs,
   type Application,
   type ApplicationListItem,
   type ArchiveScope,
@@ -24,6 +25,7 @@ import {
   type Resume,
   type SavedView,
   type SavedViewScreen,
+  type StepLog,
   type Wishlist,
   type WishlistContact,
   type WishlistListItem,
@@ -248,6 +250,33 @@ function parseWorkspaceSummary(value: unknown): WorkspaceSummary {
   };
 }
 
+function parseStepLog(value: unknown): StepLog | null {
+  if (!isRecord(value)) return null;
+  const completedAt = typeof value.completedAt === "string" ? value.completedAt : "";
+  const label = typeof value.label === "string" ? value.label : "";
+  const details = typeof value.details === "string" ? value.details : "";
+  if (!completedAt && !label && !details) return null;
+  return {
+    id: typeof value.id === "string" && value.id ? value.id : crypto.randomUUID(),
+    completedAt,
+    label,
+    details,
+    ...(typeof value.nextStepDate === "string" && value.nextStepDate
+      ? { nextStepDate: value.nextStepDate }
+      : {}),
+    ...(typeof value.nextStepLabel === "string" && value.nextStepLabel
+      ? { nextStepLabel: value.nextStepLabel }
+      : {}),
+  };
+}
+
+function parseStepLogs(value: unknown, notes = ""): StepLog[] {
+  const parsed = Array.isArray(value)
+    ? value.map(parseStepLog).filter((item): item is StepLog => !!item)
+    : [];
+  return resolveStepLogs(parsed, notes);
+}
+
 function parseApplication(value: unknown): Application | null {
   if (!isRecord(value) || typeof value.id !== "string") return null;
   if (typeof value.companyId !== "string") return null;
@@ -270,6 +299,7 @@ function parseApplication(value: unknown): Application | null {
     nextStepDate: requiredString(value, "nextStepDate"),
     nextStepLabel: requiredString(value, "nextStepLabel"),
     reminderTime: isReminderTime(value.reminderTime) ? value.reminderTime : "None",
+    stepLogs: parseStepLogs(value.stepLogs, requiredString(value, "notes")),
     compensationMin: requiredString(value, "compensationMin"),
     compensationMax: requiredString(value, "compensationMax"),
     currency: isCurrency(value.currency) ? value.currency : "USD",
@@ -311,6 +341,7 @@ function parseLead(value: unknown): Lead | null {
     nextStepDate: requiredString(value, "nextStepDate"),
     nextStepLabel: requiredString(value, "nextStepLabel"),
     reminderTime: isReminderTime(value.reminderTime) ? value.reminderTime : "None",
+    stepLogs: parseStepLogs(value.stepLogs, requiredString(value, "notes")),
     message: requiredString(value, "message"),
     resumeId: typeof value.resumeId === "string" ? value.resumeId : null,
     coverLetterId: typeof value.coverLetterId === "string" ? value.coverLetterId : null,
@@ -348,6 +379,7 @@ function parseWishlist(value: unknown): Wishlist | null {
     nextStepDate: requiredString(value, "nextStepDate"),
     nextStepLabel: requiredString(value, "nextStepLabel"),
     reminderTime: isReminderTime(value.reminderTime) ? value.reminderTime : "None",
+    stepLogs: parseStepLogs(value.stepLogs, requiredString(value, "notes")),
     notes: requiredString(value, "notes"),
     contacts: Array.isArray(value.contacts)
       ? value.contacts.map(parseWishlistContact).filter((item): item is WishlistContact => !!item)

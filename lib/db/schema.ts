@@ -152,6 +152,7 @@ export const applications = sqliteTable(
     nextStepDate: text("next_step_date").notNull().default(""),
     nextStepLabel: text("next_step_label").notNull().default(""),
     reminderTime: text("reminder_time").notNull().default("None"),
+    stepLogs: text("step_logs").notNull().default("[]"),
     compensationMin: text("compensation_min").notNull().default(""),
     compensationMax: text("compensation_max").notNull().default(""),
     currency: text("currency").notNull().default("USD"),
@@ -204,6 +205,7 @@ export const leads = sqliteTable(
     nextStepDate: text("next_step_date").notNull().default(""),
     nextStepLabel: text("next_step_label").notNull().default(""),
     reminderTime: text("reminder_time").notNull().default("None"),
+    stepLogs: text("step_logs").notNull().default("[]"),
     message: text("message").notNull().default(""),
     resumeId: text("resume_id").references(() => resumes.id, { onDelete: "set null" }),
     coverLetterId: text("cover_letter_id").references(() => coverLetters.id, {
@@ -239,6 +241,7 @@ export const wishlists = sqliteTable(
     nextStepDate: text("next_step_date").notNull().default(""),
     nextStepLabel: text("next_step_label").notNull().default(""),
     reminderTime: text("reminder_time").notNull().default("None"),
+    stepLogs: text("step_logs").notNull().default("[]"),
     notes: text("notes").notNull().default(""),
     contacts: text("contacts").notNull().default("[]"),
     tags: text("tags").notNull().default("[]"),

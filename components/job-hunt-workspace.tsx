@@ -23,12 +23,13 @@ import {
   useCollapsedCompanyGroups,
 } from "@/components/company-group-rows";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { CurrentNextStepCard, NextStepCell, StepLogHistory } from "@/components/next-step";
+import { SaveButton } from "@/components/save-button";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import {
   ApplicationFields,
   CompanyMark,
   LeadStatusBadge,
-  NativeSelectField,
   PriorityBadge,
   StageBadge,
   WishlistStatusBadge,
@@ -94,13 +95,13 @@ import {
   emptyFormValues,
   formatCompensation,
   formatDisplayDate,
+  formatRelativeNextStep,
   formValuesToApplicationPatch,
-  isPriority,
-  isReplyStatus,
   isSortKey,
   isSource,
   isStage,
-  nextStepSummary,
+  nextStepUrgency,
+  pickMostUrgentNextStep,
   priorities,
   replyStatuses,
   sortLabels,
@@ -128,22 +129,12 @@ import {
 } from "@/lib/domain";
 import { useApplicationQuery, useCoverLetterQuery } from "@/hooks/use-workspace";
 import { groupByCompany } from "@/lib/group-by-company";
+import { cn } from "@/lib/utils";
 
 type Density = "comfortable" | "compact";
 
 function isDensity(value: string | null): value is Density {
   return value === "comfortable" || value === "compact";
-}
-
-function relativeFollowUp(iso: string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const date = new Date(`${iso}T00:00:00`);
-  const diff = Math.round((date.getTime() - today.getTime()) / 86400000);
-  if (diff === 0) return "Today";
-  if (diff === 1) return "Tomorrow";
-  if (diff === -1) return "Yesterday";
-  return formatDisplayDate(iso);
 }
 
 function computeStats(applications: ApplicationListItem[], companies: Company[]) {
@@ -153,11 +144,9 @@ function computeStats(applications: ApplicationListItem[], companies: Company[])
   );
   const applied = active.filter((item) => item.stage !== "Wishlist");
   const replied = applied.filter((item) => item.replyStatus === "Replied");
-  const today = new Date().toISOString().slice(0, 10);
-  const upcoming = active
-    .filter((item) => item.nextStepDate && item.nextStepDate >= today)
-    .sort((a, b) => a.nextStepDate.localeCompare(b.nextStepDate))[0];
-  const company = upcoming ? companies.find((c) => c.id === upcoming.companyId) : undefined;
+  const focus = pickMostUrgentNextStep(active);
+  const company = focus ? companies.find((c) => c.id === focus.companyId) : undefined;
+  const urgency = focus ? nextStepUrgency(focus.nextStepDate) : "none";
   const rate = applied.length === 0 ? 0 : Math.round((replied.length / applied.length) * 100);
   return [
     {
@@ -178,13 +167,12 @@ function computeStats(applications: ApplicationListItem[], companies: Company[])
       hint: `${replied.length} replied of ${applied.length} sent`,
     },
     {
-      label: "Next follow-up",
-      value: upcoming ? relativeFollowUp(upcoming.nextStepDate) : "None",
-      hint: upcoming
-        ? `${company?.name ?? "Unknown"}${upcoming.reminderTime !== "None" ? ` · ${upcoming.reminderTime}` : ""}`
-        : "No dated next step",
+      label: "Next step",
+      value: focus ? formatRelativeNextStep(focus.nextStepDate) : "None",
+      hint: focus ? `${company?.name ?? "Unknown"}` : "No dated next step",
+      urgency,
     },
-  ];
+  ] as const;
 }
 
 function StatStrip({
@@ -200,7 +188,19 @@ function StatStrip({
       {stats.map((stat) => (
         <div key={stat.label}>
           <p className="track-stat-label">{stat.label}</p>
-          <p className="track-stat-value">{stat.value}</p>
+          <p
+            className={cn(
+              "track-stat-value",
+              "urgency" in stat &&
+                (stat.urgency === "overdue"
+                  ? "text-destructive"
+                  : stat.urgency === "today"
+                    ? "text-foreground"
+                    : undefined),
+            )}
+          >
+            {stat.value}
+          </p>
           <p className="track-stat-detail">{stat.hint}</p>
         </div>
       ))}
@@ -271,10 +271,14 @@ function DetailDrawer({
   }
 
   function saveAll() {
-    if (readOnly || !draft || !item) return;
+    if (readOnly || !draft || !item) {
+      return Promise.reject(new Error("Nothing to save"));
+    }
     const patch = formValuesToApplicationPatch(draft);
-    if (!patch) return;
-    void onPatch(item.id, patch).then(flashSaved);
+    if (!patch) {
+      return Promise.reject(new Error("Company and role are required"));
+    }
+    return onPatch(item.id, patch).then(flashSaved);
   }
 
   return (
@@ -305,52 +309,26 @@ function DetailDrawer({
           ) : (
             <>
               <div className="min-h-0 flex-1 overflow-y-auto">
+                <div className="flex items-start gap-3 px-4 pt-4">
+                  {company && <CompanyMark logo={company.logo} color={company.color} large />}
+                  <div className="min-w-0">
+                    <p className="font-semibold">{company?.name ?? "Unknown"}</p>
+                    <p className="text-sm text-muted-foreground">{draft.role}</p>
+                  </div>
+                </div>
+                <div className="px-4 pt-4">
+                  <CurrentNextStepCard
+                    nextStepDate={draft.nextStepDate}
+                    nextStepLabel={draft.nextStepLabel}
+                    stepLogs={draft.stepLogs}
+                    readOnly={readOnly}
+                    onComplete={(patch) => {
+                      setValues(patch);
+                      patchImmediate(patch);
+                    }}
+                  />
+                </div>
                 <div {...(readOnly ? { inert: true } : {})}>
-                  <div className="flex items-start gap-3 px-4 pt-4">
-                    {company && <CompanyMark logo={company.logo} color={company.color} large />}
-                    <div className="min-w-0">
-                      <p className="font-semibold">{company?.name ?? "Unknown"}</p>
-                      <p className="text-sm text-muted-foreground">{draft.role}</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 px-4 pt-4">
-                    <Field>
-                      <FieldLabel>Status</FieldLabel>
-                      <NativeSelectField
-                        value={draft.stage}
-                        onChange={(stage) => {
-                          setValues({ stage });
-                          patchImmediate({ stage });
-                        }}
-                        options={stages}
-                        guard={isStage}
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel>Priority</FieldLabel>
-                      <NativeSelectField
-                        value={draft.priority}
-                        onChange={(priority) => {
-                          setValues({ priority });
-                          patchImmediate({ priority });
-                        }}
-                        options={priorities}
-                        guard={isPriority}
-                      />
-                    </Field>
-                    <Field className="col-span-2">
-                      <FieldLabel>Reply status</FieldLabel>
-                      <NativeSelectField
-                        value={draft.replyStatus}
-                        onChange={(replyStatus) => {
-                          setValues({ replyStatus });
-                          patchImmediate({ replyStatus });
-                        }}
-                        options={replyStatuses}
-                        guard={isReplyStatus}
-                      />
-                    </Field>
-                  </div>
                   <div className="p-4">
                     <ApplicationFields
                       companies={companies}
@@ -360,13 +338,14 @@ function DetailDrawer({
                       setValues={(patch) => {
                         setValues(patch);
                         const immediateKeys = [
+                          "stage",
+                          "priority",
                           "workMode",
                           "resumeId",
                           "coverLetterId",
                           "replyStatus",
                           "source",
                           "jobType",
-                          "reminderTime",
                         ] as const;
                         const immediate: Partial<Application> = {};
                         for (const key of immediateKeys) {
@@ -383,6 +362,7 @@ function DetailDrawer({
                     />
                   </div>
                 </div>
+                <StepLogHistory stepLogs={draft.stepLogs} />
               </div>
               <SheetFooter className="shrink-0 border-t">
                 <p className="mr-auto text-xs text-muted-foreground">
@@ -395,7 +375,7 @@ function DetailDrawer({
                 {readOnly ? (
                   <Button onClick={() => void onRestore?.()}>Restore</Button>
                 ) : (
-                  <Button onClick={saveAll}>Save changes</Button>
+                  <SaveButton disabled={!formValuesToApplicationPatch(draft)} onSave={saveAll} />
                 )}
               </SheetFooter>
             </>
@@ -877,10 +857,13 @@ export function ApplicationsView({
                         {formatDisplayDate(item.appliedDate)}
                       </TableCell>
                       <TableCell
-                        className="hidden max-w-[140px] cursor-pointer truncate text-muted-foreground md:table-cell"
+                        className="hidden max-w-[180px] cursor-pointer md:table-cell"
                         onClick={() => setActiveId(item.id)}
                       >
-                        {nextStepSummary(item)}
+                        <NextStepCell
+                          nextStepDate={item.nextStepDate}
+                          nextStepLabel={item.nextStepLabel}
+                        />
                       </TableCell>
                       <TableCell
                         className="hidden cursor-pointer md:table-cell"
@@ -962,10 +945,13 @@ export function ApplicationsView({
                       {formatDisplayDate(item.appliedDate)}
                     </TableCell>
                     <TableCell
-                      className="hidden max-w-[140px] cursor-pointer truncate text-muted-foreground md:table-cell"
+                      className="hidden max-w-[180px] cursor-pointer md:table-cell"
                       onClick={() => setActiveId(item.id)}
                     >
-                      {nextStepSummary(item)}
+                      <NextStepCell
+                        nextStepDate={item.nextStepDate}
+                        nextStepLabel={item.nextStepLabel}
+                      />
                     </TableCell>
                     <TableCell
                       className="hidden cursor-pointer md:table-cell"
@@ -1288,19 +1274,19 @@ export function CompaniesView({
               <Button variant="outline" onClick={() => setConfirmDelete(true)}>
                 Delete
               </Button>
-              <Button
-                onClick={() => {
-                  if (!active) return;
-                  void onPatch(active.id, {
+              <SaveButton
+                disabled={!draft.name.trim()}
+                onSave={async () => {
+                  if (!active) throw new Error("Nothing to save");
+                  await onPatch(active.id, {
                     name: draft.name,
                     website: draft.website,
                     location: draft.location,
                     logo: draft.logo,
-                  }).then(() => setActiveId(null));
+                  });
+                  setActiveId(null);
                 }}
-              >
-                Save changes
-              </Button>
+              />
             </SheetFooter>
           </SheetContent>
         </Sheet>
@@ -1470,13 +1456,13 @@ export function ResumesView({
               <Button variant="outline" onClick={() => setConfirmDelete(true)}>
                 Delete
               </Button>
-              <Button
-                onClick={() => {
-                  if (active) void onRename(active.id, name);
+              <SaveButton
+                disabled={!name.trim()}
+                onSave={async () => {
+                  if (!active) throw new Error("Nothing to save");
+                  await onRename(active.id, name.trim());
                 }}
-              >
-                Save changes
-              </Button>
+              />
             </SheetFooter>
           </SheetContent>
         </Sheet>
@@ -1759,17 +1745,16 @@ export function CoverLettersView({
               <Button variant="outline" onClick={() => setConfirmDelete(true)}>
                 Delete
               </Button>
-              <Button
-                onClick={() => {
-                  if (!active) return;
-                  void onPatch(active.id, {
-                    name: editName,
+              <SaveButton
+                disabled={!editName.trim()}
+                onSave={async () => {
+                  if (!active) throw new Error("Nothing to save");
+                  await onPatch(active.id, {
+                    name: editName.trim(),
                     body: active.kind === "text" ? editBody : undefined,
                   });
                 }}
-              >
-                Save changes
-              </Button>
+              />
             </SheetFooter>
           </SheetContent>
         </Sheet>

@@ -13,6 +13,8 @@ import {
   LeadStatusBadge,
   PriorityBadge,
 } from "@/components/workspace-fields";
+import { CurrentNextStepCard, NextStepCell, StepLogHistory } from "@/components/next-step";
+import { SaveButton } from "@/components/save-button";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -69,6 +71,7 @@ import {
 import {
   emptyLeadFormValues,
   formatDisplayDate,
+  formatRelativeNextStep,
   formValuesToLeadPatch,
   isLeadPlatform,
   isLeadSortKey,
@@ -76,7 +79,8 @@ import {
   leadPlatforms,
   leadSortLabels,
   leadStatuses,
-  nextStepSummary,
+  nextStepUrgency,
+  pickMostUrgentNextStep,
   priorities,
   valuesFromLead,
   type Company,
@@ -93,22 +97,11 @@ import {
 } from "@/lib/domain";
 import { groupByCompany } from "@/lib/group-by-company";
 import { useLeadQuery } from "@/hooks/use-workspace";
-
+import { cn } from "@/lib/utils";
 type Density = "comfortable" | "compact";
 
 function isDensity(value: string): value is Density {
   return value === "comfortable" || value === "compact";
-}
-
-function relativeFollowUp(iso: string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const date = new Date(`${iso}T00:00:00`);
-  const diff = Math.round((date.getTime() - today.getTime()) / 86400000);
-  if (diff === 0) return "Today";
-  if (diff === 1) return "Tomorrow";
-  if (diff === -1) return "Yesterday";
-  return formatDisplayDate(iso);
 }
 
 function computeLeadStats(leads: LeadListItem[], companies: Company[]) {
@@ -125,11 +118,9 @@ function computeLeadStats(leads: LeadListItem[], companies: Company[]) {
       item.status === "Meeting booked" ||
       item.status === "Converted",
   );
-  const today = new Date().toISOString().slice(0, 10);
-  const upcoming = active
-    .filter((item) => item.nextStepDate && item.nextStepDate >= today)
-    .sort((a, b) => a.nextStepDate.localeCompare(b.nextStepDate))[0];
-  const company = upcoming ? companies.find((c) => c.id === upcoming.companyId) : undefined;
+  const focus = pickMostUrgentNextStep(active);
+  const company = focus ? companies.find((c) => c.id === focus.companyId) : undefined;
+  const urgency = focus ? nextStepUrgency(focus.nextStepDate) : "none";
   const rate = sent.length === 0 ? 0 : Math.round((replied.length / sent.length) * 100);
   return [
     {
@@ -150,13 +141,12 @@ function computeLeadStats(leads: LeadListItem[], companies: Company[]) {
       hint: `${replied.length} replied of ${sent.length} sent`,
     },
     {
-      label: "Next follow-up",
-      value: upcoming ? relativeFollowUp(upcoming.nextStepDate) : "None",
-      hint: upcoming
-        ? `${company?.name ?? "Unknown"}${upcoming.reminderTime !== "None" ? ` · ${upcoming.reminderTime}` : ""}`
-        : "No dated next step",
+      label: "Next step",
+      value: focus ? formatRelativeNextStep(focus.nextStepDate) : "None",
+      hint: focus ? `${company?.name ?? "Unknown"}` : "No dated next step",
+      urgency,
     },
-  ];
+  ] as const;
 }
 
 function LeadStatStrip({ leads, companies }: { leads: LeadListItem[]; companies: Company[] }) {
@@ -166,7 +156,19 @@ function LeadStatStrip({ leads, companies }: { leads: LeadListItem[]; companies:
       {stats.map((stat) => (
         <div key={stat.label}>
           <p className="track-stat-label">{stat.label}</p>
-          <p className="track-stat-value">{stat.value}</p>
+          <p
+            className={cn(
+              "track-stat-value",
+              "urgency" in stat &&
+                (stat.urgency === "overdue"
+                  ? "text-destructive"
+                  : stat.urgency === "today"
+                    ? "text-foreground"
+                    : undefined),
+            )}
+          >
+            {stat.value}
+          </p>
           <p className="track-stat-detail">{stat.hint}</p>
         </div>
       ))}
@@ -237,10 +239,14 @@ export function LeadDetailDrawer({
   }
 
   function saveAll() {
-    if (readOnly || !draft || !item) return;
+    if (readOnly || !draft || !item) {
+      return Promise.reject(new Error("Nothing to save"));
+    }
     const patch = formValuesToLeadPatch(draft);
-    if (!patch) return;
-    void onPatch(item.id, patch).then(flashSaved);
+    if (!patch) {
+      return Promise.reject(new Error("Company and person are required"));
+    }
+    return onPatch(item.id, patch).then(flashSaved);
   }
 
   return (
@@ -274,14 +280,26 @@ export function LeadDetailDrawer({
           ) : (
             <>
               <div className="min-h-0 flex-1 overflow-y-auto">
-                <div {...(readOnly ? { inert: true } : {})}>
-                  <div className="flex items-start gap-3 px-4 pt-4">
-                    {company && <CompanyMark logo={company.logo} color={company.color} large />}
-                    <div className="min-w-0">
-                      <p className="font-semibold">{company?.name ?? "Unknown"}</p>
-                      <p className="text-sm text-muted-foreground">{draft.personName}</p>
-                    </div>
+                <div className="flex items-start gap-3 px-4 pt-4">
+                  {company && <CompanyMark logo={company.logo} color={company.color} large />}
+                  <div className="min-w-0">
+                    <p className="font-semibold">{company?.name ?? "Unknown"}</p>
+                    <p className="text-sm text-muted-foreground">{draft.personName}</p>
                   </div>
+                </div>
+                <div className="px-4 pt-4">
+                  <CurrentNextStepCard
+                    nextStepDate={draft.nextStepDate}
+                    nextStepLabel={draft.nextStepLabel}
+                    stepLogs={draft.stepLogs}
+                    readOnly={readOnly}
+                    onComplete={(patch) => {
+                      setValues(patch);
+                      patchImmediate(patch);
+                    }}
+                  />
+                </div>
+                <div {...(readOnly ? { inert: true } : {})}>
                   <div className="p-4 pt-4">
                     <LeadFields
                       companies={companies}
@@ -296,7 +314,6 @@ export function LeadDetailDrawer({
                           "platform",
                           "resumeId",
                           "coverLetterId",
-                          "reminderTime",
                         ] as const;
                         const immediate: Partial<Lead> = {};
                         for (const key of immediateKeys) {
@@ -313,6 +330,7 @@ export function LeadDetailDrawer({
                     />
                   </div>
                 </div>
+                <StepLogHistory stepLogs={draft.stepLogs} />
               </div>
               <SheetFooter className="shrink-0 border-t">
                 <p className="mr-auto text-xs text-muted-foreground">
@@ -324,7 +342,7 @@ export function LeadDetailDrawer({
                 {readOnly ? (
                   <Button onClick={() => void onRestore?.()}>Restore</Button>
                 ) : (
-                  <Button onClick={saveAll}>Save changes</Button>
+                  <SaveButton disabled={!formValuesToLeadPatch(draft)} onSave={saveAll} />
                 )}
               </SheetFooter>
             </>
@@ -808,10 +826,13 @@ export function LeadsView({
                         {formatDisplayDate(item.sentDate)}
                       </TableCell>
                       <TableCell
-                        className="hidden max-w-[140px] cursor-pointer truncate text-muted-foreground md:table-cell"
+                        className="hidden max-w-[180px] cursor-pointer md:table-cell"
                         onClick={() => setActiveId(item.id)}
                       >
-                        {nextStepSummary(item)}
+                        <NextStepCell
+                          nextStepDate={item.nextStepDate}
+                          nextStepLabel={item.nextStepLabel}
+                        />
                       </TableCell>
                       <TableCell
                         className="hidden cursor-pointer md:table-cell"
@@ -903,10 +924,13 @@ export function LeadsView({
                       {formatDisplayDate(item.sentDate)}
                     </TableCell>
                     <TableCell
-                      className="hidden max-w-[140px] cursor-pointer truncate text-muted-foreground md:table-cell"
+                      className="hidden max-w-[180px] cursor-pointer md:table-cell"
                       onClick={() => setActiveId(item.id)}
                     >
-                      {nextStepSummary(item)}
+                      <NextStepCell
+                        nextStepDate={item.nextStepDate}
+                        nextStepLabel={item.nextStepLabel}
+                      />
                     </TableCell>
                     <TableCell
                       className="hidden cursor-pointer md:table-cell"

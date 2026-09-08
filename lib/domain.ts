@@ -249,6 +249,7 @@ export type Application = {
   nextStepDate: string;
   nextStepLabel: string;
   reminderTime: ReminderTime;
+  stepLogs: StepLog[];
   compensationMin: string;
   compensationMax: string;
   currency: Currency;
@@ -294,6 +295,7 @@ export type Lead = {
   nextStepDate: string;
   nextStepLabel: string;
   reminderTime: ReminderTime;
+  stepLogs: StepLog[];
   message: string;
   resumeId: string | null;
   coverLetterId: string | null;
@@ -321,6 +323,15 @@ export type WishlistContact = {
   notes: string;
 };
 
+export type StepLog = {
+  id: string;
+  completedAt: string;
+  label: string;
+  details: string;
+  nextStepDate?: string;
+  nextStepLabel?: string;
+};
+
 export type Wishlist = {
   id: string;
   companyId: string;
@@ -331,6 +342,7 @@ export type Wishlist = {
   nextStepDate: string;
   nextStepLabel: string;
   reminderTime: ReminderTime;
+  stepLogs: StepLog[];
   notes: string;
   contacts: WishlistContact[];
   tags: string[];
@@ -742,12 +754,126 @@ export function formatCompensation(
   return item.equityBonus ? `${base} + ${item.equityBonus}` : base;
 }
 
+export type NextStepUrgency = "overdue" | "today" | "tomorrow" | "later" | "none";
+
+export function todayIsoDate(now = new Date()) {
+  const local = new Date(now);
+  local.setHours(0, 0, 0, 0);
+  const year = local.getFullYear();
+  const month = String(local.getMonth() + 1).padStart(2, "0");
+  const day = String(local.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function daysUntilDate(iso: string, now = new Date()) {
+  if (!iso) return null;
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const date = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  return Math.round((date.getTime() - today.getTime()) / 86400000);
+}
+
+export function nextStepUrgency(iso: string, now = new Date()): NextStepUrgency {
+  const diff = daysUntilDate(iso, now);
+  if (diff === null) return "none";
+  if (diff < 0) return "overdue";
+  if (diff === 0) return "today";
+  if (diff === 1) return "tomorrow";
+  return "later";
+}
+
+export function formatRelativeNextStep(iso: string, now = new Date()) {
+  const diff = daysUntilDate(iso, now);
+  if (diff === null) return "—";
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  if (diff === -1) return "Yesterday";
+  if (diff < -1) return `${Math.abs(diff)}d overdue`;
+  return formatDisplayDate(iso);
+}
+
 export function nextStepSummary(
   item: Pick<Application | Lead | Wishlist, "nextStepLabel" | "nextStepDate">,
 ) {
+  if (item.nextStepLabel && item.nextStepDate) {
+    return `${item.nextStepLabel} · ${formatRelativeNextStep(item.nextStepDate)}`;
+  }
   if (item.nextStepLabel) return item.nextStepLabel;
-  if (item.nextStepDate) return formatDisplayDate(item.nextStepDate);
+  if (item.nextStepDate) return formatRelativeNextStep(item.nextStepDate);
   return "—";
+}
+
+export function appendStepLog(
+  stepLogs: StepLog[],
+  entry: {
+    label: string;
+    details: string;
+    completedAt?: string;
+    nextStepDate?: string;
+    nextStepLabel?: string;
+  },
+): StepLog[] {
+  const completedAt = entry.completedAt ?? todayIsoDate();
+  const label = entry.label.trim() || "Step";
+  const details = entry.details.trim();
+  const nextStepDate = entry.nextStepDate?.trim() ?? "";
+  const nextStepLabel = entry.nextStepLabel?.trim() ?? "";
+  const log: StepLog = {
+    id: crypto.randomUUID(),
+    completedAt,
+    label,
+    details,
+    ...(nextStepDate ? { nextStepDate } : {}),
+    ...(nextStepLabel ? { nextStepLabel } : {}),
+  };
+  return [log, ...stepLogs];
+}
+
+const legacyStepNotePattern = /^\[([^\]]+)\]\s+(.+?)\s+—\s+done(?:\n([\s\S]*))?$/;
+
+export function parseStepLogsFromNotes(notes: string): StepLog[] {
+  const blocks = notes.split(/\n\n+/);
+  const logs: StepLog[] = [];
+  for (const block of blocks) {
+    const trimmed = block.trim();
+    if (!trimmed) continue;
+    const match = trimmed.match(legacyStepNotePattern);
+    if (!match) continue;
+    const [, stamp, label, details = ""] = match;
+    logs.push({
+      id: crypto.randomUUID(),
+      completedAt: stamp ?? todayIsoDate(),
+      label: label.trim(),
+      details: details.trim(),
+    });
+  }
+  return logs.reverse();
+}
+
+export function resolveStepLogs(stepLogs: StepLog[], notes: string): StepLog[] {
+  if (stepLogs.length > 0) return stepLogs;
+  return parseStepLogsFromNotes(notes);
+}
+
+/** @deprecated Use appendStepLog instead */
+export function appendFollowUpNote(
+  notes: string,
+  entry: { label: string; details: string; completedAt?: string },
+) {
+  const completedAt = entry.completedAt ?? todayIsoDate();
+  const stamp = formatDisplayDate(completedAt);
+  const label = entry.label.trim() || "Follow-up";
+  const details = entry.details.trim();
+  const block = details ? `[${stamp}] ${label} — done\n${details}` : `[${stamp}] ${label} — done`;
+  const trimmed = notes.trim();
+  return trimmed ? `${trimmed}\n\n${block}` : block;
+}
+
+export function pickMostUrgentNextStep<T extends { nextStepDate: string }>(items: T[]) {
+  const dated = items.filter((item) => item.nextStepDate);
+  if (dated.length === 0) return undefined;
+  return [...dated].sort((a, b) => a.nextStepDate.localeCompare(b.nextStepDate))[0];
 }
 
 export function emptyFormValues(): ApplicationFormValues {
@@ -766,6 +892,7 @@ export function emptyFormValues(): ApplicationFormValues {
     nextStepDate: "",
     nextStepLabel: "",
     reminderTime: "None",
+    stepLogs: [],
     compensationMin: "",
     compensationMax: "",
     currency: "USD",
@@ -816,6 +943,7 @@ export function formValuesToApplicationPatch(
     nextStepDate: draft.nextStepDate,
     nextStepLabel: draft.nextStepLabel.trim(),
     reminderTime: draft.reminderTime,
+    stepLogs: draft.stepLogs,
     compensationMin: draft.compensationMin.trim(),
     compensationMax: draft.compensationMax.trim(),
     currency: draft.currency,
@@ -851,6 +979,7 @@ export function emptyLeadFormValues(): LeadFormValues {
     nextStepDate: "",
     nextStepLabel: "",
     reminderTime: "None",
+    stepLogs: [],
     message: "",
     resumeId: null,
     coverLetterId: null,
@@ -888,6 +1017,7 @@ export function formValuesToLeadPatch(
     nextStepDate: draft.nextStepDate,
     nextStepLabel: draft.nextStepLabel.trim(),
     reminderTime: draft.reminderTime,
+    stepLogs: draft.stepLogs,
     message: draft.message,
     resumeId: draft.resumeId,
     coverLetterId: draft.coverLetterId,
@@ -918,6 +1048,7 @@ export function emptyWishlistFormValues(): WishlistFormValues {
     nextStepDate: "",
     nextStepLabel: "",
     reminderTime: "None",
+    stepLogs: [],
     notes: "",
     contacts: [emptyWishlistContact()],
     tags: [],
@@ -951,6 +1082,7 @@ export function formValuesToWishlistPatch(
     nextStepDate: draft.nextStepDate,
     nextStepLabel: draft.nextStepLabel.trim(),
     reminderTime: draft.reminderTime,
+    stepLogs: draft.stepLogs,
     notes: draft.notes,
     contacts: draft.contacts
       .map((contact) => ({

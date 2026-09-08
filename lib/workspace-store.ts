@@ -39,6 +39,7 @@ import {
   type Resume,
   type SavedView,
   type SavedViewScreen,
+  type StepLog,
   type Wishlist,
   type WishlistContact,
   type WishlistListItem,
@@ -48,6 +49,7 @@ import { deleteUserFile, putUserFile } from "@/lib/files";
 import { HttpError, newId, now, requireString, stringField } from "@/lib/http";
 import {
   contactsToJson,
+  stepLogsToJson,
   mapApplication,
   mapApplicationListItem,
   mapCompany,
@@ -593,13 +595,13 @@ function applicationValues(userId: string, record: Record<string, unknown>, curr
       : (current?.replyStatus ?? "No reply yet"),
     appliedDate: stringField(record, "appliedDate", current?.appliedDate ?? ""),
     nextStepDate: stringField(record, "nextStepDate", current?.nextStepDate ?? ""),
-    nextStepLabel:
-      stringField(record, "nextStepLabel", current?.nextStepLabel ?? "") || "Follow up",
+    nextStepLabel: stringField(record, "nextStepLabel", current?.nextStepLabel ?? ""),
     reminderTime: isReminderTime(
       stringField(record, "reminderTime", current?.reminderTime ?? "None"),
     )
       ? stringField(record, "reminderTime", current?.reminderTime ?? "None")
       : (current?.reminderTime ?? "None"),
+    stepLogs: stepLogsToJson(parseStepLogsInput(record.stepLogs, current?.stepLogs ?? [])),
     compensationMin: stringField(record, "compensationMin", current?.compensationMin ?? ""),
     compensationMax: stringField(record, "compensationMax", current?.compensationMax ?? ""),
     currency: isCurrency(stringField(record, "currency", current?.currency ?? "USD"))
@@ -752,13 +754,13 @@ function leadValues(userId: string, record: Record<string, unknown>, current?: L
       : (current?.priority ?? "Medium"),
     sentDate: stringField(record, "sentDate", current?.sentDate ?? ""),
     nextStepDate: stringField(record, "nextStepDate", current?.nextStepDate ?? ""),
-    nextStepLabel:
-      stringField(record, "nextStepLabel", current?.nextStepLabel ?? "") || "Follow up",
+    nextStepLabel: stringField(record, "nextStepLabel", current?.nextStepLabel ?? ""),
     reminderTime: isReminderTime(
       stringField(record, "reminderTime", current?.reminderTime ?? "None"),
     )
       ? stringField(record, "reminderTime", current?.reminderTime ?? "None")
       : (current?.reminderTime ?? "None"),
+    stepLogs: stepLogsToJson(parseStepLogsInput(record.stepLogs, current?.stepLogs ?? [])),
     message: stringField(record, "message", current?.message ?? ""),
     resumeId: nullableId(record.resumeId, current?.resumeId ?? null),
     coverLetterId: nullableId(record.coverLetterId, current?.coverLetterId ?? null),
@@ -843,6 +845,32 @@ export async function bulkLeads(
   return { ok: true as const };
 }
 
+function parseStepLogsInput(value: unknown, fallback: StepLog[]): StepLog[] {
+  if (!Array.isArray(value)) return fallback;
+  return value
+    .map((item): StepLog | null => {
+      if (!item || typeof item !== "object") return null;
+      const record = item as Record<string, unknown>;
+      const completedAt = typeof record.completedAt === "string" ? record.completedAt : "";
+      const label = typeof record.label === "string" ? record.label : "";
+      const details = typeof record.details === "string" ? record.details : "";
+      if (!completedAt && !label && !details) return null;
+      return {
+        id: typeof record.id === "string" && record.id ? record.id : newId(),
+        completedAt,
+        label,
+        details,
+        ...(typeof record.nextStepDate === "string" && record.nextStepDate
+          ? { nextStepDate: record.nextStepDate }
+          : {}),
+        ...(typeof record.nextStepLabel === "string" && record.nextStepLabel
+          ? { nextStepLabel: record.nextStepLabel }
+          : {}),
+      };
+    })
+    .filter((item): item is StepLog => item !== null);
+}
+
 function parseWishlistContactsInput(
   value: unknown,
   fallback: WishlistContact[],
@@ -906,13 +934,13 @@ function wishlistValues(userId: string, record: Record<string, unknown>, current
       ? stringField(record, "priority", current?.priority ?? "Medium")
       : (current?.priority ?? "Medium"),
     nextStepDate: stringField(record, "nextStepDate", current?.nextStepDate ?? ""),
-    nextStepLabel:
-      stringField(record, "nextStepLabel", current?.nextStepLabel ?? "") || "Research company",
+    nextStepLabel: stringField(record, "nextStepLabel", current?.nextStepLabel ?? ""),
     reminderTime: isReminderTime(
       stringField(record, "reminderTime", current?.reminderTime ?? "None"),
     )
       ? stringField(record, "reminderTime", current?.reminderTime ?? "None")
       : (current?.reminderTime ?? "None"),
+    stepLogs: stepLogsToJson(parseStepLogsInput(record.stepLogs, current?.stepLogs ?? [])),
     notes: stringField(record, "notes", current?.notes ?? ""),
     contacts: contactsToJson(contacts),
     tags: tagsToJson(tags),

@@ -120,6 +120,7 @@ export type Application = {
   nextStepDate: string;
   nextStepLabel: string;
   reminderTime: ReminderTime;
+  stepLogs: StepLog[];
   compensationMin: string;
   compensationMax: string;
   currency: Currency;
@@ -165,6 +166,7 @@ export type Lead = {
   nextStepDate: string;
   nextStepLabel: string;
   reminderTime: ReminderTime;
+  stepLogs: StepLog[];
   message: string;
   resumeId: string | null;
   coverLetterId: string | null;
@@ -192,6 +194,15 @@ export type WishlistContact = {
   notes: string;
 };
 
+export type StepLog = {
+  id: string;
+  completedAt: string;
+  label: string;
+  details: string;
+  nextStepDate?: string;
+  nextStepLabel?: string;
+};
+
 export type Wishlist = {
   id: string;
   companyId: string;
@@ -202,6 +213,7 @@ export type Wishlist = {
   nextStepDate: string;
   nextStepLabel: string;
   reminderTime: ReminderTime;
+  stepLogs: StepLog[];
   notes: string;
   contacts: WishlistContact[];
   tags: string[];
@@ -550,6 +562,59 @@ export function nextStepSummary(
   return "—";
 }
 
+export function appendStepLog(
+  stepLogs: StepLog[],
+  entry: {
+    label: string;
+    details: string;
+    completedAt?: string;
+    nextStepDate?: string;
+    nextStepLabel?: string;
+  },
+): StepLog[] {
+  const completedAt = entry.completedAt ?? todayIsoDate();
+  const label = entry.label.trim() || "Step";
+  const details = entry.details.trim();
+  const nextStepDate = entry.nextStepDate?.trim() ?? "";
+  const nextStepLabel = entry.nextStepLabel?.trim() ?? "";
+  const log: StepLog = {
+    id: crypto.randomUUID(),
+    completedAt,
+    label,
+    details,
+    ...(nextStepDate ? { nextStepDate } : {}),
+    ...(nextStepLabel ? { nextStepLabel } : {}),
+  };
+  return [log, ...stepLogs];
+}
+
+const legacyStepNotePattern = /^\[([^\]]+)\]\s+(.+?)\s+—\s+done(?:\n([\s\S]*))?$/;
+
+export function parseStepLogsFromNotes(notes: string): StepLog[] {
+  const blocks = notes.split(/\n\n+/);
+  const logs: StepLog[] = [];
+  for (const block of blocks) {
+    const trimmed = block.trim();
+    if (!trimmed) continue;
+    const match = trimmed.match(legacyStepNotePattern);
+    if (!match) continue;
+    const [, stamp, label, details = ""] = match;
+    logs.push({
+      id: crypto.randomUUID(),
+      completedAt: stamp ?? todayIsoDate(),
+      label: label.trim(),
+      details: details.trim(),
+    });
+  }
+  return logs.reverse();
+}
+
+export function resolveStepLogs(stepLogs: StepLog[], notes: string): StepLog[] {
+  if (stepLogs.length > 0) return stepLogs;
+  return parseStepLogsFromNotes(notes);
+}
+
+/** @deprecated Use appendStepLog instead */
 export function appendFollowUpNote(
   notes: string,
   entry: { label: string; details: string; completedAt?: string },
@@ -585,6 +650,7 @@ export function emptyFormValues(): ApplicationFormValues {
     nextStepDate: "",
     nextStepLabel: "",
     reminderTime: "None",
+    stepLogs: [],
     compensationMin: "",
     compensationMax: "",
     currency: "USD",
@@ -635,6 +701,7 @@ export function formValuesToApplicationPatch(
     nextStepDate: draft.nextStepDate,
     nextStepLabel: draft.nextStepLabel.trim(),
     reminderTime: draft.reminderTime,
+    stepLogs: draft.stepLogs,
     compensationMin: draft.compensationMin.trim(),
     compensationMax: draft.compensationMax.trim(),
     currency: draft.currency,
@@ -670,6 +737,7 @@ export function emptyLeadFormValues(): LeadFormValues {
     nextStepDate: "",
     nextStepLabel: "",
     reminderTime: "None",
+    stepLogs: [],
     message: "",
     resumeId: null,
     coverLetterId: null,
@@ -707,6 +775,7 @@ export function formValuesToLeadPatch(
     nextStepDate: draft.nextStepDate,
     nextStepLabel: draft.nextStepLabel.trim(),
     reminderTime: draft.reminderTime,
+    stepLogs: draft.stepLogs,
     message: draft.message,
     resumeId: draft.resumeId,
     coverLetterId: draft.coverLetterId,
@@ -737,6 +806,7 @@ export function emptyWishlistFormValues(): WishlistFormValues {
     nextStepDate: "",
     nextStepLabel: "",
     reminderTime: "None",
+    stepLogs: [],
     notes: "",
     contacts: [emptyWishlistContact()],
     tags: [],
@@ -770,6 +840,7 @@ export function formValuesToWishlistPatch(
     nextStepDate: draft.nextStepDate,
     nextStepLabel: draft.nextStepLabel.trim(),
     reminderTime: draft.reminderTime,
+    stepLogs: draft.stepLogs,
     notes: draft.notes,
     contacts: draft.contacts
       .map((contact) => ({

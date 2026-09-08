@@ -31,7 +31,6 @@ import {
   isLeadPlatform,
   isLeadStatus,
   isPriority,
-  isReminderTime,
   isReplyStatus,
   isSource,
   isStage,
@@ -42,7 +41,6 @@ import {
   leadStatuses,
   parseTagsInput,
   priorities,
-  reminderTimes,
   replyStatuses,
   sources,
   stages,
@@ -56,7 +54,6 @@ import {
   type LeadPlatform,
   type LeadStatus,
   type Priority,
-  type ReminderTime,
   type ReplyStatus,
   type Resume,
   type Source,
@@ -733,15 +730,6 @@ export function ApplicationFields({
             />
           </Field>
           <Field>
-            <FieldLabel>Reminder time</FieldLabel>
-            <NativeSelectField
-              value={values.reminderTime}
-              onChange={(reminderTime: ReminderTime) => setValues({ reminderTime })}
-              options={reminderTimes}
-              guard={isReminderTime}
-            />
-          </Field>
-          <Field>
             <FieldLabel>Applied date</FieldLabel>
             <Input
               type="date"
@@ -864,7 +852,7 @@ export function ApplicationFields({
             <Textarea
               value={values.notes}
               onChange={(e) => setValues({ notes: e.target.value })}
-              placeholder="Interview prep, research, concerns, follow-ups..."
+              placeholder="Interview prep, research, concerns..."
             />
           </Field>
           <Field>
@@ -1069,15 +1057,6 @@ export function LeadFields({
               type="date"
               value={values.sentDate}
               onChange={(e) => setValues({ sentDate: e.target.value })}
-            />
-          </Field>
-          <Field>
-            <FieldLabel>Reminder time</FieldLabel>
-            <NativeSelectField
-              value={values.reminderTime}
-              onChange={(reminderTime: ReminderTime) => setValues({ reminderTime })}
-              options={reminderTimes}
-              guard={isReminderTime}
             />
           </Field>
           <Field>

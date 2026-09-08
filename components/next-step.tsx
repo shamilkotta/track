@@ -2,6 +2,12 @@
 
 import { useState } from "react";
 import { Check, CircleAlert } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -9,12 +15,13 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  appendFollowUpNote,
+  appendStepLog,
+  formatDisplayDate,
   formatRelativeNextStep,
   nextStepUrgency,
   todayIsoDate,
   type NextStepUrgency,
-  type ReminderTime,
+  type StepLog,
 } from "@/lib/domain";
 import { cn } from "@/lib/utils";
 
@@ -95,27 +102,24 @@ export function NextStepCell({
   );
 }
 
-export type FollowUpCompletion = {
-  notes: string;
+export type StepCompletion = {
+  stepLogs: StepLog[];
   nextStepDate: string;
   nextStepLabel: string;
-  reminderTime: ReminderTime;
 };
 
-export function NextStepFollowUpCard({
+export function CurrentNextStepCard({
   nextStepDate,
   nextStepLabel,
-  reminderTime,
-  notes,
+  stepLogs,
   readOnly = false,
   onComplete,
 }: {
   nextStepDate: string;
   nextStepLabel: string;
-  reminderTime: ReminderTime;
-  notes: string;
+  stepLogs: StepLog[];
   readOnly?: boolean;
-  onComplete: (patch: FollowUpCompletion) => void;
+  onComplete: (patch: StepCompletion) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [details, setDetails] = useState("");
@@ -126,14 +130,14 @@ export function NextStepFollowUpCard({
   const hasStep = Boolean(nextStepDate || nextStepLabel);
   const tone = hasStep && urgency !== "none" ? urgencyTone[urgency] : urgencyTone.later;
   const headline = !hasStep
-    ? "Follow-up thread"
+    ? "Next step"
     : urgency === "overdue"
-      ? "Follow-up overdue"
+      ? "Step overdue"
       : urgency === "today"
-        ? "Follow-up due today"
+        ? "Step due today"
         : urgency === "tomorrow"
-          ? "Follow-up tomorrow"
-          : "Next follow-up";
+          ? "Step tomorrow"
+          : "Next step";
 
   function resetForm() {
     setDetails("");
@@ -144,32 +148,41 @@ export function NextStepFollowUpCard({
   }
 
   function submit() {
-    const label = nextStepLabel.trim() || "Follow-up";
-    const updatedNotes = appendFollowUpNote(notes, { label, details });
+    const label = hasStep ? nextStepLabel.trim() || "Step" : "Step";
+    const scheduledDate = scheduleNext ? nextDate : "";
+    const scheduledLabel = scheduleNext
+      ? nextLabel.trim() || (nextDate ? "Follow up" : "")
+      : "";
+    const updatedLogs = appendStepLog(stepLogs, {
+      label,
+      details,
+      ...(scheduledDate ? { nextStepDate: scheduledDate } : {}),
+      ...(scheduledLabel ? { nextStepLabel: scheduledLabel } : {}),
+    });
+
     if (!hasStep) {
       onComplete({
-        notes: updatedNotes,
-        nextStepDate: scheduleNext ? nextDate : "",
-        nextStepLabel: scheduleNext ? nextLabel.trim() || (nextDate ? "Follow up" : "") : "",
-        reminderTime: scheduleNext && nextDate ? reminderTime : "None",
+        stepLogs: updatedLogs,
+        nextStepDate: scheduledDate,
+        nextStepLabel: scheduledLabel,
       });
       resetForm();
       return;
     }
-    const clearOrSchedule: FollowUpCompletion = scheduleNext
-      ? {
-          notes: updatedNotes,
-          nextStepDate: nextDate,
-          nextStepLabel: nextLabel.trim() || (nextDate ? "Follow up" : ""),
-          reminderTime: nextDate ? reminderTime : "None",
-        }
-      : {
-          notes: updatedNotes,
-          nextStepDate: "",
-          nextStepLabel: "",
-          reminderTime: "None",
-        };
-    onComplete(clearOrSchedule);
+
+    onComplete(
+      scheduleNext
+        ? {
+            stepLogs: updatedLogs,
+            nextStepDate: scheduledDate,
+            nextStepLabel: scheduledLabel,
+          }
+        : {
+            stepLogs: updatedLogs,
+            nextStepDate: "",
+            nextStepLabel: "",
+          },
+    );
     resetForm();
   }
 
@@ -192,7 +205,7 @@ export function NextStepFollowUpCard({
           }}
         >
           <Check />
-          Log follow-up
+          Log a step
         </Button>
       </div>
     );
@@ -210,10 +223,10 @@ export function NextStepFollowUpCard({
               </Badge>
             ) : null}
           </div>
-          <p className="mt-1 truncate text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             {hasStep
-              ? `${nextStepLabel || "Follow-up"}${nextStepDate ? ` · ${formatRelativeNextStep(nextStepDate)}` : ""}${reminderTime !== "None" ? ` · ${reminderTime}` : ""}`
-              : "Log what you did — it lands in notes on this record."}
+              ? `${nextStepLabel || "Step"}${nextStepDate ? ` · ${formatRelativeNextStep(nextStepDate)}` : ""}`
+              : "Record what you did on this opportunity."}
           </p>
         </div>
         {!readOnly ? (
@@ -234,7 +247,7 @@ export function NextStepFollowUpCard({
             }}
           >
             <Check />
-            {open ? "Cancel" : hasStep ? "Log done" : "Log follow-up"}
+            {open ? "Cancel" : hasStep ? "Log done" : "Log a step"}
           </Button>
         ) : null}
       </div>
@@ -249,17 +262,14 @@ export function NextStepFollowUpCard({
               placeholder="e.g. Sent follow-up email, no reply yet. Asked about timeline."
               rows={3}
             />
-            <p className="text-xs text-muted-foreground">
-              Saved into notes on this record so the thread stays in one place.
-            </p>
           </Field>
           <div className="flex items-center gap-2 text-sm">
             <Checkbox
               checked={scheduleNext}
               onCheckedChange={(checked) => setScheduleNext(checked === true)}
-              aria-label="Schedule the next follow-up"
+              aria-label="Schedule the next step"
             />
-            <span>Schedule the next follow-up</span>
+            <span>Schedule the next step</span>
           </div>
           {scheduleNext ? (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -287,7 +297,7 @@ export function NextStepFollowUpCard({
               Cancel
             </Button>
             <Button type="button" size="sm" onClick={submit}>
-              Save to notes
+              Save step
             </Button>
           </div>
         </div>
@@ -295,3 +305,67 @@ export function NextStepFollowUpCard({
     </div>
   );
 }
+
+export function StepLogHistory({
+  stepLogs,
+  className,
+}: {
+  stepLogs: StepLog[];
+  className?: string;
+}) {
+  if (stepLogs.length === 0) return null;
+
+  return (
+    <div className={cn("px-4 pb-4", className)}>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        Step history
+      </p>
+      <Accordion className="gap-2">
+        {stepLogs.map((log) => {
+          const title = log.label.trim() || "Step";
+          const subtitle = [
+            formatDisplayDate(log.completedAt),
+            log.nextStepLabel && log.nextStepDate
+              ? `Next: ${log.nextStepLabel} · ${formatRelativeNextStep(log.nextStepDate)}`
+              : log.nextStepLabel
+                ? `Next: ${log.nextStepLabel}`
+                : log.nextStepDate
+                  ? `Next: ${formatRelativeNextStep(log.nextStepDate)}`
+                  : null,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+
+          return (
+            <AccordionItem
+              key={log.id}
+              value={log.id}
+              className="rounded-lg border border-foreground/10 not-last:border-b-0"
+            >
+              <AccordionTrigger className="px-3 py-2.5 hover:no-underline">
+                <span className="min-w-0 flex-1 pr-2 text-left">
+                  <span className="block truncate font-medium">{title}</span>
+                  {subtitle ? (
+                    <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
+                      {subtitle}
+                    </span>
+                  ) : null}
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="px-3 pb-3">
+                {log.details ? (
+                  <p className="whitespace-pre-wrap text-sm text-muted-foreground">{log.details}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No details recorded.</p>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          );
+        })}
+      </Accordion>
+    </div>
+  );
+}
+
+/** @deprecated Use CurrentNextStepCard */
+export const NextStepFollowUpCard = CurrentNextStepCard;

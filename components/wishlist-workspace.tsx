@@ -10,7 +10,7 @@ import {
   PriorityBadge,
   WishlistStatusBadge,
 } from "@/components/workspace-fields";
-import { NextStepCell, NextStepFollowUpCard } from "@/components/next-step";
+import { CurrentNextStepCard, NextStepCell, StepLogHistory } from "@/components/next-step";
 import { SaveButton } from "@/components/save-button";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -79,14 +79,12 @@ import {
   formatTagsInput,
   formValuesToWishlistPatch,
   isPriority,
-  isReminderTime,
   isWishlistSortKey,
   isWishlistStatus,
   nextStepUrgency,
   parseTagsInput,
   pickMostUrgentNextStep,
   priorities,
-  reminderTimes,
   valuesFromWishlist,
   wishlistSortLabels,
   wishlistStatuses,
@@ -94,7 +92,6 @@ import {
   type Company,
   type LeadListItem,
   type Priority,
-  type ReminderTime,
   type SavedView,
   type Wishlist,
   type WishlistFormValues,
@@ -237,15 +234,6 @@ function WishlistFields({
               type="date"
               value={values.nextStepDate}
               onChange={(e) => setValues({ nextStepDate: e.target.value })}
-            />
-          </Field>
-          <Field>
-            <FieldLabel>Reminder</FieldLabel>
-            <NativeSelectField
-              value={values.reminderTime}
-              onChange={(reminderTime: ReminderTime) => setValues({ reminderTime })}
-              options={reminderTimes}
-              guard={isReminderTime}
             />
           </Field>
           <Field className="sm:col-span-2">
@@ -467,11 +455,9 @@ function computeWishlistStats(items: WishlistListItem[], companies: Company[]) {
       hint: `${active.length - withContacts.length} still need a person`,
     },
     {
-      label: "Next follow-up",
+      label: "Next step",
       value: focus ? formatRelativeNextStep(focus.nextStepDate) : "None",
-      hint: focus
-        ? `${company?.name ?? "Unknown"}${focus.reminderTime !== "None" ? ` · ${focus.reminderTime}` : ""}`
-        : "No dated next step",
+      hint: focus ? `${company?.name ?? "Unknown"}` : "No dated next step",
       urgency,
     },
   ] as const;
@@ -614,11 +600,10 @@ export function WishlistDetailDrawer({
                   </div>
                 </div>
                 <div className="px-4 pt-4">
-                  <NextStepFollowUpCard
+                  <CurrentNextStepCard
                     nextStepDate={draft.nextStepDate}
                     nextStepLabel={draft.nextStepLabel}
-                    reminderTime={draft.reminderTime}
-                    notes={draft.notes}
+                    stepLogs={draft.stepLogs}
                     readOnly={readOnly}
                     onComplete={(patch) => {
                       setValues(patch);
@@ -633,7 +618,7 @@ export function WishlistDetailDrawer({
                       values={draft}
                       setValues={(patch) => {
                         setValues(patch);
-                        const immediateKeys = ["status", "priority", "reminderTime"] as const;
+                        const immediateKeys = ["status", "priority"] as const;
                         const immediate: Partial<Wishlist> = {};
                         for (const key of immediateKeys) {
                           if (key in patch) {
@@ -646,6 +631,7 @@ export function WishlistDetailDrawer({
                     />
                   </div>
                 </div>
+                <StepLogHistory stepLogs={draft.stepLogs} />
               </div>
               <SheetFooter className="shrink-0 border-t">
                 <p className="mr-auto text-xs text-muted-foreground">

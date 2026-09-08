@@ -13,6 +13,7 @@ import {
   isStringArray,
   isWishlistStatus,
   isWorkMode,
+  resolveStepLogs,
   type Application,
   type ApplicationListItem,
   type Company,
@@ -22,6 +23,7 @@ import {
   type LeadListItem,
   type Resume,
   type SavedView,
+  type StepLog,
   type Wishlist,
   type WishlistContact,
   type WishlistListItem,
@@ -68,6 +70,36 @@ function parseJsonArray(value: string): string[] {
   try {
     const parsed: unknown = JSON.parse(value);
     return isStringArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseStepLogs(value: string): StepLog[] {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item): StepLog | null => {
+        if (!isRecord(item)) return null;
+        const completedAt = typeof item.completedAt === "string" ? item.completedAt : "";
+        const label = typeof item.label === "string" ? item.label : "";
+        const details = typeof item.details === "string" ? item.details : "";
+        if (!completedAt && !label && !details) return null;
+        return {
+          id: typeof item.id === "string" && item.id ? item.id : crypto.randomUUID(),
+          completedAt,
+          label,
+          details,
+          ...(typeof item.nextStepDate === "string" && item.nextStepDate
+            ? { nextStepDate: item.nextStepDate }
+            : {}),
+          ...(typeof item.nextStepLabel === "string" && item.nextStepLabel
+            ? { nextStepLabel: item.nextStepLabel }
+            : {}),
+        };
+      })
+      .filter((item): item is StepLog => item !== null);
   } catch {
     return [];
   }
@@ -175,6 +207,7 @@ export function mapApplication(row: ApplicationRow): Application {
     nextStepDate: row.nextStepDate,
     nextStepLabel: row.nextStepLabel,
     reminderTime: isReminderTime(row.reminderTime) ? row.reminderTime : "None",
+    stepLogs: resolveStepLogs(parseStepLogs(row.stepLogs ?? "[]"), row.notes),
     compensationMin: row.compensationMin,
     compensationMax: row.compensationMax,
     currency: isCurrency(row.currency) ? row.currency : "USD",
@@ -239,6 +272,7 @@ export function mapLead(row: LeadRow): Lead {
     nextStepDate: row.nextStepDate,
     nextStepLabel: row.nextStepLabel,
     reminderTime: isReminderTime(row.reminderTime) ? row.reminderTime : "None",
+    stepLogs: resolveStepLogs(parseStepLogs(row.stepLogs ?? "[]"), row.notes),
     message: row.message,
     resumeId: row.resumeId,
     coverLetterId: row.coverLetterId,
@@ -284,6 +318,7 @@ export function mapWishlist(row: WishlistRow): Wishlist {
     nextStepDate: row.nextStepDate,
     nextStepLabel: row.nextStepLabel,
     reminderTime: isReminderTime(row.reminderTime) ? row.reminderTime : "None",
+    stepLogs: resolveStepLogs(parseStepLogs(row.stepLogs ?? "[]"), row.notes),
     notes: row.notes,
     contacts: parseWishlistContacts(row.contacts),
     tags: parseJsonArray(row.tags),
@@ -334,6 +369,10 @@ export function mapSavedView(row: SavedViewRow): SavedView {
 
 export function tagsToJson(tags: string[]) {
   return JSON.stringify(tags);
+}
+
+export function stepLogsToJson(stepLogs: StepLog[]) {
+  return JSON.stringify(stepLogs);
 }
 
 export function contactsToJson(contacts: WishlistContact[]) {

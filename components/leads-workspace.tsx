@@ -13,7 +13,7 @@ import {
   LeadStatusBadge,
   PriorityBadge,
 } from "@/components/workspace-fields";
-import { NextStepCell, NextStepFollowUpCard } from "@/components/next-step";
+import { CurrentNextStepCard, NextStepCell, StepLogHistory } from "@/components/next-step";
 import { SaveButton } from "@/components/save-button";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -141,11 +141,9 @@ function computeLeadStats(leads: LeadListItem[], companies: Company[]) {
       hint: `${replied.length} replied of ${sent.length} sent`,
     },
     {
-      label: "Next follow-up",
+      label: "Next step",
       value: focus ? formatRelativeNextStep(focus.nextStepDate) : "None",
-      hint: focus
-        ? `${company?.name ?? "Unknown"}${focus.reminderTime !== "None" ? ` · ${focus.reminderTime}` : ""}`
-        : "No dated next step",
+      hint: focus ? `${company?.name ?? "Unknown"}` : "No dated next step",
       urgency,
     },
   ] as const;
@@ -290,11 +288,10 @@ export function LeadDetailDrawer({
                   </div>
                 </div>
                 <div className="px-4 pt-4">
-                  <NextStepFollowUpCard
+                  <CurrentNextStepCard
                     nextStepDate={draft.nextStepDate}
                     nextStepLabel={draft.nextStepLabel}
-                    reminderTime={draft.reminderTime}
-                    notes={draft.notes}
+                    stepLogs={draft.stepLogs}
                     readOnly={readOnly}
                     onComplete={(patch) => {
                       setValues(patch);
@@ -317,7 +314,6 @@ export function LeadDetailDrawer({
                           "platform",
                           "resumeId",
                           "coverLetterId",
-                          "reminderTime",
                         ] as const;
                         const immediate: Partial<Lead> = {};
                         for (const key of immediateKeys) {
@@ -334,6 +330,7 @@ export function LeadDetailDrawer({
                     />
                   </div>
                 </div>
+                <StepLogHistory stepLogs={draft.stepLogs} />
               </div>
               <SheetFooter className="shrink-0 border-t">
                 <p className="mr-auto text-xs text-muted-foreground">

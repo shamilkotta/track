@@ -23,7 +23,7 @@ import {
   useCollapsedCompanyGroups,
 } from "@/components/company-group-rows";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { NextStepCell, NextStepFollowUpCard } from "@/components/next-step";
+import { CurrentNextStepCard, NextStepCell, StepLogHistory } from "@/components/next-step";
 import { SaveButton } from "@/components/save-button";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import {
@@ -170,11 +170,9 @@ function computeStats(applications: ApplicationListItem[], companies: Company[])
       hint: `${replied.length} replied of ${applied.length} sent`,
     },
     {
-      label: "Next follow-up",
+      label: "Next step",
       value: focus ? formatRelativeNextStep(focus.nextStepDate) : "None",
-      hint: focus
-        ? `${company?.name ?? "Unknown"}${focus.reminderTime !== "None" ? ` · ${focus.reminderTime}` : ""}`
-        : "No dated next step",
+      hint: focus ? `${company?.name ?? "Unknown"}` : "No dated next step",
       urgency,
     },
   ] as const;
@@ -322,11 +320,10 @@ function DetailDrawer({
                   </div>
                 </div>
                 <div className="px-4 pt-4">
-                  <NextStepFollowUpCard
+                  <CurrentNextStepCard
                     nextStepDate={draft.nextStepDate}
                     nextStepLabel={draft.nextStepLabel}
-                    reminderTime={draft.reminderTime}
-                    notes={draft.notes}
+                    stepLogs={draft.stepLogs}
                     readOnly={readOnly}
                     onComplete={(patch) => {
                       setValues(patch);
@@ -388,7 +385,6 @@ function DetailDrawer({
                           "replyStatus",
                           "source",
                           "jobType",
-                          "reminderTime",
                         ] as const;
                         const immediate: Partial<Application> = {};
                         for (const key of immediateKeys) {
@@ -405,6 +401,7 @@ function DetailDrawer({
                     />
                   </div>
                 </div>
+                <StepLogHistory stepLogs={draft.stepLogs} />
               </div>
               <SheetFooter className="shrink-0 border-t">
                 <p className="mr-auto text-xs text-muted-foreground">

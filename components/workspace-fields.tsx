@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { RelativeNextStepText } from "@/components/next-step";
 import {
   currencies,
   isCurrency,
@@ -31,7 +32,6 @@ import {
   isLeadPlatform,
   isLeadStatus,
   isPriority,
-  isReminderTime,
   isReplyStatus,
   isSource,
   isStage,
@@ -42,7 +42,6 @@ import {
   leadStatuses,
   parseTagsInput,
   priorities,
-  reminderTimes,
   replyStatuses,
   sources,
   stages,
@@ -56,7 +55,6 @@ import {
   type LeadPlatform,
   type LeadStatus,
   type Priority,
-  type ReminderTime,
   type ReplyStatus,
   type Resume,
   type Source,
@@ -733,15 +731,6 @@ export function ApplicationFields({
             />
           </Field>
           <Field>
-            <FieldLabel>Reminder time</FieldLabel>
-            <NativeSelectField
-              value={values.reminderTime}
-              onChange={(reminderTime: ReminderTime) => setValues({ reminderTime })}
-              options={reminderTimes}
-              guard={isReminderTime}
-            />
-          </Field>
-          <Field>
             <FieldLabel>Applied date</FieldLabel>
             <Input
               type="date"
@@ -756,6 +745,11 @@ export function ApplicationFields({
               value={values.nextStepDate}
               onChange={(e) => setValues({ nextStepDate: e.target.value })}
             />
+            {values.nextStepDate ? (
+              <p className="text-xs">
+                <RelativeNextStepText date={values.nextStepDate} />
+              </p>
+            ) : null}
           </Field>
           <Field className="sm:col-span-2">
             <FieldLabel>Next step</FieldLabel>
@@ -864,7 +858,7 @@ export function ApplicationFields({
             <Textarea
               value={values.notes}
               onChange={(e) => setValues({ notes: e.target.value })}
-              placeholder="Interview prep, research, concerns, follow-ups..."
+              placeholder="Interview prep, research, concerns..."
             />
           </Field>
           <Field>
@@ -1072,21 +1066,17 @@ export function LeadFields({
             />
           </Field>
           <Field>
-            <FieldLabel>Reminder time</FieldLabel>
-            <NativeSelectField
-              value={values.reminderTime}
-              onChange={(reminderTime: ReminderTime) => setValues({ reminderTime })}
-              options={reminderTimes}
-              guard={isReminderTime}
-            />
-          </Field>
-          <Field>
             <FieldLabel>Next step date</FieldLabel>
             <Input
               type="date"
               value={values.nextStepDate}
               onChange={(e) => setValues({ nextStepDate: e.target.value })}
             />
+            {values.nextStepDate ? (
+              <p className="text-xs">
+                <RelativeNextStepText date={values.nextStepDate} />
+              </p>
+            ) : null}
           </Field>
           <Field>
             <FieldLabel>Next step</FieldLabel>

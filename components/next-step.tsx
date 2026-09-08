@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, CircleAlert } from "lucide-react";
+import { Check, CircleAlert, X } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -277,8 +277,8 @@ export function CurrentNextStepCard({
               setOpen(true);
             }}
           >
-            <Check />
-            {open ? "Cancel" : hasStep ? "Log done" : "Log a step"}
+            {open ? <X /> : <Check />}
+            {open ? "Cancel" : hasStep ? "Log" : "Log a step"}
           </Button>
         ) : null}
       </div>
@@ -296,11 +296,13 @@ export function CurrentNextStepCard({
           </Field>
           <div className="flex items-center gap-2 text-sm">
             <Checkbox
+              id="schedule-next-step"
               checked={scheduleNext}
               onCheckedChange={(checked) => setScheduleNext(checked === true)}
-              aria-label="Schedule the next step"
             />
-            <span>Schedule the next step</span>
+            <label htmlFor="schedule-next-step" className="cursor-pointer">
+              Schedule the next step
+            </label>
           </div>
           {scheduleNext ? (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -351,27 +353,16 @@ export function StepLogHistory({
       <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         Step history
       </p>
-      <Accordion className="gap-2">
+      <Accordion className="gap-3">
         {stepLogs.map((log) => {
           const title = log.label.trim() || "Step";
-          const subtitle = [
-            formatDisplayDate(log.completedAt),
-            log.nextStepLabel && log.nextStepDate
-              ? `Next: ${log.nextStepLabel} · ${formatRelativeNextStep(log.nextStepDate)}`
-              : log.nextStepLabel
-                ? `Next: ${log.nextStepLabel}`
-                : log.nextStepDate
-                  ? `Next: ${formatRelativeNextStep(log.nextStepDate)}`
-                  : null,
-          ]
-            .filter(Boolean)
-            .join(" · ");
+          const subtitle = formatDisplayDate(log.completedAt);
 
           return (
             <AccordionItem
               key={log.id}
               value={log.id}
-              className="rounded-lg border border-foreground/10 not-last:border-b-0"
+              className="rounded-lg border border-foreground/10"
             >
               <AccordionTrigger className="px-3 py-2.5 hover:no-underline">
                 <span className="min-w-0 flex-1 pr-2 text-left">

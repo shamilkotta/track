@@ -10,7 +10,7 @@ import {
   PriorityBadge,
   WishlistStatusBadge,
 } from "@/components/workspace-fields";
-import { CurrentNextStepCard, NextStepCell, RelativeNextStepText, StepLogHistory } from "@/components/next-step";
+import { CurrentNextStepCard, NextStepCell, StepLogHistory } from "@/components/next-step";
 import { SaveButton } from "@/components/save-button";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -235,11 +235,6 @@ function WishlistFields({
               value={values.nextStepDate}
               onChange={(e) => setValues({ nextStepDate: e.target.value })}
             />
-            {values.nextStepDate ? (
-              <p className="text-xs">
-                <RelativeNextStepText date={values.nextStepDate} />
-              </p>
-            ) : null}
           </Field>
           <Field className="sm:col-span-2">
             <FieldLabel>Next step</FieldLabel>

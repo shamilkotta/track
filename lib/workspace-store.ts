@@ -595,8 +595,7 @@ function applicationValues(userId: string, record: Record<string, unknown>, curr
       : (current?.replyStatus ?? "No reply yet"),
     appliedDate: stringField(record, "appliedDate", current?.appliedDate ?? ""),
     nextStepDate: stringField(record, "nextStepDate", current?.nextStepDate ?? ""),
-    nextStepLabel:
-      stringField(record, "nextStepLabel", current?.nextStepLabel ?? "") || "Follow up",
+    nextStepLabel: stringField(record, "nextStepLabel", current?.nextStepLabel ?? ""),
     reminderTime: isReminderTime(
       stringField(record, "reminderTime", current?.reminderTime ?? "None"),
     )
@@ -755,8 +754,7 @@ function leadValues(userId: string, record: Record<string, unknown>, current?: L
       : (current?.priority ?? "Medium"),
     sentDate: stringField(record, "sentDate", current?.sentDate ?? ""),
     nextStepDate: stringField(record, "nextStepDate", current?.nextStepDate ?? ""),
-    nextStepLabel:
-      stringField(record, "nextStepLabel", current?.nextStepLabel ?? "") || "Follow up",
+    nextStepLabel: stringField(record, "nextStepLabel", current?.nextStepLabel ?? ""),
     reminderTime: isReminderTime(
       stringField(record, "reminderTime", current?.reminderTime ?? "None"),
     )

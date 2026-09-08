@@ -30,7 +30,6 @@ import {
   ApplicationFields,
   CompanyMark,
   LeadStatusBadge,
-  NativeSelectField,
   PriorityBadge,
   StageBadge,
   WishlistStatusBadge,
@@ -98,8 +97,6 @@ import {
   formatDisplayDate,
   formatRelativeNextStep,
   formValuesToApplicationPatch,
-  isPriority,
-  isReplyStatus,
   isSortKey,
   isSource,
   isStage,
@@ -332,44 +329,6 @@ function DetailDrawer({
                   />
                 </div>
                 <div {...(readOnly ? { inert: true } : {})}>
-                  <div className="grid grid-cols-2 gap-3 px-4 pt-4">
-                    <Field>
-                      <FieldLabel>Status</FieldLabel>
-                      <NativeSelectField
-                        value={draft.stage}
-                        onChange={(stage) => {
-                          setValues({ stage });
-                          patchImmediate({ stage });
-                        }}
-                        options={stages}
-                        guard={isStage}
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel>Priority</FieldLabel>
-                      <NativeSelectField
-                        value={draft.priority}
-                        onChange={(priority) => {
-                          setValues({ priority });
-                          patchImmediate({ priority });
-                        }}
-                        options={priorities}
-                        guard={isPriority}
-                      />
-                    </Field>
-                    <Field className="col-span-2">
-                      <FieldLabel>Reply status</FieldLabel>
-                      <NativeSelectField
-                        value={draft.replyStatus}
-                        onChange={(replyStatus) => {
-                          setValues({ replyStatus });
-                          patchImmediate({ replyStatus });
-                        }}
-                        options={replyStatuses}
-                        guard={isReplyStatus}
-                      />
-                    </Field>
-                  </div>
                   <div className="p-4">
                     <ApplicationFields
                       companies={companies}
@@ -379,6 +338,8 @@ function DetailDrawer({
                       setValues={(patch) => {
                         setValues(patch);
                         const immediateKeys = [
+                          "stage",
+                          "priority",
                           "workMode",
                           "resumeId",
                           "coverLetterId",

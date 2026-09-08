@@ -24,7 +24,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { RelativeNextStepText } from "@/components/next-step";
 import {
   currencies,
   isCurrency,
@@ -745,11 +744,6 @@ export function ApplicationFields({
               value={values.nextStepDate}
               onChange={(e) => setValues({ nextStepDate: e.target.value })}
             />
-            {values.nextStepDate ? (
-              <p className="text-xs">
-                <RelativeNextStepText date={values.nextStepDate} />
-              </p>
-            ) : null}
           </Field>
           <Field className="sm:col-span-2">
             <FieldLabel>Next step</FieldLabel>
@@ -1072,11 +1066,6 @@ export function LeadFields({
               value={values.nextStepDate}
               onChange={(e) => setValues({ nextStepDate: e.target.value })}
             />
-            {values.nextStepDate ? (
-              <p className="text-xs">
-                <RelativeNextStepText date={values.nextStepDate} />
-              </p>
-            ) : null}
           </Field>
           <Field>
             <FieldLabel>Next step</FieldLabel>

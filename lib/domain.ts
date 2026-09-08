@@ -500,12 +500,73 @@ export function formatCompensation(
   return item.equityBonus ? `${base} + ${item.equityBonus}` : base;
 }
 
+export type NextStepUrgency = "overdue" | "today" | "tomorrow" | "later" | "none";
+
+export function todayIsoDate(now = new Date()) {
+  const local = new Date(now);
+  local.setHours(0, 0, 0, 0);
+  const year = local.getFullYear();
+  const month = String(local.getMonth() + 1).padStart(2, "0");
+  const day = String(local.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function daysUntilDate(iso: string, now = new Date()) {
+  if (!iso) return null;
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const date = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  return Math.round((date.getTime() - today.getTime()) / 86400000);
+}
+
+export function nextStepUrgency(iso: string, now = new Date()): NextStepUrgency {
+  const diff = daysUntilDate(iso, now);
+  if (diff === null) return "none";
+  if (diff < 0) return "overdue";
+  if (diff === 0) return "today";
+  if (diff === 1) return "tomorrow";
+  return "later";
+}
+
+export function formatRelativeNextStep(iso: string, now = new Date()) {
+  const diff = daysUntilDate(iso, now);
+  if (diff === null) return "—";
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  if (diff === -1) return "Yesterday";
+  if (diff < -1) return `${Math.abs(diff)}d overdue`;
+  return formatDisplayDate(iso);
+}
+
 export function nextStepSummary(
   item: Pick<Application | Lead | Wishlist, "nextStepLabel" | "nextStepDate">,
 ) {
+  if (item.nextStepLabel && item.nextStepDate) {
+    return `${item.nextStepLabel} · ${formatRelativeNextStep(item.nextStepDate)}`;
+  }
   if (item.nextStepLabel) return item.nextStepLabel;
-  if (item.nextStepDate) return formatDisplayDate(item.nextStepDate);
+  if (item.nextStepDate) return formatRelativeNextStep(item.nextStepDate);
   return "—";
+}
+
+export function appendFollowUpNote(
+  notes: string,
+  entry: { label: string; details: string; completedAt?: string },
+) {
+  const completedAt = entry.completedAt ?? todayIsoDate();
+  const stamp = formatDisplayDate(completedAt);
+  const label = entry.label.trim() || "Follow-up";
+  const details = entry.details.trim();
+  const block = details ? `[${stamp}] ${label} — done\n${details}` : `[${stamp}] ${label} — done`;
+  const trimmed = notes.trim();
+  return trimmed ? `${trimmed}\n\n${block}` : block;
+}
+
+export function pickMostUrgentNextStep<T extends { nextStepDate: string }>(items: T[]) {
+  const dated = items.filter((item) => item.nextStepDate);
+  if (dated.length === 0) return undefined;
+  return [...dated].sort((a, b) => a.nextStepDate.localeCompare(b.nextStepDate))[0];
 }
 
 export function emptyFormValues(): ApplicationFormValues {

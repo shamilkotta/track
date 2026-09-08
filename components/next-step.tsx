@@ -42,7 +42,7 @@ const urgencyTone: Record<
     label: "Due today",
   },
   tomorrow: {
-    cell: "font-medium text-foreground",
+    cell: "font-medium text-muted-foreground",
     badge: "border-foreground/15 bg-secondary text-foreground",
     panel: "border-foreground/10 bg-secondary/60",
     label: "Tomorrow",
@@ -54,6 +54,23 @@ const urgencyTone: Record<
     label: "Scheduled",
   },
 };
+
+export function RelativeNextStepText({
+  date,
+  className,
+}: {
+  date: string;
+  className?: string;
+}) {
+  if (!date) return null;
+  const urgency = nextStepUrgency(date);
+  const relative = formatRelativeNextStep(date);
+  const hot = urgency === "overdue" || urgency === "today" || urgency === "tomorrow";
+  if (!hot) {
+    return <span className={cn("text-muted-foreground", className)}>{relative}</span>;
+  }
+  return <span className={cn(urgencyTone[urgency].cell, className)}>{relative}</span>;
+}
 
 export function NextStepCell({
   nextStepDate,
@@ -71,7 +88,6 @@ export function NextStepCell({
 
   const relative = nextStepDate ? formatRelativeNextStep(nextStepDate) : null;
   const hot = urgency === "overdue" || urgency === "today" || urgency === "tomorrow";
-  const tone = hot ? urgencyTone[urgency] : null;
 
   return (
     <span className={cn("flex min-w-0 items-center gap-1.5", className)}>
@@ -81,7 +97,7 @@ export function NextStepCell({
       <span className="min-w-0 truncate">
         {hot && relative ? (
           <>
-            <span className={tone?.cell}>{relative}</span>
+            <RelativeNextStepText date={nextStepDate} />
             {nextStepLabel ? (
               <span className="text-muted-foreground"> · {nextStepLabel}</span>
             ) : null}
@@ -223,10 +239,25 @@ export function CurrentNextStepCard({
               </Badge>
             ) : null}
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {hasStep
-              ? `${nextStepLabel || "Step"}${nextStepDate ? ` · ${formatRelativeNextStep(nextStepDate)}` : ""}`
-              : "Record what you did on this opportunity."}
+          <p className="mt-1 flex items-center gap-1.5 text-sm">
+            {hasStep ? (
+              <>
+                {urgency === "overdue" ? (
+                  <CircleAlert className="size-3.5 shrink-0 text-destructive" aria-hidden />
+                ) : null}
+                <span className="min-w-0 truncate">
+                  <span className="text-muted-foreground">{nextStepLabel || "Step"}</span>
+                  {nextStepDate ? (
+                    <>
+                      <span className="text-muted-foreground"> · </span>
+                      <RelativeNextStepText date={nextStepDate} />
+                    </>
+                  ) : null}
+                </span>
+              </>
+            ) : (
+              <span className="text-muted-foreground">Record what you did on this opportunity.</span>
+            )}
           </p>
         </div>
         {!readOnly ? (

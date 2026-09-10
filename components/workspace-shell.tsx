@@ -68,9 +68,25 @@ import {
   screenPath,
   userInitials,
   type Screen,
+  type WorkspaceSearchHit,
   type WorkspaceUser,
 } from "@/lib/domain";
 import { usePathname, useRouter } from "nlite/navigation";
+
+const QUICK_SEARCH_LIMIT = 12;
+const QUICK_SEARCH_COMPANY_LIMIT = 8;
+
+function matchesQuickSearch(haystack: string, query: string) {
+  if (!query) return true;
+  return haystack.toLowerCase().includes(query);
+}
+
+function filterQuickSearchHits(items: WorkspaceSearchHit[], query: string, limit: number) {
+  const matched = query
+    ? items.filter((item) => matchesQuickSearch(`${item.subtitle} ${item.title}`, query))
+    : items;
+  return matched.slice(0, limit);
+}
 
 export type WorkspaceFocus =
   | { kind: "application"; id: string }
@@ -276,10 +292,49 @@ export function WorkspaceShell({
   const router = useRouter();
   const screen = screenFromPathname(pathname);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [focus, setFocus] = useState<WorkspaceFocus | null>(null);
   const summaryQuery = useWorkspaceSummary(initialUser);
   const user = summaryQuery.data?.user ?? initialUser;
   const searchIndex = summaryQuery.data?.search;
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+
+  const goToScreens = useMemo(
+    () =>
+      (
+        [
+          ["applications", "Applications"],
+          ["leads", "Leads"],
+          ["wishlist", "Wishlist"],
+          ["companies", "Companies"],
+          ["resumes", "Resumes"],
+          ["cover-letters", "Cover letters"],
+          ["archive", "Archive"],
+        ] as const
+      ).filter(([, label]) => matchesQuickSearch(label, normalizedQuery)),
+    [normalizedQuery],
+  );
+
+  const applicationHits = useMemo(
+    () =>
+      filterQuickSearchHits(searchIndex?.applications ?? [], normalizedQuery, QUICK_SEARCH_LIMIT),
+    [normalizedQuery, searchIndex?.applications],
+  );
+  const leadHits = useMemo(
+    () => filterQuickSearchHits(searchIndex?.leads ?? [], normalizedQuery, QUICK_SEARCH_LIMIT),
+    [normalizedQuery, searchIndex?.leads],
+  );
+  const wishlistHits = useMemo(
+    () => filterQuickSearchHits(searchIndex?.wishlists ?? [], normalizedQuery, QUICK_SEARCH_LIMIT),
+    [normalizedQuery, searchIndex?.wishlists],
+  );
+  const companyHits = useMemo(() => {
+    const items = searchIndex?.companies ?? [];
+    const matched = normalizedQuery
+      ? items.filter((company) => matchesQuickSearch(company.name, normalizedQuery))
+      : items;
+    return matched.slice(0, QUICK_SEARCH_COMPANY_LIMIT);
+  }, [normalizedQuery, searchIndex?.companies]);
 
   const consumeFocus = useCallback(
     (kind: WorkspaceFocus["kind"]) => {
@@ -321,98 +376,106 @@ export function WorkspaceShell({
         </SidebarInset>
         <CommandDialog
           open={searchOpen}
-          onOpenChange={setSearchOpen}
+          onOpenChange={(open) => {
+            setSearchOpen(open);
+            if (!open) setSearchQuery("");
+          }}
           title="Quick search"
           className="sm:max-w-xl"
         >
-          <CommandPalette className="min-h-80">
-            <CommandInput placeholder="Search applications, leads, wishlist, companies..." />
+          <CommandPalette shouldFilter={false} className="min-h-80">
+            <CommandInput
+              value={searchQuery}
+              onValueChange={setSearchQuery}
+              placeholder="Search applications, leads, wishlist, companies..."
+            />
             <CommandList className="max-h-96">
               <CommandEmpty>No matches.</CommandEmpty>
-              <CommandGroup heading="Go to">
-                {(
-                  [
-                    ["applications", "Applications"],
-                    ["leads", "Leads"],
-                    ["wishlist", "Wishlist"],
-                    ["companies", "Companies"],
-                    ["resumes", "Resumes"],
-                    ["cover-letters", "Cover letters"],
-                    ["archive", "Archive"],
-                  ] as const
-                ).map(([id, label]) => (
-                  <CommandItem
-                    key={id}
-                    onSelect={() => {
-                      router.push(screenPath(id));
-                      setSearchOpen(false);
-                    }}
-                  >
-                    {label}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandGroup heading="Applications">
-                {(searchIndex?.applications ?? []).slice(0, 12).map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    value={`${item.subtitle} ${item.title}`}
-                    onSelect={() => {
-                      setFocus({ kind: "application", id: item.id });
-                      router.push(screenPath(item.archived ? "archive" : "applications"));
-                      setSearchOpen(false);
-                    }}
-                  >
-                    {item.subtitle} · {item.title}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandGroup heading="Leads">
-                {(searchIndex?.leads ?? []).slice(0, 12).map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    value={`${item.subtitle} ${item.title}`}
-                    onSelect={() => {
-                      setFocus({ kind: "lead", id: item.id });
-                      router.push(screenPath(item.archived ? "archive" : "leads"));
-                      setSearchOpen(false);
-                    }}
-                  >
-                    {item.subtitle} · {item.title}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandGroup heading="Wishlist">
-                {(searchIndex?.wishlists ?? []).slice(0, 12).map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    value={`${item.subtitle} ${item.title}`}
-                    onSelect={() => {
-                      setFocus({ kind: "wishlist", id: item.id });
-                      router.push(screenPath(item.archived ? "archive" : "wishlist"));
-                      setSearchOpen(false);
-                    }}
-                  >
-                    {item.subtitle}
-                    {item.title ? ` · ${item.title}` : ""}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandGroup heading="Companies">
-                {(searchIndex?.companies ?? []).slice(0, 8).map((company) => (
-                  <CommandItem
-                    key={company.id}
-                    value={company.name}
-                    onSelect={() => {
-                      setFocus({ kind: "company", id: company.id });
-                      router.push(screenPath("companies"));
-                      setSearchOpen(false);
-                    }}
-                  >
-                    {company.name}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              {goToScreens.length > 0 ? (
+                <CommandGroup heading="Go to">
+                  {goToScreens.map(([id, label]) => (
+                    <CommandItem
+                      key={id}
+                      value={label}
+                      onSelect={() => {
+                        router.push(screenPath(id));
+                        setSearchOpen(false);
+                      }}
+                    >
+                      {label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
+              {applicationHits.length > 0 ? (
+                <CommandGroup heading="Applications">
+                  {applicationHits.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`${item.subtitle} ${item.title}`}
+                      onSelect={() => {
+                        setFocus({ kind: "application", id: item.id });
+                        router.push(screenPath(item.archived ? "archive" : "applications"));
+                        setSearchOpen(false);
+                      }}
+                    >
+                      {item.subtitle} · {item.title}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
+              {leadHits.length > 0 ? (
+                <CommandGroup heading="Leads">
+                  {leadHits.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`${item.subtitle} ${item.title}`}
+                      onSelect={() => {
+                        setFocus({ kind: "lead", id: item.id });
+                        router.push(screenPath(item.archived ? "archive" : "leads"));
+                        setSearchOpen(false);
+                      }}
+                    >
+                      {item.subtitle} · {item.title}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
+              {wishlistHits.length > 0 ? (
+                <CommandGroup heading="Wishlist">
+                  {wishlistHits.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`${item.subtitle} ${item.title}`}
+                      onSelect={() => {
+                        setFocus({ kind: "wishlist", id: item.id });
+                        router.push(screenPath(item.archived ? "archive" : "wishlist"));
+                        setSearchOpen(false);
+                      }}
+                    >
+                      {item.subtitle}
+                      {item.title ? ` · ${item.title}` : ""}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
+              {companyHits.length > 0 ? (
+                <CommandGroup heading="Companies">
+                  {companyHits.map((company) => (
+                    <CommandItem
+                      key={company.id}
+                      value={company.name}
+                      onSelect={() => {
+                        setFocus({ kind: "company", id: company.id });
+                        router.push(screenPath("companies"));
+                        setSearchOpen(false);
+                      }}
+                    >
+                      {company.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
             </CommandList>
           </CommandPalette>
         </CommandDialog>

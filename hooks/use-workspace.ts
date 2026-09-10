@@ -171,7 +171,15 @@ export function useWorkspaceSummary(initialUser?: {
       ? {
           user: initialUser,
           counts: { applications: 0, leads: 0, wishlists: 0 },
-          search: { applications: [], leads: [], wishlists: [], companies: [] },
+          search: {
+            applications: [],
+            leads: [],
+            wishlists: [],
+            companies: [],
+            learningPaths: [],
+            learningModules: [],
+            learningTopics: [],
+          },
         }
       : undefined,
   });

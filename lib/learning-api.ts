@@ -3,7 +3,6 @@ import {
   isLearningItemStatus,
   isLearningPathColor,
   isLearningPathStatus,
-  isLearningResourceKind,
   isRecord,
   type ArchiveScope,
   type LearningItem,
@@ -12,6 +11,9 @@ import {
   type LearningPath,
   type LearningPathDetail,
   type LearningResource,
+  type LearningResourceCreate,
+  type LearningResourcePatch,
+  type LearningScheduleEntry,
 } from "@/lib/domain";
 import { redirect } from "nlite/navigation";
 
@@ -54,18 +56,16 @@ function parseProgress(value: unknown) {
 function parseResource(value: unknown): LearningResource | null {
   if (!isRecord(value) || typeof value.id !== "string" || typeof value.title !== "string")
     return null;
-  const kind = str(value, "kind", "article");
   return {
     id: value.id,
     pathId: typeof value.pathId === "string" ? value.pathId : null,
     itemId: typeof value.itemId === "string" ? value.itemId : null,
     title: value.title,
-    url: str(value, "url"),
-    kind: isLearningResourceKind(kind) ? kind : "article",
-    notes: str(value, "notes"),
+    sortOrder: num(value, "sortOrder"),
     createdAt: str(value, "createdAt"),
     updatedAt: str(value, "updatedAt"),
     pathTitle: typeof value.pathTitle === "string" ? value.pathTitle : undefined,
+    itemTitle: typeof value.itemTitle === "string" ? value.itemTitle : undefined,
   };
 }
 
@@ -115,13 +115,14 @@ function parsePath(value: unknown): LearningPath | null {
     archived: value.archived === true,
     createdAt: str(value, "createdAt"),
     updatedAt: str(value, "updatedAt"),
+    moduleCount: num(value, "moduleCount"),
     progress: parseProgress(value.progress),
   };
 }
 
 function parsePathDetail(value: unknown): LearningPathDetail {
   const path = parsePath(value);
-  if (!path || !isRecord(value)) throw new Error("Could not load learning path");
+  if (!path || !isRecord(value)) throw new Error("Could not load learning map");
   const modules = Array.isArray(value.modules)
     ? value.modules
         .map((module) => {
@@ -150,10 +151,7 @@ function parsePathDetail(value: unknown): LearningPathDetail {
         })
         .filter((module): module is LearningPathDetail["modules"][number] => module !== null)
     : [];
-  const resources = Array.isArray(value.resources)
-    ? value.resources.map(parseResource).filter((item): item is LearningResource => item !== null)
-    : [];
-  return { ...path, modules, resources };
+  return { ...path, modules };
 }
 
 function parseJournal(value: unknown): LearningJournalEntry | null {
@@ -180,8 +178,9 @@ export function fetchLearningOverview() {
     if (!isRecord(value)) throw new Error("Could not load overview");
     return {
       paths: parseList(value.paths, parsePath),
-      dueSoon: parseList(value.dueSoon, parseItem),
-      overdue: parseList(value.overdue, parseItem),
+      overdue: parseList(value.overdue, parseScheduleEntry),
+      dueToday: parseList(value.dueToday, parseScheduleEntry),
+      dueSoon: parseList(value.dueSoon, parseScheduleEntry),
       completedThisWeek: num(value, "completedThisWeek"),
       activeMinutesRemaining: num(value, "activeMinutesRemaining"),
       journalStreakDays: num(value, "journalStreakDays"),
@@ -281,11 +280,46 @@ export function fetchDueLearningItems(from?: string, to?: string) {
   );
 }
 
+function parseScheduleEntry(value: unknown): LearningScheduleEntry | null {
+  if (!isRecord(value) || typeof value.id !== "string" || typeof value.pathId !== "string") {
+    return null;
+  }
+  const kind = value.kind;
+  if (kind !== "topic" && kind !== "module" && kind !== "map") return null;
+  const itemKind = typeof value.itemKind === "string" ? value.itemKind : undefined;
+  const itemStatus = typeof value.itemStatus === "string" ? value.itemStatus : undefined;
+  return {
+    id: value.id,
+    kind,
+    title: str(value, "title"),
+    scheduleDate: str(value, "scheduleDate"),
+    pathId: value.pathId,
+    pathTitle: str(value, "pathTitle"),
+    moduleId: typeof value.moduleId === "string" ? value.moduleId : undefined,
+    moduleTitle: typeof value.moduleTitle === "string" ? value.moduleTitle : undefined,
+    itemId: typeof value.itemId === "string" ? value.itemId : undefined,
+    itemKind: itemKind && isLearningItemKind(itemKind) ? itemKind : undefined,
+    itemStatus: itemStatus && isLearningItemStatus(itemStatus) ? itemStatus : undefined,
+    estimatedMinutes:
+      typeof value.estimatedMinutes === "number" ? value.estimatedMinutes : undefined,
+  };
+}
+
+export function fetchLearningSchedule(from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const query = params.toString();
+  return api(`/api/learning/schedule${query ? `?${query}` : ""}`, undefined, (value) =>
+    parseList(value, parseScheduleEntry),
+  );
+}
+
 export function fetchLearningResources() {
   return api("/api/learning/resources", undefined, (value) => parseList(value, parseResource));
 }
 
-export function createLearningResourceRequest(data: Record<string, unknown>) {
+export function createLearningResourceRequest(data: LearningResourceCreate) {
   return api(
     "/api/learning/resources",
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) },
@@ -297,13 +331,13 @@ export function createLearningResourceRequest(data: Record<string, unknown>) {
   );
 }
 
-export function patchLearningResourceRequest(id: string, data: Record<string, unknown>) {
+export function patchLearningResourceRequest(id: string, patch: LearningResourcePatch) {
   return api(
     `/api/learning/resources/${id}`,
     {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify(patch),
     },
     (value) => {
       const item = parseResource(value);

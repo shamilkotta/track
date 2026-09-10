@@ -61,7 +61,7 @@ export function LearningJournalView() {
       <>
         <WorkspacePageHeader
           title="Learning journal"
-          description="Short reflections keep long paths honest."
+          description="Short reflections keep long maps honest."
         />
         <ListPageSkeleton columns={3} />
       </>
@@ -76,7 +76,7 @@ export function LearningJournalView() {
       <ActionErrorBanner error={actionError} onDismiss={() => setActionError(null)} />
       <WorkspacePageHeader
         title="Learning journal"
-        description="Short reflections keep long paths honest."
+        description="Short reflections keep long maps honest."
         actions={
           <Button onClick={() => setOpen(true)}>
             <Plus />
@@ -105,7 +105,7 @@ export function LearningJournalView() {
                   <p className="text-xs text-muted-foreground">
                     {formatDisplayDate(entry.entryDate)}
                     {entry.pathId
-                      ? ` · ${entry.pathTitle || pathTitles.get(entry.pathId) || "Path"}`
+                      ? ` · ${entry.pathTitle || pathTitles.get(entry.pathId) || "Map"}`
                       : ""}
                   </p>
                   {entry.title ? (
@@ -144,7 +144,7 @@ export function LearningJournalView() {
               <Input value={title} onChange={(e) => setTitle(e.target.value)} />
             </Field>
             <Field>
-              <FieldLabel>Linked path (optional)</FieldLabel>
+              <FieldLabel>Linked map (optional)</FieldLabel>
               <select
                 className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                 value={pathId}

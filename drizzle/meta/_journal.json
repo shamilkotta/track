@@ -50,6 +50,20 @@
       "when": 1788778394358,
       "tag": "0005_motionless_korath",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1789020000000,
+      "tag": "0006_learning_resource_sort_order",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1789100000000,
+      "tag": "0007_learning_resource_text_only",
+      "breakpoints": true
     }
   ]
 }

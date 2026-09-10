@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, lte, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   learningItems,
@@ -12,7 +12,6 @@ import {
   isLearningItemStatus,
   isLearningPathColor,
   isLearningPathStatus,
-  isLearningResourceKind,
   learningProgressPercent,
   type ArchiveScope,
   type LearningItem,
@@ -26,7 +25,9 @@ import {
   type LearningPathDetail,
   type LearningPathStatus,
   type LearningResource,
-  type LearningResourceKind,
+  type LearningResourceCreate,
+  type LearningResourcePatch,
+  type LearningScheduleEntry,
 } from "@/lib/domain";
 import { HttpError, newId, now, requireString, stringField } from "@/lib/http";
 
@@ -51,18 +52,20 @@ function addDaysIso(days: number) {
   return date.toISOString().slice(0, 10);
 }
 
-function mapResource(row: ResourceRow, pathTitle?: string): LearningResource {
+function mapResource(
+  row: ResourceRow,
+  meta?: { pathTitle?: string; itemTitle?: string },
+): LearningResource {
   return {
     id: row.id,
     pathId: row.pathId,
     itemId: row.itemId,
     title: row.title,
-    url: row.url,
-    kind: isLearningResourceKind(row.kind) ? row.kind : "article",
-    notes: row.notes,
+    sortOrder: row.sortOrder,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
-    pathTitle,
+    pathTitle: meta?.pathTitle,
+    itemTitle: meta?.itemTitle,
   };
 }
 
@@ -117,7 +120,7 @@ function mapModule(
   };
 }
 
-function mapPath(row: PathRow, items: ItemRow[] = []): LearningPath {
+function mapPath(row: PathRow, items: ItemRow[] = [], moduleCount = 0): LearningPath {
   const totalItems = items.length;
   const doneItems = items.filter((item) => item.status === "done").length;
   return {
@@ -132,6 +135,7 @@ function mapPath(row: PathRow, items: ItemRow[] = []): LearningPath {
     archived: row.archived,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
+    moduleCount,
     progress: {
       totalItems,
       doneItems,
@@ -174,7 +178,7 @@ async function ownedPath(userId: string, pathId: string) {
   const row = await db().query.learningPaths.findFirst({
     where: and(eq(learningPaths.id, pathId), eq(learningPaths.userId, userId)),
   });
-  if (!row) throw new HttpError(404, "Learning path not found");
+  if (!row) throw new HttpError(404, "Learning map not found");
   return row;
 }
 
@@ -226,23 +230,30 @@ export async function listLearningPaths(
     orderBy: desc(learningPaths.updatedAt),
   });
   if (rows.length === 0) return [];
-  const items = await database.query.learningItems.findMany({
-    where: and(
-      eq(learningItems.userId, userId),
-      inArray(
-        learningItems.pathId,
-        rows.map((row) => row.id),
-      ),
-    ),
-    columns: { pathId: true, status: true },
-  });
+  const pathIds = rows.map((row) => row.id);
+  const [items, modules] = await Promise.all([
+    database.query.learningItems.findMany({
+      where: and(eq(learningItems.userId, userId), inArray(learningItems.pathId, pathIds)),
+      columns: { pathId: true, status: true },
+    }),
+    database.query.learningModules.findMany({
+      where: and(eq(learningModules.userId, userId), inArray(learningModules.pathId, pathIds)),
+      columns: { pathId: true },
+    }),
+  ]);
   const byPath = new Map<string, ItemRow[]>();
   for (const item of items as ItemRow[]) {
     const list = byPath.get(item.pathId) ?? [];
     list.push(item);
     byPath.set(item.pathId, list);
   }
-  return rows.map((row) => mapPath(row, byPath.get(row.id) ?? []));
+  const moduleCountByPath = new Map<string, number>();
+  for (const module of modules) {
+    moduleCountByPath.set(module.pathId, (moduleCountByPath.get(module.pathId) ?? 0) + 1);
+  }
+  return rows.map((row) =>
+    mapPath(row, byPath.get(row.id) ?? [], moduleCountByPath.get(row.id) ?? 0),
+  );
 }
 
 export async function getLearningPath(userId: string, id: string): Promise<LearningPathDetail> {
@@ -258,22 +269,21 @@ export async function getLearningPath(userId: string, id: string): Promise<Learn
       orderBy: [asc(learningItems.sortOrder), asc(learningItems.createdAt)],
     }),
     database.query.learningResources.findMany({
-      where: and(eq(learningResources.pathId, id), eq(learningResources.userId, userId)),
-      orderBy: desc(learningResources.createdAt),
+      where: and(
+        eq(learningResources.pathId, id),
+        eq(learningResources.userId, userId),
+        isNotNull(learningResources.itemId),
+      ),
+      orderBy: [asc(learningResources.sortOrder), asc(learningResources.createdAt)],
     }),
   ]);
 
   const resourcesByItem = new Map<string, LearningResource[]>();
-  const pathResources: LearningResource[] = [];
   for (const resource of resources) {
-    const mapped = mapResource(resource, path.title);
-    if (resource.itemId) {
-      const list = resourcesByItem.get(resource.itemId) ?? [];
-      list.push(mapped);
-      resourcesByItem.set(resource.itemId, list);
-    } else {
-      pathResources.push(mapped);
-    }
+    if (!resource.itemId) continue;
+    const list = resourcesByItem.get(resource.itemId) ?? [];
+    list.push(mapResource(resource, { pathTitle: path.title }));
+    resourcesByItem.set(resource.itemId, list);
   }
 
   const itemsByModule = new Map<string, LearningItem[]>();
@@ -288,12 +298,11 @@ export async function getLearningPath(userId: string, id: string): Promise<Learn
   }
 
   return {
-    ...mapPath(path, items),
+    ...mapPath(path, items, modules.length),
     modules: modules.map((module) => ({
       ...mapModule(module, itemsByModule.get(module.id) ?? []),
       items: itemsByModule.get(module.id) ?? [],
     })),
-    resources: pathResources,
   };
 }
 
@@ -308,20 +317,22 @@ export async function createLearningPath(
     .insert(learningPaths)
     .values({ id, userId, ...values, createdAt: timestamp, updatedAt: timestamp });
 
-  const firstModuleTitle = stringField(record, "firstModuleTitle", "Week 1");
+  const firstModuleTitle = stringField(record, "firstModuleTitle", "Module 1");
   if (firstModuleTitle) {
-    await db().insert(learningModules).values({
-      id: newId(),
-      pathId: id,
-      userId,
-      title: firstModuleTitle,
-      description: "",
-      sortOrder: 0,
-      startDate: values.startDate,
-      endDate: "",
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    });
+    await db()
+      .insert(learningModules)
+      .values({
+        id: newId(),
+        pathId: id,
+        userId,
+        title: firstModuleTitle,
+        description: "",
+        sortOrder: 0,
+        startDate: values.startDate || "",
+        endDate: "",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
   }
 
   return getLearningPath(userId, id);
@@ -445,28 +456,6 @@ export async function createLearningItem(
       updatedAt: timestamp,
     });
 
-  const resourceTitle = stringField(record, "resourceTitle");
-  const resourceUrl = stringField(record, "resourceUrl");
-  if (resourceTitle || resourceUrl) {
-    const resourceKind = stringField(record, "resourceKind", "article");
-    await db()
-      .insert(learningResources)
-      .values({
-        id: newId(),
-        userId,
-        pathId: module.pathId,
-        itemId,
-        title: resourceTitle || resourceUrl || "Resource",
-        url: resourceUrl,
-        kind: (isLearningResourceKind(resourceKind)
-          ? resourceKind
-          : "article") as LearningResourceKind,
-        notes: stringField(record, "resourceNotes"),
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      });
-  }
-
   await db()
     .update(learningPaths)
     .set({ updatedAt: timestamp })
@@ -517,61 +506,124 @@ export async function deleteLearningItem(userId: string, itemId: string) {
   return getLearningPath(userId, current.pathId);
 }
 
+async function resourceMeta(
+  userId: string,
+  pathId: string | null,
+  itemId: string | null,
+): Promise<{ pathTitle?: string; itemTitle?: string }> {
+  const [path, item] = await Promise.all([
+    pathId
+      ? db().query.learningPaths.findFirst({
+          where: and(eq(learningPaths.id, pathId), eq(learningPaths.userId, userId)),
+          columns: { title: true },
+        })
+      : Promise.resolve(undefined),
+    itemId
+      ? db().query.learningItems.findFirst({
+          where: and(eq(learningItems.id, itemId), eq(learningItems.userId, userId)),
+          columns: { title: true },
+        })
+      : Promise.resolve(undefined),
+  ]);
+  return {
+    pathTitle: path?.title,
+    itemTitle: item?.title,
+  };
+}
+
 export async function createLearningResource(
   userId: string,
-  record: Record<string, unknown>,
+  input: LearningResourceCreate,
 ): Promise<LearningResource> {
-  const pathId = optionalId(record, "pathId");
-  const itemId = optionalId(record, "itemId");
+  const title = input.title.trim();
+  if (!title) throw new HttpError(400, "Title is required");
+
+  const pathId = input.pathId?.trim() || null;
+  const itemId = input.itemId?.trim() || null;
   if (pathId) await ownedPath(userId, pathId);
   if (itemId) {
     const item = await ownedItem(userId, itemId);
-    if (pathId && item.pathId !== pathId) throw new HttpError(400, "Item does not belong to path");
+    if (pathId && item.pathId !== pathId) throw new HttpError(400, "Item does not belong to map");
   }
-  const kindValue = stringField(record, "kind", "article");
+  const resolvedPathId = pathId ?? (itemId ? (await ownedItem(userId, itemId)).pathId : null);
   const timestamp = now();
   const id = newId();
+
+  const siblings = itemId
+    ? await db().query.learningResources.findMany({
+        where: and(eq(learningResources.itemId, itemId), eq(learningResources.userId, userId)),
+        orderBy: [asc(learningResources.sortOrder), asc(learningResources.createdAt)],
+      })
+    : resolvedPathId
+      ? await db().query.learningResources.findMany({
+          where: and(
+            eq(learningResources.pathId, resolvedPathId),
+            eq(learningResources.userId, userId),
+            isNull(learningResources.itemId),
+          ),
+          orderBy: [asc(learningResources.sortOrder), asc(learningResources.createdAt)],
+        })
+      : await db().query.learningResources.findMany({
+          where: and(
+            eq(learningResources.userId, userId),
+            isNull(learningResources.pathId),
+            isNull(learningResources.itemId),
+          ),
+          orderBy: [asc(learningResources.sortOrder), asc(learningResources.createdAt)],
+        });
+
+  const afterResourceId = input.afterResourceId?.trim() || null;
+  let insertAt = siblings.length;
+  if (afterResourceId) {
+    const afterIndex = siblings.findIndex((row) => row.id === afterResourceId);
+    insertAt = afterIndex >= 0 ? afterIndex + 1 : siblings.length;
+  }
+
+  for (let index = 0; index < siblings.length; index += 1) {
+    const nextOrder = index >= insertAt ? index + 1 : index;
+    if (siblings[index].sortOrder === nextOrder) continue;
+    await db()
+      .update(learningResources)
+      .set({ sortOrder: nextOrder, updatedAt: timestamp })
+      .where(
+        and(eq(learningResources.id, siblings[index].id), eq(learningResources.userId, userId)),
+      );
+  }
+
   const row = {
     id,
     userId,
-    pathId: pathId ?? (itemId ? (await ownedItem(userId, itemId)).pathId : null),
+    pathId: resolvedPathId,
     itemId,
-    title: requireString(record, "title"),
-    url: stringField(record, "url"),
-    kind: (isLearningResourceKind(kindValue) ? kindValue : "article") as LearningResourceKind,
-    notes: stringField(record, "notes"),
+    title,
+    sortOrder: insertAt,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
   await db().insert(learningResources).values(row);
-  return mapResource(row);
+  return mapResource(row, await resourceMeta(userId, resolvedPathId, itemId));
 }
 
 export async function updateLearningResource(
   userId: string,
   id: string,
-  record: Record<string, unknown>,
+  patch: LearningResourcePatch,
 ): Promise<LearningResource> {
   const current = await db().query.learningResources.findFirst({
     where: and(eq(learningResources.id, id), eq(learningResources.userId, userId)),
   });
   if (!current) throw new HttpError(404, "Resource not found");
-  const kindValue = stringField(record, "kind", current.kind);
+  const title = patch.title.trim();
+  if (!title) throw new HttpError(400, "Title is required");
   await db()
     .update(learningResources)
-    .set({
-      title: typeof record.title === "string" ? requireString(record, "title") : current.title,
-      url: stringField(record, "url", current.url),
-      kind: (isLearningResourceKind(kindValue) ? kindValue : current.kind) as LearningResourceKind,
-      notes: stringField(record, "notes", current.notes),
-      updatedAt: now(),
-    })
+    .set({ title, updatedAt: now() })
     .where(and(eq(learningResources.id, id), eq(learningResources.userId, userId)));
   const stored = await db().query.learningResources.findFirst({
     where: and(eq(learningResources.id, id), eq(learningResources.userId, userId)),
   });
   if (!stored) throw new HttpError(404, "Resource not found");
-  return mapResource(stored);
+  return mapResource(stored, await resourceMeta(userId, stored.pathId, stored.itemId));
 }
 
 export async function deleteLearningResource(userId: string, id: string) {
@@ -588,19 +640,37 @@ export async function listLearningResources(userId: string): Promise<LearningRes
   const database = db();
   const rows = await database.query.learningResources.findMany({
     where: eq(learningResources.userId, userId),
-    orderBy: desc(learningResources.createdAt),
+    orderBy: [asc(learningResources.createdAt)],
   });
   if (rows.length === 0) return [];
+
   const pathIds = [...new Set(rows.map((row) => row.pathId).filter(Boolean))] as string[];
-  const paths =
+  const itemIds = [...new Set(rows.map((row) => row.itemId).filter(Boolean))] as string[];
+
+  const [paths, items] = await Promise.all([
     pathIds.length === 0
-      ? []
-      : await database.query.learningPaths.findMany({
+      ? Promise.resolve([])
+      : database.query.learningPaths.findMany({
           where: and(eq(learningPaths.userId, userId), inArray(learningPaths.id, pathIds)),
           columns: { id: true, title: true },
-        });
-  const titles = new Map(paths.map((path) => [path.id, path.title]));
-  return rows.map((row) => mapResource(row, row.pathId ? titles.get(row.pathId) : undefined));
+        }),
+    itemIds.length === 0
+      ? Promise.resolve([])
+      : database.query.learningItems.findMany({
+          where: and(eq(learningItems.userId, userId), inArray(learningItems.id, itemIds)),
+          columns: { id: true, title: true },
+        }),
+  ]);
+
+  const pathTitles = new Map(paths.map((path) => [path.id, path.title]));
+  const itemTitles = new Map(items.map((item) => [item.id, item.title]));
+
+  return rows.map((row) =>
+    mapResource(row, {
+      pathTitle: row.pathId ? pathTitles.get(row.pathId) : undefined,
+      itemTitle: row.itemId ? itemTitles.get(row.itemId) : undefined,
+    }),
+  );
 }
 
 export async function listLearningJournal(userId: string): Promise<LearningJournalEntry[]> {
@@ -734,7 +804,7 @@ export async function listDueLearningItems(
   for (const resource of resources) {
     if (!resource.itemId) continue;
     const list = resourcesByItem.get(resource.itemId) ?? [];
-    list.push(mapResource(resource, pathMap.get(resource.pathId ?? "")));
+    list.push(mapResource(resource, { pathTitle: pathMap.get(resource.pathId ?? "") }));
     resourcesByItem.set(resource.itemId, list);
   }
   return rows
@@ -745,6 +815,147 @@ export async function listDueLearningItems(
         moduleTitle: moduleMap.get(row.moduleId),
       }),
     );
+}
+
+function scheduleDateInWindow(date: string, from: string, to: string) {
+  return date >= from && date <= to;
+}
+
+function moduleScheduleDate(module: { startDate: string; endDate: string }) {
+  return module.endDate || module.startDate || "";
+}
+
+function mapScheduleDate(path: { startDate: string; targetEndDate: string }) {
+  return path.targetEndDate || path.startDate || "";
+}
+
+/** Topics with due dates win; otherwise modules; otherwise maps. */
+export async function listLearningSchedule(
+  userId: string,
+  options?: { from?: string; to?: string },
+): Promise<LearningScheduleEntry[]> {
+  const from = options?.from ?? "0000-01-01";
+  const to = options?.to ?? addDaysIso(7);
+  const database = db();
+
+  const paths = await database.query.learningPaths.findMany({
+    where: and(eq(learningPaths.userId, userId), eq(learningPaths.archived, false)),
+    columns: {
+      id: true,
+      title: true,
+      status: true,
+      startDate: true,
+      targetEndDate: true,
+    },
+  });
+  if (paths.length === 0) return [];
+
+  const pathIds = paths.map((path) => path.id);
+  const [modules, items] = await Promise.all([
+    database.query.learningModules.findMany({
+      where: and(eq(learningModules.userId, userId), inArray(learningModules.pathId, pathIds)),
+      columns: {
+        id: true,
+        pathId: true,
+        title: true,
+        startDate: true,
+        endDate: true,
+        sortOrder: true,
+      },
+      orderBy: [asc(learningModules.sortOrder), asc(learningModules.createdAt)],
+    }),
+    database.query.learningItems.findMany({
+      where: and(
+        eq(learningItems.userId, userId),
+        inArray(learningItems.pathId, pathIds),
+        ne(learningItems.status, "done"),
+        ne(learningItems.status, "skipped"),
+      ),
+      orderBy: [asc(learningItems.sortOrder), asc(learningItems.createdAt)],
+    }),
+  ]);
+
+  const modulesByPath = new Map<string, typeof modules>();
+  for (const module of modules) {
+    const list = modulesByPath.get(module.pathId) ?? [];
+    list.push(module);
+    modulesByPath.set(module.pathId, list);
+  }
+
+  const itemsByPath = new Map<string, ItemRow[]>();
+  const itemsByModule = new Map<string, ItemRow[]>();
+  for (const item of items) {
+    const pathList = itemsByPath.get(item.pathId) ?? [];
+    pathList.push(item);
+    itemsByPath.set(item.pathId, pathList);
+    const moduleList = itemsByModule.get(item.moduleId) ?? [];
+    moduleList.push(item);
+    itemsByModule.set(item.moduleId, moduleList);
+  }
+
+  const entries: LearningScheduleEntry[] = [];
+
+  for (const path of paths) {
+    if (path.status === "completed") continue;
+    const pathItems = itemsByPath.get(path.id) ?? [];
+    const pathModules = modulesByPath.get(path.id) ?? [];
+    const pathTitle = path.title;
+
+    for (const item of pathItems) {
+      if (!item.dueDate) continue;
+      if (!scheduleDateInWindow(item.dueDate, from, to)) continue;
+      const module = pathModules.find((entry) => entry.id === item.moduleId);
+      entries.push({
+        id: `topic:${item.id}`,
+        kind: "topic",
+        title: item.title,
+        scheduleDate: item.dueDate,
+        pathId: path.id,
+        pathTitle,
+        moduleId: item.moduleId,
+        moduleTitle: module?.title,
+        itemId: item.id,
+        itemKind: isLearningItemKind(item.kind) ? item.kind : "lesson",
+        itemStatus: isLearningItemStatus(item.status) ? item.status : "todo",
+        estimatedMinutes: item.estimatedMinutes,
+      });
+    }
+
+    for (const module of pathModules) {
+      const scheduleDate = moduleScheduleDate(module);
+      if (!scheduleDate || !scheduleDateInWindow(scheduleDate, from, to)) continue;
+      const moduleItems = itemsByModule.get(module.id) ?? [];
+      if (moduleItems.some((item) => Boolean(item.dueDate))) continue;
+      entries.push({
+        id: `module:${module.id}`,
+        kind: "module",
+        title: module.title || "Untitled module",
+        scheduleDate,
+        pathId: path.id,
+        pathTitle,
+        moduleId: module.id,
+        moduleTitle: module.title,
+      });
+    }
+
+    const scheduleDate = mapScheduleDate(path);
+    if (!scheduleDate || !scheduleDateInWindow(scheduleDate, from, to)) continue;
+    if (pathItems.some((item) => Boolean(item.dueDate))) continue;
+    if (pathModules.some((module) => Boolean(moduleScheduleDate(module)))) continue;
+    entries.push({
+      id: `map:${path.id}`,
+      kind: "map",
+      title: path.title,
+      scheduleDate,
+      pathId: path.id,
+      pathTitle,
+    });
+  }
+
+  return entries.sort((a, b) => {
+    if (a.scheduleDate !== b.scheduleDate) return a.scheduleDate.localeCompare(b.scheduleDate);
+    return a.title.localeCompare(b.title);
+  });
 }
 
 function journalStreak(dates: string[]) {
@@ -774,9 +985,8 @@ export async function loadLearningOverview(userId: string): Promise<LearningOver
   const today = todayIso();
   const weekEnd = addDaysIso(7);
   const weekStart = addDaysIso(-6);
-  const [dueSoon, overdue, completedRows, openItems, journalRows] = await Promise.all([
-    listDueLearningItems(userId, { from: today, to: weekEnd }),
-    listDueLearningItems(userId, { from: "0000-01-01", to: addDaysIso(-1) }),
+  const [schedule, completedRows, openItems, journalRows] = await Promise.all([
+    listLearningSchedule(userId, { from: "0000-01-01", to: weekEnd }),
     db().query.learningItems.findMany({
       where: and(
         eq(learningItems.userId, userId),
@@ -808,9 +1018,10 @@ export async function loadLearningOverview(userId: string): Promise<LearningOver
     .reduce((sum, item) => sum + item.estimatedMinutes, 0);
 
   return {
-    paths: paths.filter((path) => path.status !== "completed").slice(0, 8),
-    dueSoon: dueSoon.slice(0, 12),
-    overdue: overdue.slice(0, 12),
+    paths: paths.filter((path) => path.status !== "completed").slice(0, 5),
+    overdue: schedule.filter((entry) => entry.scheduleDate < today).slice(0, 2),
+    dueToday: schedule.filter((entry) => entry.scheduleDate === today).slice(0, 2),
+    dueSoon: schedule.filter((entry) => entry.scheduleDate > today).slice(0, 2),
     completedThisWeek: completedRows.length,
     activeMinutesRemaining,
     journalStreakDays: journalStreak(journalRows.map((row) => row.entryDate)),

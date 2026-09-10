@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { LearningItemRow } from "@/components/learning/shared";
-import { ActionErrorBanner, failMessage } from "@/components/workspace/action-error";
+import { useMemo } from "react";
+import { ScheduleEntryRow } from "@/components/learning/shared";
 import { WorkspacePageHeader } from "@/components/workspace/page-header";
 import { ListPageSkeleton } from "@/components/workspace-skeletons";
-import { useDueLearningItemsQuery, useLearningMutations } from "@/hooks/use-learning";
-import type { LearningItemStatus } from "@/lib/domain";
+import { useWorkspaceFocus } from "@/components/workspace-shell";
+import { useLearningScheduleQuery } from "@/hooks/use-learning";
+import { learningMapPath, todayIsoDate, type LearningScheduleEntry } from "@/lib/domain";
+import { useRouter } from "nlite/navigation";
 
 function isoOffset(days: number) {
   const date = new Date();
@@ -16,26 +17,22 @@ function isoOffset(days: number) {
 }
 
 export function LearningTodayView() {
-  const today = isoOffset(0);
+  const router = useRouter();
+  const { setFocus } = useWorkspaceFocus();
+  const today = todayIsoDate();
   const weekEnd = isoOffset(7);
-  const dueQuery = useDueLearningItemsQuery("0000-01-01", weekEnd);
-  const mutations = useLearningMutations();
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  function fail(cause: unknown) {
-    setActionError(failMessage(cause));
-  }
+  const scheduleQuery = useLearningScheduleQuery("0000-01-01", weekEnd);
 
   const grouped = useMemo(() => {
-    const items = dueQuery.data ?? [];
+    const entries = scheduleQuery.data ?? [];
     return {
-      overdue: items.filter((item) => item.dueDate && item.dueDate < today),
-      today: items.filter((item) => item.dueDate === today),
-      upcoming: items.filter((item) => item.dueDate && item.dueDate > today),
+      overdue: entries.filter((entry) => entry.scheduleDate < today),
+      today: entries.filter((entry) => entry.scheduleDate === today),
+      upcoming: entries.filter((entry) => entry.scheduleDate > today),
     };
-  }, [dueQuery.data, today]);
+  }, [scheduleQuery.data, today]);
 
-  if (dueQuery.isPending) {
+  if (scheduleQuery.isPending) {
     return (
       <>
         <WorkspacePageHeader
@@ -47,27 +44,27 @@ export function LearningTodayView() {
     );
   }
 
-  function renderSection(title: string, items: typeof grouped.today, empty: string) {
+  function openEntry(entry: LearningScheduleEntry) {
+    if (entry.kind === "topic" && entry.itemId) {
+      setFocus({ kind: "learning-topic", id: entry.itemId, pathId: entry.pathId });
+    } else if (entry.kind === "module" && entry.moduleId) {
+      setFocus({ kind: "learning-module", id: entry.moduleId, pathId: entry.pathId });
+    }
+    router.push(learningMapPath(entry.pathId));
+  }
+
+  function renderSection(title: string, entries: LearningScheduleEntry[], empty: string) {
     return (
       <section className="mx-4 md:mx-7">
         <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
           {title}
         </h2>
-        {items.length === 0 ? (
+        {entries.length === 0 ? (
           <p className="mb-8 text-sm text-muted-foreground">{empty}</p>
         ) : (
-          <div className="mb-8 border-y border-border">
-            {items.map((item) => (
-              <LearningItemRow
-                key={item.id}
-                item={item}
-                onStatusChange={(next: LearningItemStatus) => {
-                  mutations.patchItem.mutate(
-                    { id: item.id, patch: { status: next } },
-                    { onError: fail },
-                  );
-                }}
-              />
+          <div className="mb-8">
+            {entries.map((entry) => (
+              <ScheduleEntryRow key={entry.id} entry={entry} onOpen={() => openEntry(entry)} />
             ))}
           </div>
         )}
@@ -77,10 +74,9 @@ export function LearningTodayView() {
 
   return (
     <>
-      <ActionErrorBanner error={actionError} onDismiss={() => setActionError(null)} />
       <WorkspacePageHeader
         title="Today & this week"
-        description="What to study now, what slipped, and what is coming up."
+        description="Topics with due dates first; otherwise modules or maps whose dates are due."
       />
       {renderSection("Overdue", grouped.overdue, "Nothing overdue.")}
       {renderSection("Today", grouped.today, "Nothing due today — pick an upcoming item or rest.")}

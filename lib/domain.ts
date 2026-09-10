@@ -63,7 +63,7 @@ export type Screen =
   | "archive"
   | "learning"
   | "learning-today"
-  | "learning-paths"
+  | "learning-maps"
   | "learning-journal"
   | "learning-resources";
 
@@ -80,21 +80,11 @@ export const learningItemKinds = [
   "other",
 ] as const;
 export const learningItemStatuses = ["todo", "in_progress", "done", "skipped"] as const;
-export const learningResourceKinds = [
-  "article",
-  "video",
-  "course",
-  "book",
-  "docs",
-  "repo",
-  "other",
-] as const;
 export const learningPathColors = ["neutral", "blue", "green", "amber", "rose", "violet"] as const;
 
 export type LearningPathStatus = (typeof learningPathStatuses)[number];
 export type LearningItemKind = (typeof learningItemKinds)[number];
 export type LearningItemStatus = (typeof learningItemStatuses)[number];
-export type LearningResourceKind = (typeof learningResourceKinds)[number];
 export type LearningPathColor = (typeof learningPathColors)[number];
 
 export type LearningPath = {
@@ -109,6 +99,7 @@ export type LearningPath = {
   archived: boolean;
   createdAt: string;
   updatedAt: string;
+  moduleCount: number;
   progress: {
     totalItems: number;
     doneItems: number;
@@ -138,12 +129,22 @@ export type LearningResource = {
   pathId: string | null;
   itemId: string | null;
   title: string;
-  url: string;
-  kind: LearningResourceKind;
-  notes: string;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
   pathTitle?: string;
+  itemTitle?: string;
+};
+
+export type LearningResourceCreate = {
+  title: string;
+  pathId?: string | null;
+  itemId?: string | null;
+  afterResourceId?: string | null;
+};
+
+export type LearningResourcePatch = {
+  title: string;
 };
 
 export type LearningItem = {
@@ -179,13 +180,28 @@ export type LearningJournalEntry = {
 
 export type LearningPathDetail = LearningPath & {
   modules: Array<LearningModule & { items: LearningItem[] }>;
-  resources: LearningResource[];
+};
+
+export type LearningScheduleEntry = {
+  id: string;
+  kind: "topic" | "module" | "map";
+  title: string;
+  scheduleDate: string;
+  pathId: string;
+  pathTitle: string;
+  moduleId?: string;
+  moduleTitle?: string;
+  itemId?: string;
+  itemKind?: LearningItemKind;
+  itemStatus?: LearningItemStatus;
+  estimatedMinutes?: number;
 };
 
 export type LearningOverview = {
   paths: LearningPath[];
-  dueSoon: LearningItem[];
-  overdue: LearningItem[];
+  overdue: LearningScheduleEntry[];
+  dueToday: LearningScheduleEntry[];
+  dueSoon: LearningScheduleEntry[];
   completedThisWeek: number;
   activeMinutesRemaining: number;
   journalStreakDays: number;
@@ -469,6 +485,13 @@ export type WorkspaceSearchHit = {
   archived: boolean;
 };
 
+export type LearningSearchHit = {
+  id: string;
+  title: string;
+  subtitle: string;
+  pathId: string;
+};
+
 export type WorkspaceSummary = {
   user: WorkspaceUser;
   counts: {
@@ -481,6 +504,9 @@ export type WorkspaceSummary = {
     leads: WorkspaceSearchHit[];
     wishlists: WorkspaceSearchHit[];
     companies: Array<{ id: string; name: string }>;
+    learningPaths: LearningSearchHit[];
+    learningModules: LearningSearchHit[];
+    learningTopics: LearningSearchHit[];
   };
 };
 
@@ -494,7 +520,7 @@ export const screenTitles: Record<Screen, string> = {
   archive: "Archive",
   learning: "Overview",
   "learning-today": "Today",
-  "learning-paths": "Paths",
+  "learning-maps": "Maps",
   "learning-journal": "Journal",
   "learning-resources": "Resources",
 };
@@ -591,7 +617,7 @@ export function isScreen(value: unknown): value is Screen {
     value === "archive" ||
     value === "learning" ||
     value === "learning-today" ||
-    value === "learning-paths" ||
+    value === "learning-maps" ||
     value === "learning-journal" ||
     value === "learning-resources"
   );
@@ -607,10 +633,6 @@ export function isLearningItemKind(value: unknown): value is LearningItemKind {
 
 export function isLearningItemStatus(value: unknown): value is LearningItemStatus {
   return typeof value === "string" && learningItemStatuses.some((s) => s === value);
-}
-
-export function isLearningResourceKind(value: unknown): value is LearningResourceKind {
-  return typeof value === "string" && learningResourceKinds.some((k) => k === value);
 }
 
 export function isLearningPathColor(value: unknown): value is LearningPathColor {
@@ -638,8 +660,8 @@ export function screenPath(screen: Screen) {
       return "/learning";
     case "learning-today":
       return "/learning/today";
-    case "learning-paths":
-      return "/learning/paths";
+    case "learning-maps":
+      return "/learning/maps";
     case "learning-journal":
       return "/learning/journal";
     case "learning-resources":
@@ -649,12 +671,16 @@ export function screenPath(screen: Screen) {
   }
 }
 
+export function learningMapPath(id: string) {
+  return `/learning/maps/${id}`;
+}
+
 export function screenFromPathname(pathname: string): Screen {
   const parts = pathname.split("/").filter(Boolean);
   if (parts[0] === "learning") {
     if (!parts[1]) return "learning";
     if (parts[1] === "today") return "learning-today";
-    if (parts[1] === "paths") return "learning-paths";
+    if (parts[1] === "maps" || parts[1] === "paths") return "learning-maps";
     if (parts[1] === "journal") return "learning-journal";
     if (parts[1] === "resources") return "learning-resources";
     return "learning";
@@ -701,6 +727,36 @@ export function learningPathStatusLabel(status: LearningPathStatus) {
       return "Paused";
     case "completed":
       return "Completed";
+  }
+}
+
+export function learningPathColorLabel(color: LearningPathColor) {
+  switch (color) {
+    case "neutral":
+      return "Neutral";
+    case "blue":
+      return "Blue";
+    case "green":
+      return "Green";
+    case "amber":
+      return "Amber";
+    case "rose":
+      return "Rose";
+    case "violet":
+      return "Violet";
+  }
+}
+
+export function learningItemStatusLabel(status: LearningItemStatus) {
+  switch (status) {
+    case "todo":
+      return "Todo";
+    case "in_progress":
+      return "In progress";
+    case "done":
+      return "Done";
+    case "skipped":
+      return "Skipped";
   }
 }
 

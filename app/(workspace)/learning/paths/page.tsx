@@ -1,7 +1,5 @@
-"use client";
-
-import LearningPathsPage from "@/components/workspace/learning-paths-page";
+import { redirect } from "nlite/navigation";
 
 export default function Page() {
-  return <LearningPathsPage />;
+  redirect("/learning/maps");
 }

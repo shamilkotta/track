@@ -20,8 +20,8 @@ const topics = [
     body: "Create an entry with company, role, and resume. Status, priority, and reply update immediately. Save writes the rest of the form.",
   },
   {
-    title: "Learning paths",
-    body: "Build multi-week plans with modules, dated items, resources, progress, and a journal. Overview and Today show what is due next.",
+    title: "Learning maps",
+    body: "Build multi-week plans with modules, dated topics, progress, and a journal. Overview and Today show what is due next.",
   },
   {
     title: "Library",

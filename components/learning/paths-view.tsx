@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import { EmptyState, PathColorDot, ProgressBar } from "@/components/learning/shared";
+import { EmptyState, PathColorDot, CircularProgress } from "@/components/learning/shared";
 import { ActionErrorBanner, failMessage } from "@/components/workspace/action-error";
 import { WorkspacePageHeader } from "@/components/workspace/page-header";
 import { NativeSelectField } from "@/components/workspace-fields";
 import { ListPageSkeleton } from "@/components/workspace-skeletons";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,9 +20,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useLearningMutations, useLearningPathsQuery } from "@/hooks/use-learning";
 import {
+  learningMapPath,
   formatDisplayDate,
   isLearningPathColor,
   isLearningPathStatus,
+  learningPathColorLabel,
   learningPathColors,
   learningPathStatuses,
   learningPathStatusLabel,
@@ -39,7 +40,6 @@ export function LearningPathsView() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
   const [goal, setGoal] = useState("");
   const [startDate, setStartDate] = useState("");
   const [targetEndDate, setTargetEndDate] = useState("");
@@ -54,16 +54,19 @@ export function LearningPathsView() {
     try {
       const detail = await mutations.createPath.mutateAsync({
         title,
-        description,
         goal,
         startDate,
         targetEndDate,
         status,
         color,
-        firstModuleTitle: "Week 1",
+        firstModuleTitle: "Module 1",
       });
       setCreateOpen(false);
-      router.push(`/learning/paths/${detail.id}`);
+      setTitle("");
+      setGoal("");
+      setStartDate("");
+      setTargetEndDate("");
+      router.push(learningMapPath(detail.id));
     } catch (cause) {
       fail(cause);
     }
@@ -73,7 +76,7 @@ export function LearningPathsView() {
     return (
       <>
         <WorkspacePageHeader
-          title="Learning paths"
+          title="Learning maps"
           description="Multi-week and multi-month plans with clear milestones."
         />
         <ListPageSkeleton columns={5} />
@@ -87,70 +90,72 @@ export function LearningPathsView() {
     <>
       <ActionErrorBanner error={actionError} onDismiss={() => setActionError(null)} />
       <WorkspacePageHeader
-        title="Learning paths"
+        title="Learning maps"
         description="Multi-week and multi-month plans with clear milestones."
         actions={
           <Button onClick={() => setCreateOpen(true)}>
             <Plus />
-            New path
+            New map
           </Button>
         }
       />
 
       {paths.length === 0 ? (
         <EmptyState
-          title="Start your first path"
-          description="Break a long skill into weeks, attach resources, and track completion over time."
+          title="Start your first map"
+          description="Break a long skill into modules and track completion over time."
           action={
             <Button onClick={() => setCreateOpen(true)}>
               <Plus />
-              New path
+              New map
             </Button>
           }
         />
       ) : (
         <div className="mx-4 mb-10 divide-y divide-border border-y border-border md:mx-7">
-          {paths.map((path) => (
-            <button
-              key={path.id}
-              type="button"
-              className="flex w-full flex-col gap-3 py-5 text-left transition-colors hover:bg-muted/30 md:flex-row md:items-center md:gap-6"
-              onClick={() => router.push(`/learning/paths/${path.id}`)}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
+          {paths.map((path) => {
+            const dateLabel =
+              path.startDate || path.targetEndDate
+                ? [
+                    path.startDate ? formatDisplayDate(path.startDate) : "Start",
+                    path.targetEndDate ? formatDisplayDate(path.targetEndDate) : "End",
+                  ].join(" → ")
+                : null;
+            const meta = [
+              learningPathStatusLabel(path.status),
+              dateLabel,
+              `${path.moduleCount} module${path.moduleCount === 1 ? "" : "s"}`,
+              `${path.progress.totalItems} topic${path.progress.totalItems === 1 ? "" : "s"}`,
+            ].filter(Boolean);
+
+            return (
+              <button
+                key={path.id}
+                type="button"
+                className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-5 text-left transition-colors hover:bg-muted/30"
+                onClick={() => router.push(learningMapPath(path.id))}
+              >
+                <div className="flex min-w-0 items-center gap-2">
                   <PathColorDot color={path.color} />
-                  <h2 className="text-base font-medium">{path.title}</h2>
-                  <Badge variant="outline">{learningPathStatusLabel(path.status)}</Badge>
+                  <h2 className="truncate text-base font-medium">{path.title}</h2>
                 </div>
-                {path.goal || path.description ? (
-                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                    {path.goal || path.description}
-                  </p>
-                ) : null}
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {path.startDate ? `Starts ${formatDisplayDate(path.startDate)}` : "No start date"}
-                  {path.targetEndDate ? ` · Target ${formatDisplayDate(path.targetEndDate)}` : ""}
+                <p className="text-right text-xs text-muted-foreground">{meta.join(" · ")}</p>
+                <p className="truncate text-sm text-muted-foreground">
+                  {path.goal.trim() || "No goal yet"}
                 </p>
-              </div>
-              <div className="w-full md:w-48">
-                <div className="mb-1 flex justify-between text-xs text-muted-foreground">
-                  <span>
-                    {path.progress.doneItems}/{path.progress.totalItems}
-                  </span>
-                  <span className="tabular-nums">{path.progress.percent}%</span>
+                <div className="flex justify-end">
+                  <CircularProgress percent={path.progress.percent} size={22} />
                 </div>
-                <ProgressBar percent={path.progress.percent} />
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>New learning path</DialogTitle>
+            <DialogTitle>New learning map</DialogTitle>
           </DialogHeader>
           <FieldGroup className="gap-4">
             <Field>
@@ -160,14 +165,6 @@ export function LearningPathsView() {
             <Field>
               <FieldLabel>Goal</FieldLabel>
               <Textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={2} />
-            </Field>
-            <Field>
-              <FieldLabel>Description</FieldLabel>
-              <Textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-              />
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
@@ -195,6 +192,7 @@ export function LearningPathsView() {
                   onChange={setStatus}
                   options={learningPathStatuses}
                   guard={isLearningPathStatus}
+                  getLabel={learningPathStatusLabel}
                 />
               </Field>
               <Field>
@@ -204,6 +202,7 @@ export function LearningPathsView() {
                   onChange={setColor}
                   options={learningPathColors}
                   guard={isLearningPathColor}
+                  getLabel={learningPathColorLabel}
                 />
               </Field>
             </div>

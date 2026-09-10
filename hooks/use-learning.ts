@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ArchiveScope, LearningPathDetail } from "@/lib/domain";
+import type { ArchiveScope, LearningPathDetail, LearningResourcePatch } from "@/lib/domain";
 import {
   createLearningItemRequest,
   createLearningJournalRequest,
@@ -19,6 +19,7 @@ import {
   fetchLearningPath,
   fetchLearningPaths,
   fetchLearningResources,
+  fetchLearningSchedule,
   patchLearningItemRequest,
   patchLearningJournalRequest,
   patchLearningModuleRequest,
@@ -31,12 +32,14 @@ export const learningKeys = {
   paths: (scope: ArchiveScope) => ["learning", "paths", scope] as const,
   path: (id: string) => ["learning", "path", id] as const,
   due: (from?: string, to?: string) => ["learning", "due", from ?? "", to ?? ""] as const,
+  schedule: (from?: string, to?: string) => ["learning", "schedule", from ?? "", to ?? ""] as const,
   resources: ["learning", "resources"] as const,
   journal: ["learning", "journal"] as const,
 };
 
 function invalidateLearning(queryClient: ReturnType<typeof useQueryClient>, pathId?: string) {
   void queryClient.invalidateQueries({ queryKey: ["learning"] });
+  void queryClient.invalidateQueries({ queryKey: ["workspace", "summary"] });
   if (pathId) void queryClient.invalidateQueries({ queryKey: learningKeys.path(pathId) });
 }
 
@@ -63,6 +66,13 @@ export function useDueLearningItemsQuery(from?: string, to?: string) {
   return useQuery({
     queryKey: learningKeys.due(from, to),
     queryFn: () => fetchDueLearningItems(from, to),
+  });
+}
+
+export function useLearningScheduleQuery(from?: string, to?: string) {
+  return useQuery({
+    queryKey: learningKeys.schedule(from, to),
+    queryFn: () => fetchLearningSchedule(from, to),
   });
 }
 
@@ -126,12 +136,12 @@ export function useLearningMutations() {
     }),
     createResource: useMutation({
       mutationFn: createLearningResourceRequest,
-      onSuccess: () => invalidateLearning(queryClient),
+      onSuccess: (resource) => invalidateLearning(queryClient, resource.pathId ?? undefined),
     }),
     patchResource: useMutation({
-      mutationFn: ({ id, patch }: { id: string; patch: Record<string, unknown> }) =>
+      mutationFn: ({ id, patch }: { id: string; patch: LearningResourcePatch }) =>
         patchLearningResourceRequest(id, patch),
-      onSuccess: () => invalidateLearning(queryClient),
+      onSuccess: (resource) => invalidateLearning(queryClient, resource.pathId ?? undefined),
     }),
     deleteResource: useMutation({
       mutationFn: deleteLearningResourceRequest,

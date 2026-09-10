@@ -3,11 +3,11 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import {
+  CircularProgress,
   EmptyState,
   formatMinutes,
-  LearningItemRow,
   PathColorDot,
-  ProgressBar,
+  ScheduleEntryRow,
 } from "@/components/learning/shared";
 import { ActionErrorBanner, failMessage } from "@/components/workspace/action-error";
 import { WorkspacePageHeader } from "@/components/workspace/page-header";
@@ -24,18 +24,22 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelectField } from "@/components/workspace-fields";
 import { ListPageSkeleton } from "@/components/workspace-skeletons";
+import { useWorkspaceFocus } from "@/components/workspace-shell";
 import { useLearningMutations, useLearningOverviewQuery } from "@/hooks/use-learning";
 import {
+  learningMapPath,
+  screenPath,
   isLearningPathStatus,
   learningPathStatuses,
   learningPathStatusLabel,
-  type LearningItemStatus,
   type LearningPathStatus,
+  type LearningScheduleEntry,
 } from "@/lib/domain";
 import { useRouter } from "nlite/navigation";
 
 export function LearningOverviewView() {
   const router = useRouter();
+  const { setFocus } = useWorkspaceFocus();
   const overviewQuery = useLearningOverviewQuery();
   const mutations = useLearningMutations();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -46,6 +50,14 @@ export function LearningOverviewView() {
   const [targetEndDate, setTargetEndDate] = useState("");
   const [status, setStatus] = useState<LearningPathStatus>("active");
 
+  function openEntry(entry: LearningScheduleEntry) {
+    if (entry.kind === "topic" && entry.itemId) {
+      setFocus({ kind: "learning-topic", id: entry.itemId, pathId: entry.pathId });
+    } else if (entry.kind === "module" && entry.moduleId) {
+      setFocus({ kind: "learning-module", id: entry.moduleId, pathId: entry.pathId });
+    }
+    router.push(learningMapPath(entry.pathId));
+  }
   function fail(cause: unknown) {
     setActionError(failMessage(cause));
   }
@@ -58,7 +70,7 @@ export function LearningOverviewView() {
         startDate,
         targetEndDate,
         status,
-        firstModuleTitle: "Week 1",
+        firstModuleTitle: "Module 1",
       });
       setCreateOpen(false);
       setTitle("");
@@ -66,7 +78,7 @@ export function LearningOverviewView() {
       setStartDate("");
       setTargetEndDate("");
       setStatus("active");
-      router.push(`/learning/paths/${detail.id}`);
+      router.push(learningMapPath(detail.id));
     } catch (cause) {
       fail(cause);
     }
@@ -77,7 +89,7 @@ export function LearningOverviewView() {
       <>
         <WorkspacePageHeader
           title="Learning overview"
-          description="Progress across long paths, what is due next, and your streak."
+          description="Progress across long maps, what is due next, and your streak."
         />
         <ListPageSkeleton columns={4} />
       </>
@@ -91,18 +103,18 @@ export function LearningOverviewView() {
       <ActionErrorBanner error={actionError} onDismiss={() => setActionError(null)} />
       <WorkspacePageHeader
         title="Learning overview"
-        description="Progress across long paths, what is due next, and your streak."
+        description="Progress across long maps, what is due next, and your streak."
         actions={
           <Button onClick={() => setCreateOpen(true)}>
             <Plus />
-            New path
+            New map
           </Button>
         }
       />
 
       <div className="track-stat-strip mx-4 md:mx-7">
         <div>
-          <p className="track-stat-label">Active paths</p>
+          <p className="track-stat-label">Active maps</p>
           <p className="track-stat-value">{data?.paths.length ?? 0}</p>
         </div>
         <div>
@@ -125,45 +137,48 @@ export function LearningOverviewView() {
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-              Paths
+              Maps
             </h2>
-            <Button variant="ghost" size="sm" onClick={() => router.push("/learning/paths")}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push(screenPath("learning-maps"))}
+            >
               View all
             </Button>
           </div>
           {(data?.paths.length ?? 0) === 0 ? (
             <EmptyState
-              title="No learning paths yet"
-              description="Create a multi-week path with modules, due dates, and resources."
+              title="No learning maps yet"
+              description="Create a multi-week map with modules and due dates."
               action={
                 <Button onClick={() => setCreateOpen(true)}>
                   <Plus />
-                  Create path
+                  Create map
                 </Button>
               }
             />
           ) : (
-            <div className="divide-y divide-border border-y border-border">
+            <div className="divide-y divide-border">
               {data?.paths.map((path) => (
                 <button
                   key={path.id}
                   type="button"
                   className="flex w-full flex-col gap-2 py-4 text-left hover:bg-muted/40"
-                  onClick={() => router.push(`/learning/paths/${path.id}`)}
+                  onClick={() => router.push(learningMapPath(path.id))}
                 >
                   <div className="flex items-center gap-2">
                     <PathColorDot color={path.color} />
-                    <span className="text-sm font-medium">{path.title}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {learningPathStatusLabel(path.status)}
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                      {path.title}
                     </span>
-                    <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-                      {path.progress.percent}%
+                    <CircularProgress percent={path.progress.percent} size={16} />
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {path.progress.doneItems}/{path.progress.totalItems}
                     </span>
                   </div>
-                  <ProgressBar percent={path.progress.percent} />
                   <p className="text-xs text-muted-foreground">
-                    {path.progress.doneItems}/{path.progress.totalItems} items
+                    {learningPathStatusLabel(path.status)}
                     {path.targetEndDate ? ` · target ${path.targetEndDate}` : ""}
                   </p>
                 </button>
@@ -178,25 +193,24 @@ export function LearningOverviewView() {
               <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
                 Overdue
               </h2>
-              <Button variant="ghost" size="sm" onClick={() => router.push("/learning/today")}>
-                Today
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push(screenPath("learning-today"))}
+              >
+                View all
               </Button>
             </div>
             {(data?.overdue.length ?? 0) === 0 ? (
               <p className="text-sm text-muted-foreground">Nothing overdue. Nice.</p>
             ) : (
               <div>
-                {data?.overdue.map((item) => (
-                  <LearningItemRow
-                    key={item.id}
-                    item={item}
+                {data?.overdue.map((entry) => (
+                  <ScheduleEntryRow
+                    key={entry.id}
+                    entry={entry}
                     dense
-                    onStatusChange={(next: LearningItemStatus) => {
-                      mutations.patchItem.mutate(
-                        { id: item.id, patch: { status: next } },
-                        { onError: fail },
-                      );
-                    }}
+                    onOpen={() => openEntry(entry)}
                   />
                 ))}
               </div>
@@ -204,23 +218,37 @@ export function LearningOverviewView() {
           </div>
           <div>
             <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-              Due this week
+              Today
             </h2>
-            {(data?.dueSoon.length ?? 0) === 0 ? (
-              <p className="text-sm text-muted-foreground">No upcoming due dates this week.</p>
+            {(data?.dueToday.length ?? 0) === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing due today.</p>
             ) : (
               <div>
-                {data?.dueSoon.map((item) => (
-                  <LearningItemRow
-                    key={item.id}
-                    item={item}
+                {data?.dueToday.map((entry) => (
+                  <ScheduleEntryRow
+                    key={entry.id}
+                    entry={entry}
                     dense
-                    onStatusChange={(next: LearningItemStatus) => {
-                      mutations.patchItem.mutate(
-                        { id: item.id, patch: { status: next } },
-                        { onError: fail },
-                      );
-                    }}
+                    onOpen={() => openEntry(entry)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+              Rest of the week
+            </h2>
+            {(data?.dueSoon.length ?? 0) === 0 ? (
+              <p className="text-sm text-muted-foreground">No more due dates this week.</p>
+            ) : (
+              <div>
+                {data?.dueSoon.map((entry) => (
+                  <ScheduleEntryRow
+                    key={entry.id}
+                    entry={entry}
+                    dense
+                    onOpen={() => openEntry(entry)}
                   />
                 ))}
               </div>
@@ -232,7 +260,7 @@ export function LearningOverviewView() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>New learning path</DialogTitle>
+            <DialogTitle>New learning map</DialogTitle>
           </DialogHeader>
           <FieldGroup className="gap-4">
             <Field>
@@ -277,6 +305,7 @@ export function LearningOverviewView() {
                 onChange={setStatus}
                 options={learningPathStatuses}
                 guard={isLearningPathStatus}
+                getLabel={learningPathStatusLabel}
               />
             </Field>
           </FieldGroup>

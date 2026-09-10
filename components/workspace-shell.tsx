@@ -41,6 +41,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandShortcut,
 } from "@/components/ui/command";
 import {
   DropdownMenu,
@@ -72,6 +73,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkspaceSummary } from "@/hooks/use-workspace";
 import { signOut } from "@/lib/auth-client";
 import {
+  learningMapPath,
   productModeFromPathname,
   screenFromPathname,
   screenPath,
@@ -87,7 +89,10 @@ export type WorkspaceFocus =
   | { kind: "application"; id: string }
   | { kind: "company"; id: string }
   | { kind: "lead"; id: string }
-  | { kind: "wishlist"; id: string };
+  | { kind: "wishlist"; id: string }
+  | { kind: "learning-path"; id: string }
+  | { kind: "learning-module"; id: string; pathId: string }
+  | { kind: "learning-topic"; id: string; pathId: string };
 
 type WorkspaceFocusContextValue = {
   focus: WorkspaceFocus | null;
@@ -120,7 +125,7 @@ const modeOptions: Array<{
   {
     id: "learning",
     label: "Learning",
-    description: "Long paths, weeks, resources",
+    description: "Maps, topics, and journal",
     icon: GraduationCap,
     home: "learning",
   },
@@ -296,11 +301,11 @@ function AppSidebar({
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={screen === "learning-paths"}
-                      onClick={() => navigate(screenPath("learning-paths"))}
+                      isActive={screen === "learning-maps"}
+                      onClick={() => navigate(screenPath("learning-maps"))}
                     >
                       <Route />
-                      Paths
+                      Maps
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </SidebarMenu>
@@ -481,34 +486,97 @@ export function WorkspaceShell({
             <CommandInput
               placeholder={
                 mode === "learning"
-                  ? "Jump to learning screens..."
+                  ? "Search maps, modules, topics..."
                   : "Search applications, leads, wishlist, companies..."
               }
             />
             <CommandList className="max-h-96">
               <CommandEmpty>No matches.</CommandEmpty>
               {mode === "learning" ? (
-                <CommandGroup heading="Go to">
-                  {(
-                    [
-                      ["learning", "Overview"],
-                      ["learning-today", "Today"],
-                      ["learning-paths", "Paths"],
-                      ["learning-journal", "Journal"],
-                      ["learning-resources", "Resources"],
-                    ] as const
-                  ).map(([id, label]) => (
-                    <CommandItem
-                      key={id}
-                      onSelect={() => {
-                        router.push(screenPath(id));
-                        setSearchOpen(false);
-                      }}
-                    >
-                      {label}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
+                <>
+                  <CommandGroup heading="Go to">
+                    {(
+                      [
+                        ["learning", "Overview"],
+                        ["learning-today", "Today"],
+                        ["learning-maps", "Maps"],
+                        ["learning-journal", "Journal"],
+                        ["learning-resources", "Resources"],
+                      ] as const
+                    ).map(([id, label]) => (
+                      <CommandItem
+                        key={id}
+                        onSelect={() => {
+                          router.push(screenPath(id));
+                          setSearchOpen(false);
+                        }}
+                      >
+                        {label}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                  <CommandGroup heading="Maps">
+                    {(searchIndex?.learningPaths ?? []).map((item) => (
+                      <CommandItem
+                        key={item.id}
+                        value={`${item.title} ${item.subtitle} map`}
+                        onSelect={() => {
+                          router.push(learningMapPath(item.pathId));
+                          setSearchOpen(false);
+                        }}
+                      >
+                        <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                        <CommandShortcut className="tracking-normal capitalize">
+                          {item.subtitle}
+                        </CommandShortcut>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                  <CommandGroup heading="Modules">
+                    {(searchIndex?.learningModules ?? []).map((item) => (
+                      <CommandItem
+                        key={item.id}
+                        value={`${item.title} ${item.subtitle} module`}
+                        onSelect={() => {
+                          setFocus({
+                            kind: "learning-module",
+                            id: item.id,
+                            pathId: item.pathId,
+                          });
+                          router.push(learningMapPath(item.pathId));
+                          setSearchOpen(false);
+                        }}
+                      >
+                        <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                        <CommandShortcut className="tracking-normal">
+                          {item.subtitle}
+                        </CommandShortcut>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                  <CommandGroup heading="Topics">
+                    {(searchIndex?.learningTopics ?? []).map((item) => (
+                      <CommandItem
+                        key={item.id}
+                        value={`${item.title} ${item.subtitle} topic`}
+                        onSelect={() => {
+                          setFocus({
+                            kind: "learning-topic",
+                            id: item.id,
+                            pathId: item.pathId,
+                          });
+                          router.push(learningMapPath(item.pathId));
+                          setSearchOpen(false);
+                        }}
+                      >
+                        <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                        <CommandShortcut className="tracking-normal">
+                          {item.subtitle}
+                        </CommandShortcut>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </>
               ) : (
                 <>
                   <CommandGroup heading="Go to">

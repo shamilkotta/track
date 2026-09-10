@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import {
   currencies,
   isCurrency,
@@ -168,11 +169,15 @@ export function NativeSelectField<T extends string>({
   onChange,
   options,
   guard,
+  getLabel,
+  triggerClassName,
 }: {
   value: T;
   onChange: (value: T) => void;
   options: readonly T[];
   guard: (value: unknown) => value is T;
+  getLabel?: (value: T) => string;
+  triggerClassName?: string;
 }) {
   return (
     <Select
@@ -181,13 +186,13 @@ export function NativeSelectField<T extends string>({
         if (guard(next)) onChange(next);
       }}
     >
-      <SelectTrigger className="w-full">
-        <SelectValue />
+      <SelectTrigger className={cn("w-full", triggerClassName)}>
+        <SelectValue>{getLabel ? getLabel(value) : value}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {options.map((option) => (
           <SelectItem key={option} value={option}>
-            {option}
+            {getLabel ? getLabel(option) : option}
           </SelectItem>
         ))}
       </SelectContent>

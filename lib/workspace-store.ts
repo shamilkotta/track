@@ -5,6 +5,9 @@ import {
   companies,
   coverLetters,
   leads,
+  learningItems,
+  learningModules,
+  learningPaths,
   resumes,
   savedViews,
   wishlists,
@@ -36,6 +39,7 @@ import {
   type CoverLetterListItem,
   type Lead,
   type LeadListItem,
+  type LearningSearchHit,
   type Resume,
   type SavedView,
   type SavedViewScreen,
@@ -94,7 +98,15 @@ async function ownedCoverLetter(userId: string, coverLetterId: string) {
 
 export async function loadWorkspaceSummary(user: AuthUser): Promise<WorkspaceSummary> {
   const database = db();
-  const [companyRows, applicationRows, leadRows, wishlistRows] = await Promise.all([
+  const [
+    companyRows,
+    applicationRows,
+    leadRows,
+    wishlistRows,
+    learningPathRows,
+    learningModuleRows,
+    learningItemRows,
+  ] = await Promise.all([
     database.query.companies.findMany({
       where: eq(companies.userId, user.id),
       orderBy: desc(companies.createdAt),
@@ -130,9 +142,56 @@ export async function loadWorkspaceSummary(user: AuthUser): Promise<WorkspaceSum
         archived: true,
       },
     }),
+    database.query.learningPaths.findMany({
+      where: and(eq(learningPaths.userId, user.id), eq(learningPaths.archived, false)),
+      orderBy: desc(learningPaths.updatedAt),
+      columns: { id: true, title: true, status: true },
+    }),
+    database.query.learningModules.findMany({
+      where: eq(learningModules.userId, user.id),
+      orderBy: desc(learningModules.updatedAt),
+      columns: { id: true, pathId: true, title: true },
+    }),
+    database.query.learningItems.findMany({
+      where: eq(learningItems.userId, user.id),
+      orderBy: desc(learningItems.updatedAt),
+      columns: { id: true, pathId: true, moduleId: true, title: true },
+    }),
   ]);
 
   const companyName = new Map(companyRows.map((row) => [row.id, row.name]));
+  const activePathIds = new Set(learningPathRows.map((row) => row.id));
+  const pathTitle = new Map(learningPathRows.map((row) => [row.id, row.title]));
+  const moduleTitle = new Map(learningModuleRows.map((row) => [row.id, row.title]));
+
+  const learningPathHits: LearningSearchHit[] = learningPathRows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    subtitle: row.status.replaceAll("_", " "),
+    pathId: row.id,
+  }));
+
+  const learningModuleHits: LearningSearchHit[] = learningModuleRows
+    .filter((row) => activePathIds.has(row.pathId))
+    .map((row) => ({
+      id: row.id,
+      title: row.title || "Untitled module",
+      subtitle: pathTitle.get(row.pathId) ?? "Map",
+      pathId: row.pathId,
+    }));
+
+  const learningTopicHits: LearningSearchHit[] = learningItemRows
+    .filter((row) => activePathIds.has(row.pathId))
+    .map((row) => {
+      const mapName = pathTitle.get(row.pathId) ?? "Map";
+      const modName = moduleTitle.get(row.moduleId);
+      return {
+        id: row.id,
+        title: row.title,
+        subtitle: modName ? `${mapName} · ${modName}` : mapName,
+        pathId: row.pathId,
+      };
+    });
 
   return {
     user: {
@@ -170,6 +229,9 @@ export async function loadWorkspaceSummary(user: AuthUser): Promise<WorkspaceSum
         archived: row.archived,
       })),
       companies: companyRows.map((row) => ({ id: row.id, name: row.name })),
+      learningPaths: learningPathHits,
+      learningModules: learningModuleHits,
+      learningTopics: learningTopicHits,
     },
   };
 }

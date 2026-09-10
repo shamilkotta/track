@@ -29,6 +29,7 @@ import {
   type Wishlist,
   type WishlistContact,
   type WishlistListItem,
+  type LearningSearchHit,
   type WorkspaceSearchHit,
   type WorkspaceSummary,
   type WorkspaceUser,
@@ -221,6 +222,18 @@ function parseSearchHit(value: unknown): WorkspaceSearchHit | null {
   };
 }
 
+function parseLearningSearchHit(value: unknown): LearningSearchHit | null {
+  if (!isRecord(value) || typeof value.id !== "string" || typeof value.pathId !== "string") {
+    return null;
+  }
+  return {
+    id: value.id,
+    title: requiredString(value, "title"),
+    subtitle: requiredString(value, "subtitle"),
+    pathId: value.pathId,
+  };
+}
+
 function parseWorkspaceSummary(value: unknown): WorkspaceSummary {
   if (!isRecord(value)) throw new Error("Invalid workspace summary");
   const counts = isRecord(value.counts) ? value.counts : {};
@@ -246,6 +259,9 @@ function parseWorkspaceSummary(value: unknown): WorkspaceSummary {
             })
             .filter((item): item is { id: string; name: string } => !!item)
         : [],
+      learningPaths: parseList(search.learningPaths, parseLearningSearchHit),
+      learningModules: parseList(search.learningModules, parseLearningSearchHit),
+      learningTopics: parseList(search.learningTopics, parseLearningSearchHit),
     },
   };
 }

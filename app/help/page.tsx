@@ -12,8 +12,16 @@ const shortcuts = [
 
 const topics = [
   {
+    title: "Job search & Learning",
+    body: "Use the mode switcher in the top bar to move between Job search and Learning. Each mode has its own sidebar.",
+  },
+  {
     title: "Applications",
     body: "Create an entry with company, role, and resume. Status, priority, and reply update immediately. Save writes the rest of the form.",
+  },
+  {
+    title: "Learning maps",
+    body: "Build multi-week plans with modules, dated topics, progress, and a journal. Overview and Today show what is due next.",
   },
   {
     title: "Library",
@@ -29,7 +37,7 @@ export default function HelpPage() {
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-2xl flex-col px-6 py-10 md:px-8">
       <header className="mb-10">
-        <BrandMark href="/applications" />
+        <BrandMark href="/job/applications" />
       </header>
       <h1>How the workspace works</h1>
       <p className="track-page-lede">Shortcuts and the main surfaces, without ceremony.</p>
@@ -56,7 +64,7 @@ export default function HelpPage() {
       </section>
 
       <Link
-        href="/applications"
+        href="/job/applications"
         className="mt-12 text-sm text-foreground underline-offset-4 hover:underline"
       >
         Back to workspace

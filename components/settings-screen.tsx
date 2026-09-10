@@ -22,7 +22,7 @@ export function SettingsScreen({ user }: { user: WorkspaceUser }) {
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-lg flex-col px-6 py-10 md:px-8">
       <header className="mb-10">
-        <BrandMark href="/applications" />
+        <BrandMark href="/job/applications" />
       </header>
       <h1>Settings</h1>
       <p className="track-page-lede">{user.email}</p>
@@ -113,7 +113,7 @@ export function SettingsScreen({ user }: { user: WorkspaceUser }) {
       {message && <p className="mt-4 text-sm text-muted-foreground">{message}</p>}
 
       <div className="mt-auto flex gap-2 pt-12">
-        <Button size="lg" variant="outline" onClick={() => router.push("/applications")}>
+        <Button size="lg" variant="outline" onClick={() => router.push("/job/applications")}>
           Back to workspace
         </Button>
         <Button

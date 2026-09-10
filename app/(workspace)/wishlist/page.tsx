@@ -1,7 +1,5 @@
-"use client";
-
-import WishlistPage from "@/components/workspace/wishlist-page";
+import { redirect } from "nlite/navigation";
 
 export default function Page() {
-  return <WishlistPage />;
+  redirect("/job/wishlist");
 }

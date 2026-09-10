@@ -1,7 +1,5 @@
-"use client";
-
-import LeadsPage from "@/components/workspace/leads-page";
+import { redirect } from "nlite/navigation";
 
 export default function Page() {
-  return <LeadsPage />;
+  redirect("/job/leads");
 }

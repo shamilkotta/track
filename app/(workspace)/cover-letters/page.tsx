@@ -1,7 +1,5 @@
-"use client";
-
-import CoverLettersPage from "@/components/workspace/cover-letters-page";
+import { redirect } from "nlite/navigation";
 
 export default function Page() {
-  return <CoverLettersPage />;
+  redirect("/job/cover-letters");
 }

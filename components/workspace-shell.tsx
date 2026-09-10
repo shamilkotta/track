@@ -506,6 +506,7 @@ export function WorkspaceShell({
                     ).map(([id, label]) => (
                       <CommandItem
                         key={id}
+                        value={label}
                         onSelect={() => {
                           router.push(screenPath(id));
                           setSearchOpen(false);
@@ -519,7 +520,7 @@ export function WorkspaceShell({
                     {(searchIndex?.learningPaths ?? []).map((item) => (
                       <CommandItem
                         key={item.id}
-                        value={`${item.title} ${item.subtitle} map`}
+                        value={`${item.title} ${item.subtitle} map ${item.id}`}
                         onSelect={() => {
                           router.push(learningMapPath(item.pathId));
                           setSearchOpen(false);
@@ -536,7 +537,7 @@ export function WorkspaceShell({
                     {(searchIndex?.learningModules ?? []).map((item) => (
                       <CommandItem
                         key={item.id}
-                        value={`${item.title} ${item.subtitle} module`}
+                        value={`${item.title} ${item.subtitle} module ${item.id}`}
                         onSelect={() => {
                           setFocus({
                             kind: "learning-module",
@@ -558,7 +559,7 @@ export function WorkspaceShell({
                     {(searchIndex?.learningTopics ?? []).map((item) => (
                       <CommandItem
                         key={item.id}
-                        value={`${item.title} ${item.subtitle} topic`}
+                        value={`${item.title} ${item.subtitle} topic ${item.id}`}
                         onSelect={() => {
                           setFocus({
                             kind: "learning-topic",
@@ -593,6 +594,7 @@ export function WorkspaceShell({
                     ).map(([id, label]) => (
                       <CommandItem
                         key={id}
+                        value={label}
                         onSelect={() => {
                           router.push(screenPath(id));
                           setSearchOpen(false);
@@ -603,10 +605,10 @@ export function WorkspaceShell({
                     ))}
                   </CommandGroup>
                   <CommandGroup heading="Applications">
-                    {(searchIndex?.applications ?? []).slice(0, 12).map((item) => (
+                    {(searchIndex?.applications ?? []).map((item) => (
                       <CommandItem
                         key={item.id}
-                        value={`${item.subtitle} ${item.title}`}
+                        value={`${item.subtitle} ${item.title} ${item.id}`}
                         onSelect={() => {
                           setFocus({ kind: "application", id: item.id });
                           router.push(screenPath(item.archived ? "archive" : "applications"));
@@ -618,10 +620,10 @@ export function WorkspaceShell({
                     ))}
                   </CommandGroup>
                   <CommandGroup heading="Leads">
-                    {(searchIndex?.leads ?? []).slice(0, 12).map((item) => (
+                    {(searchIndex?.leads ?? []).map((item) => (
                       <CommandItem
                         key={item.id}
-                        value={`${item.subtitle} ${item.title}`}
+                        value={`${item.subtitle} ${item.title} ${item.id}`}
                         onSelect={() => {
                           setFocus({ kind: "lead", id: item.id });
                           router.push(screenPath(item.archived ? "archive" : "leads"));
@@ -633,10 +635,10 @@ export function WorkspaceShell({
                     ))}
                   </CommandGroup>
                   <CommandGroup heading="Wishlist">
-                    {(searchIndex?.wishlists ?? []).slice(0, 12).map((item) => (
+                    {(searchIndex?.wishlists ?? []).map((item) => (
                       <CommandItem
                         key={item.id}
-                        value={`${item.subtitle} ${item.title}`}
+                        value={`${item.subtitle} ${item.title} ${item.id}`}
                         onSelect={() => {
                           setFocus({ kind: "wishlist", id: item.id });
                           router.push(screenPath(item.archived ? "archive" : "wishlist"));
@@ -649,10 +651,10 @@ export function WorkspaceShell({
                     ))}
                   </CommandGroup>
                   <CommandGroup heading="Companies">
-                    {(searchIndex?.companies ?? []).slice(0, 8).map((company) => (
+                    {(searchIndex?.companies ?? []).map((company) => (
                       <CommandItem
                         key={company.id}
-                        value={company.name}
+                        value={`${company.name} ${company.id}`}
                         onSelect={() => {
                           setFocus({ kind: "company", id: company.id });
                           router.push(screenPath("companies"));

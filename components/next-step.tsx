@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, CircleAlert, X } from "lucide-react";
+import { Check, CircleAlert, SkipForward, X } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -24,6 +24,8 @@ import {
   type StepLog,
 } from "@/lib/domain";
 import { cn } from "@/lib/utils";
+
+type StepFormMode = "log" | "skip";
 
 const urgencyTone: Record<
   Exclude<NextStepUrgency, "none">,
@@ -137,7 +139,7 @@ export function CurrentNextStepCard({
   readOnly?: boolean;
   onComplete: (patch: StepCompletion) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<StepFormMode | null>(null);
   const [details, setDetails] = useState("");
   const [scheduleNext, setScheduleNext] = useState(true);
   const [nextDate, setNextDate] = useState("");
@@ -145,6 +147,7 @@ export function CurrentNextStepCard({
   const urgency = nextStepUrgency(nextStepDate);
   const hasStep = Boolean(nextStepDate || nextStepLabel);
   const tone = hasStep && urgency !== "none" ? urgencyTone[urgency] : urgencyTone.later;
+  const skipping = mode === "skip";
   const headline = !hasStep
     ? "Next step"
     : urgency === "overdue"
@@ -160,7 +163,19 @@ export function CurrentNextStepCard({
     setScheduleNext(hasStep);
     setNextDate("");
     setNextLabel("");
-    setOpen(false);
+    setMode(null);
+  }
+
+  function openForm(nextMode: StepFormMode) {
+    if (mode === nextMode) {
+      resetForm();
+      return;
+    }
+    setScheduleNext(hasStep);
+    setNextDate("");
+    setNextLabel("");
+    setDetails("");
+    setMode(nextMode);
   }
 
   function submit() {
@@ -172,6 +187,7 @@ export function CurrentNextStepCard({
     const updatedLogs = appendStepLog(stepLogs, {
       label,
       details,
+      ...(skipping ? { skipped: true } : {}),
       ...(scheduledDate ? { nextStepDate: scheduledDate } : {}),
       ...(scheduledLabel ? { nextStepLabel: scheduledLabel } : {}),
     });
@@ -204,7 +220,7 @@ export function CurrentNextStepCard({
 
   if (readOnly && !hasStep) return null;
 
-  if (!hasStep && !open) {
+  if (!hasStep && !mode) {
     return (
       <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-foreground/15 px-3 py-2.5">
         <p className="text-sm text-muted-foreground">No next step scheduled</p>
@@ -217,7 +233,7 @@ export function CurrentNextStepCard({
             setNextDate("");
             setNextLabel("");
             setDetails("");
-            setOpen(true);
+            setMode("log");
           }}
         >
           <Check />
@@ -261,36 +277,45 @@ export function CurrentNextStepCard({
           </p>
         </div>
         {!readOnly ? (
-          <Button
-            type="button"
-            size="sm"
-            variant={urgency === "overdue" || urgency === "today" ? "default" : "outline"}
-            onClick={() => {
-              if (open) {
-                resetForm();
-                return;
-              }
-              setScheduleNext(hasStep);
-              setNextDate("");
-              setNextLabel("");
-              setDetails("");
-              setOpen(true);
-            }}
-          >
-            {open ? <X /> : <Check />}
-            {open ? "Cancel" : hasStep ? "Log" : "Log a step"}
-          </Button>
+          mode ? (
+            <Button type="button" size="sm" variant="outline" onClick={resetForm}>
+              <X />
+              Cancel
+            </Button>
+          ) : (
+            <div className="flex shrink-0 items-center gap-2">
+              {hasStep ? (
+                <Button type="button" size="sm" variant="outline" onClick={() => openForm("skip")}>
+                  <SkipForward />
+                  Skip
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                variant={urgency === "overdue" || urgency === "today" ? "default" : "outline"}
+                onClick={() => openForm("log")}
+              >
+                <Check />
+                {hasStep ? "Log" : "Log a step"}
+              </Button>
+            </div>
+          )
         ) : null}
       </div>
 
-      {open && !readOnly ? (
+      {mode && !readOnly ? (
         <div className="mt-3 grid gap-3 border-t border-foreground/10 pt-3">
           <Field>
-            <FieldLabel>What did you do?</FieldLabel>
+            <FieldLabel>{skipping ? "Why are you skipping?" : "What did you do?"}</FieldLabel>
             <Textarea
               value={details}
               onChange={(e) => setDetails(e.target.value)}
-              placeholder="e.g. Sent follow-up email, no reply yet. Asked about timeline."
+              placeholder={
+                skipping
+                  ? "e.g. Role filled, not a fit right now, waiting on another offer…"
+                  : "e.g. Sent follow-up email, no reply yet. Asked about timeline."
+              }
               rows={3}
             />
           </Field>
@@ -330,7 +355,7 @@ export function CurrentNextStepCard({
               Cancel
             </Button>
             <Button type="button" size="sm" onClick={submit}>
-              Save step
+              {skipping ? "Skip step" : "Save step"}
             </Button>
           </div>
         </div>
@@ -357,6 +382,7 @@ export function StepLogHistory({
         {stepLogs.map((log) => {
           const title = log.label.trim() || "Step";
           const subtitle = formatDisplayDate(log.completedAt);
+          const skipped = log.skipped === true;
 
           return (
             <AccordionItem
@@ -366,7 +392,17 @@ export function StepLogHistory({
             >
               <AccordionTrigger className="px-3 py-2.5 hover:no-underline">
                 <span className="min-w-0 flex-1 pr-2 text-left">
-                  <span className="block truncate font-medium">{title}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate font-medium">{title}</span>
+                    {skipped ? (
+                      <Badge
+                        variant="outline"
+                        className="shrink-0 border-border bg-transparent text-muted-foreground"
+                      >
+                        Skipped
+                      </Badge>
+                    ) : null}
+                  </span>
                   {subtitle ? (
                     <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
                       {subtitle}
@@ -378,7 +414,9 @@ export function StepLogHistory({
                 {log.details ? (
                   <p className="whitespace-pre-wrap text-sm text-muted-foreground">{log.details}</p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No details recorded.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {skipped ? "No reason recorded." : "No details recorded."}
+                  </p>
                 )}
               </AccordionContent>
             </AccordionItem>

@@ -91,6 +91,7 @@ function parseStepLogs(value: string): StepLog[] {
           completedAt,
           label,
           details,
+          ...(item.skipped === true ? { skipped: true } : {}),
           ...(typeof item.nextStepDate === "string" && item.nextStepDate
             ? { nextStepDate: item.nextStepDate }
             : {}),

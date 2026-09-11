@@ -344,6 +344,7 @@ export type StepLog = {
   completedAt: string;
   label: string;
   details: string;
+  skipped?: boolean;
   nextStepDate?: string;
   nextStepLabel?: string;
 };
@@ -866,6 +867,7 @@ export function appendStepLog(
     label: string;
     details: string;
     completedAt?: string;
+    skipped?: boolean;
     nextStepDate?: string;
     nextStepLabel?: string;
   },
@@ -880,6 +882,7 @@ export function appendStepLog(
     completedAt,
     label,
     details,
+    ...(entry.skipped ? { skipped: true } : {}),
     ...(nextStepDate ? { nextStepDate } : {}),
     ...(nextStepLabel ? { nextStepLabel } : {}),
   };

@@ -180,23 +180,24 @@ export function CurrentNextStepCard({
 
   function submit() {
     const label = hasStep ? nextStepLabel.trim() || "Step" : "Step";
-    const scheduledDate = scheduleNext ? nextDate : "";
-    const scheduledLabel = scheduleNext
+    const followUpDate = scheduleNext ? nextDate : "";
+    const followUpLabel = scheduleNext
       ? nextLabel.trim() || (nextDate ? "Follow up" : "")
       : "";
     const updatedLogs = appendStepLog(stepLogs, {
       label,
       details,
       ...(skipping ? { skipped: true } : {}),
-      ...(scheduledDate ? { nextStepDate: scheduledDate } : {}),
-      ...(scheduledLabel ? { nextStepLabel: scheduledLabel } : {}),
+      ...(nextStepDate ? { scheduledDate: nextStepDate } : {}),
+      ...(followUpDate ? { nextStepDate: followUpDate } : {}),
+      ...(followUpLabel ? { nextStepLabel: followUpLabel } : {}),
     });
 
     if (!hasStep) {
       onComplete({
         stepLogs: updatedLogs,
-        nextStepDate: scheduledDate,
-        nextStepLabel: scheduledLabel,
+        nextStepDate: followUpDate,
+        nextStepLabel: followUpLabel,
       });
       resetForm();
       return;
@@ -206,8 +207,8 @@ export function CurrentNextStepCard({
       scheduleNext
         ? {
             stepLogs: updatedLogs,
-            nextStepDate: scheduledDate,
-            nextStepLabel: scheduledLabel,
+            nextStepDate: followUpDate,
+            nextStepLabel: followUpLabel,
           }
         : {
             stepLogs: updatedLogs,
@@ -381,8 +382,18 @@ export function StepLogHistory({
       <Accordion className="gap-3">
         {stepLogs.map((log) => {
           const title = log.label.trim() || "Step";
-          const subtitle = formatDisplayDate(log.completedAt);
           const skipped = log.skipped === true;
+          const actionDate = formatDisplayDate(log.completedAt);
+          const scheduledDate = log.scheduledDate
+            ? formatDisplayDate(log.scheduledDate)
+            : null;
+          const actionVerb = skipped ? "Skipped" : "Logged";
+          const dateLine = [
+            scheduledDate ? `Scheduled ${scheduledDate}` : null,
+            actionDate !== "—" ? `${actionVerb} ${actionDate}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ");
 
           return (
             <AccordionItem
@@ -403,9 +414,9 @@ export function StepLogHistory({
                       </Badge>
                     ) : null}
                   </span>
-                  {subtitle ? (
+                  {dateLine ? (
                     <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
-                      {subtitle}
+                      {dateLine}
                     </span>
                   ) : null}
                 </span>

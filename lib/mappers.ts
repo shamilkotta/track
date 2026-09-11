@@ -92,6 +92,9 @@ function parseStepLogs(value: string): StepLog[] {
           label,
           details,
           ...(item.skipped === true ? { skipped: true } : {}),
+          ...(typeof item.scheduledDate === "string" && item.scheduledDate
+            ? { scheduledDate: item.scheduledDate }
+            : {}),
           ...(typeof item.nextStepDate === "string" && item.nextStepDate
             ? { nextStepDate: item.nextStepDate }
             : {}),

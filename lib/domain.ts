@@ -344,6 +344,9 @@ export type StepLog = {
   completedAt: string;
   label: string;
   details: string;
+  skipped?: boolean;
+  /** When this step was originally due / scheduled. */
+  scheduledDate?: string;
   nextStepDate?: string;
   nextStepLabel?: string;
 };
@@ -866,6 +869,8 @@ export function appendStepLog(
     label: string;
     details: string;
     completedAt?: string;
+    skipped?: boolean;
+    scheduledDate?: string;
     nextStepDate?: string;
     nextStepLabel?: string;
   },
@@ -873,6 +878,7 @@ export function appendStepLog(
   const completedAt = entry.completedAt ?? todayIsoDate();
   const label = entry.label.trim() || "Step";
   const details = entry.details.trim();
+  const scheduledDate = entry.scheduledDate?.trim() ?? "";
   const nextStepDate = entry.nextStepDate?.trim() ?? "";
   const nextStepLabel = entry.nextStepLabel?.trim() ?? "";
   const log: StepLog = {
@@ -880,6 +886,8 @@ export function appendStepLog(
     completedAt,
     label,
     details,
+    ...(entry.skipped ? { skipped: true } : {}),
+    ...(scheduledDate ? { scheduledDate } : {}),
     ...(nextStepDate ? { nextStepDate } : {}),
     ...(nextStepLabel ? { nextStepLabel } : {}),
   };

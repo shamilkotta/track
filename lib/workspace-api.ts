@@ -277,6 +277,10 @@ function parseStepLog(value: unknown): StepLog | null {
     completedAt,
     label,
     details,
+    ...(value.skipped === true ? { skipped: true } : {}),
+    ...(typeof value.scheduledDate === "string" && value.scheduledDate
+      ? { scheduledDate: value.scheduledDate }
+      : {}),
     ...(typeof value.nextStepDate === "string" && value.nextStepDate
       ? { nextStepDate: value.nextStepDate }
       : {}),

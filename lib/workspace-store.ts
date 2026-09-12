@@ -922,6 +922,10 @@ function parseStepLogsInput(value: unknown, fallback: StepLog[]): StepLog[] {
         completedAt,
         label,
         details,
+        ...(record.skipped === true ? { skipped: true } : {}),
+        ...(typeof record.scheduledDate === "string" && record.scheduledDate
+          ? { scheduledDate: record.scheduledDate }
+          : {}),
         ...(typeof record.nextStepDate === "string" && record.nextStepDate
           ? { nextStepDate: record.nextStepDate }
           : {}),

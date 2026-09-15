@@ -186,7 +186,7 @@ function StatStrip({
   return (
     <div className="track-stat-strip mx-4 mb-6 md:mx-7">
       {stats.map((stat) => (
-        <div key={stat.label}>
+        <div key={stat.label} className="min-w-0">
           <p className="track-stat-label">{stat.label}</p>
           <p
             className={cn(
@@ -201,7 +201,7 @@ function StatStrip({
           >
             {stat.value}
           </p>
-          <p className="track-stat-detail">{stat.hint}</p>
+          <p className="track-stat-detail truncate">{stat.hint}</p>
         </div>
       ))}
     </div>
@@ -288,9 +288,15 @@ function DetailDrawer({
           <SheetHeader className="shrink-0 border-b">
             <SheetTitle className="flex items-center gap-2">
               Application details
-              {savedFlash && (
-                <span className="text-xs font-normal text-muted-foreground">Saved</span>
-              )}
+              <span
+                aria-live="polite"
+                className={cn(
+                  "text-xs font-normal text-muted-foreground transition-[opacity,filter] duration-200 ease-out",
+                  savedFlash ? "opacity-100 blur-0" : "opacity-0 blur-[4px]",
+                )}
+              >
+                Saved
+              </span>
             </SheetTitle>
             <SheetDescription>
               {company?.name ?? "Unknown"}
@@ -766,7 +772,7 @@ export function ApplicationsView({
           }}
         />
         {selected.length > 0 && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150">
             <Button
               variant="secondary"
               onClick={() => {
@@ -829,9 +835,14 @@ export function ApplicationsView({
                           <GroupedItemIndent>
                             <div className="min-w-0">
                               <p className="truncate text-sm font-medium">{item.role}</p>
-                              <p className="truncate text-xs text-muted-foreground">
-                                {item.location || item.workMode}
-                              </p>
+                              <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {item.location || item.workMode}
+                                </p>
+                                <span className="shrink-0 md:hidden">
+                                  <StageBadge stage={item.stage} />
+                                </span>
+                              </div>
                             </div>
                           </GroupedItemIndent>
                         ) : (
@@ -839,7 +850,14 @@ export function ApplicationsView({
                             {company && <CompanyMark logo={company.logo} color={company.color} />}
                             <div className="min-w-0">
                               <p className="truncate text-sm font-medium">{company?.name}</p>
-                              <p className="truncate text-xs text-muted-foreground">{item.role}</p>
+                              <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {item.role}
+                                </p>
+                                <span className="shrink-0 md:hidden">
+                                  <StageBadge stage={item.stage} />
+                                </span>
+                              </div>
                             </div>
                           </div>
                         )}
@@ -880,6 +898,7 @@ export function ApplicationsView({
                 }
 
                 const collapsed = isCollapsed(group.companyId);
+                const focus = pickMostUrgentNextStep(group.items);
                 return [
                   <CompanyGroupHeaderRow
                     key={`group-${group.companyId}`}
@@ -897,6 +916,8 @@ export function ApplicationsView({
                           : prev.filter((id) => !ids.includes(id)),
                       );
                     }}
+                    nextStepDate={focus?.nextStepDate}
+                    nextStepLabel={focus?.nextStepLabel}
                   />,
                   ...(collapsed ? [] : group.items.map((item) => renderRow(item, true))),
                 ];
@@ -928,7 +949,12 @@ export function ApplicationsView({
                         {company && <CompanyMark logo={company.logo} color={company.color} />}
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium">{company?.name}</p>
-                          <p className="truncate text-xs text-muted-foreground">{item.role}</p>
+                          <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+                            <p className="truncate text-xs text-muted-foreground">{item.role}</p>
+                            <span className="shrink-0 md:hidden">
+                              <StageBadge stage={item.stage} />
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </TableCell>
@@ -965,10 +991,17 @@ export function ApplicationsView({
         </TableBody>
       </Table>
       {filtered.length === 0 && (
-        <div className="flex flex-col items-center gap-2 py-20 text-center">
-          <Search className="size-6 text-muted-foreground" />
-          <p className="text-sm font-medium">No applications found</p>
-          <p className="text-xs text-muted-foreground">Try a different search or filter.</p>
+        <div className="flex flex-col items-center gap-2.5 px-4 py-20 text-center">
+          <div className="flex size-10 items-center justify-center rounded-md bg-secondary text-muted-foreground shadow-[var(--shadow-border)]">
+            <Search className="size-4" strokeWidth={1.5} />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-medium">No applications found</p>
+            <p className="text-xs text-muted-foreground">Try a different search or filter.</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={onAdd}>
+            <Plus /> New application
+          </Button>
         </div>
       )}
       {active && (

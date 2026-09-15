@@ -16,7 +16,7 @@ import { ActionErrorBanner, failMessage } from "@/components/workspace/action-er
 import { WorkspacePageHeader } from "@/components/workspace/page-header";
 import { NativeSelectField } from "@/components/workspace-fields";
 import { ListPageSkeleton } from "@/components/workspace-skeletons";
-import { useWorkspaceFocus } from "@/components/workspace-shell";
+import { useWorkspaceFocus } from "@/components/workspace-focus";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

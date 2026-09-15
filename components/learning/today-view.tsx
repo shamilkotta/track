@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { ScheduleEntryRow } from "@/components/learning/shared";
 import { WorkspacePageHeader } from "@/components/workspace/page-header";
 import { ListPageSkeleton } from "@/components/workspace-skeletons";
-import { useWorkspaceFocus } from "@/components/workspace-shell";
+import { useWorkspaceFocus } from "@/components/workspace-focus";
 import { useLearningScheduleQuery } from "@/hooks/use-learning";
 import { learningMapPath, todayIsoDate, type LearningScheduleEntry } from "@/lib/domain";
 import { useRouter } from "nlite/navigation";

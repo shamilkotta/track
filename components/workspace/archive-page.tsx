@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ArchiveView } from "@/components/job-hunt-workspace";
 import { ActionErrorBanner, failMessage } from "@/components/workspace/action-error";
 import { StackPageSkeleton } from "@/components/workspace-skeletons";
-import { useWorkspaceFocus } from "@/components/workspace-shell";
+import { useWorkspaceFocus } from "@/components/workspace-focus";
 import {
   mutateCreateCompany,
   mutateCreateCoverText,

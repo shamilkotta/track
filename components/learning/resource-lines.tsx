@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Plus } from "lucide-react";
 import { useRouter } from "nlite/navigation";
-import { useWorkspaceFocus } from "@/components/workspace-shell";
+import { useWorkspaceFocus } from "@/components/workspace-focus";
 import { useLearningMutations } from "@/hooks/use-learning";
 import { learningMapPath, type LearningResource } from "@/lib/domain";
 

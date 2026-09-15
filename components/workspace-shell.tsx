@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Archive,
   Briefcase,
@@ -70,6 +62,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useWorkspaceFocus, WorkspaceFocusProvider } from "@/components/workspace-focus";
 import { useWorkspaceSummary } from "@/hooks/use-workspace";
 import { signOut } from "@/lib/auth-client";
 import {
@@ -85,28 +78,8 @@ import {
 import { cn } from "@/lib/utils";
 import { usePathname, useRouter } from "nlite/navigation";
 
-export type WorkspaceFocus =
-  | { kind: "application"; id: string }
-  | { kind: "company"; id: string }
-  | { kind: "lead"; id: string }
-  | { kind: "wishlist"; id: string }
-  | { kind: "learning-path"; id: string }
-  | { kind: "learning-module"; id: string; pathId: string }
-  | { kind: "learning-topic"; id: string; pathId: string };
-
-type WorkspaceFocusContextValue = {
-  focus: WorkspaceFocus | null;
-  setFocus: (focus: WorkspaceFocus | null) => void;
-  consumeFocus: (kind: WorkspaceFocus["kind"]) => string | null;
-};
-
-const WorkspaceFocusContext = createContext<WorkspaceFocusContextValue | null>(null);
-
-export function useWorkspaceFocus() {
-  const value = useContext(WorkspaceFocusContext);
-  if (!value) throw new Error("useWorkspaceFocus must be used within WorkspaceShell");
-  return value;
-}
+export type { WorkspaceFocus } from "@/components/workspace-focus";
+export { useWorkspaceFocus } from "@/components/workspace-focus";
 
 const modeOptions: Array<{
   id: ProductMode;
@@ -427,27 +400,29 @@ export function WorkspaceShell({
   user: WorkspaceUser;
   children: ReactNode;
 }) {
+  return (
+    <WorkspaceFocusProvider>
+      <WorkspaceShellFrame user={initialUser}>{children}</WorkspaceShellFrame>
+    </WorkspaceFocusProvider>
+  );
+}
+
+function WorkspaceShellFrame({
+  user: initialUser,
+  children,
+}: {
+  user: WorkspaceUser;
+  children: ReactNode;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const screen = screenFromPathname(pathname);
   const mode = productModeFromPathname(pathname);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [focus, setFocus] = useState<WorkspaceFocus | null>(null);
+  const { setFocus } = useWorkspaceFocus();
   const summaryQuery = useWorkspaceSummary(initialUser);
   const user = summaryQuery.data?.user ?? initialUser;
   const searchIndex = summaryQuery.data?.search;
-
-  const consumeFocus = useCallback(
-    (kind: WorkspaceFocus["kind"]) => {
-      if (!focus || focus.kind !== kind) return null;
-      const id = focus.id;
-      setFocus(null);
-      return id;
-    },
-    [focus],
-  );
-
-  const focusValue = useMemo(() => ({ focus, setFocus, consumeFocus }), [focus, consumeFocus]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -461,216 +436,210 @@ export function WorkspaceShell({
   }, []);
 
   return (
-    <WorkspaceFocusContext.Provider value={focusValue}>
-      <SidebarProvider className="h-svh overflow-hidden">
-        <AppSidebar
-          mode={mode}
-          screen={screen}
-          applicationCount={summaryQuery.data?.counts.applications ?? 0}
-          leadCount={summaryQuery.data?.counts.leads ?? 0}
-          wishlistCount={summaryQuery.data?.counts.wishlists ?? 0}
-          countsPending={summaryQuery.isPending}
-          user={user}
-        />
-        <SidebarInset className="min-h-0 overflow-hidden">
-          <Header onSearch={() => setSearchOpen(true)} />
-          <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
-        </SidebarInset>
-        <CommandDialog
-          open={searchOpen}
-          onOpenChange={setSearchOpen}
-          title="Quick search"
-          className="sm:max-w-xl"
-        >
-          <CommandPalette className="min-h-80">
-            <CommandInput
-              placeholder={
-                mode === "learning"
-                  ? "Search maps, modules, topics..."
-                  : "Search applications, leads, wishlist, companies..."
-              }
-            />
-            <CommandList className="max-h-96">
-              <CommandEmpty>No matches.</CommandEmpty>
-              {mode === "learning" ? (
-                <>
-                  <CommandGroup heading="Go to">
-                    {(
-                      [
-                        ["learning", "Overview"],
-                        ["learning-today", "Today"],
-                        ["learning-maps", "Maps"],
-                        ["learning-journal", "Journal"],
-                        ["learning-resources", "Resources"],
-                      ] as const
-                    ).map(([id, label]) => (
-                      <CommandItem
-                        key={id}
-                        value={label}
-                        onSelect={() => {
-                          router.push(screenPath(id));
-                          setSearchOpen(false);
-                        }}
-                      >
-                        {label}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                  <CommandGroup heading="Maps">
-                    {(searchIndex?.learningPaths ?? []).map((item) => (
-                      <CommandItem
-                        key={item.id}
-                        value={`${item.title} ${item.subtitle} map ${item.id}`}
-                        onSelect={() => {
-                          router.push(learningMapPath(item.pathId));
-                          setSearchOpen(false);
-                        }}
-                      >
-                        <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                        <CommandShortcut className="tracking-normal capitalize">
-                          {item.subtitle}
-                        </CommandShortcut>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                  <CommandGroup heading="Modules">
-                    {(searchIndex?.learningModules ?? []).map((item) => (
-                      <CommandItem
-                        key={item.id}
-                        value={`${item.title} ${item.subtitle} module ${item.id}`}
-                        onSelect={() => {
-                          setFocus({
-                            kind: "learning-module",
-                            id: item.id,
-                            pathId: item.pathId,
-                          });
-                          router.push(learningMapPath(item.pathId));
-                          setSearchOpen(false);
-                        }}
-                      >
-                        <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                        <CommandShortcut className="tracking-normal">
-                          {item.subtitle}
-                        </CommandShortcut>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                  <CommandGroup heading="Topics">
-                    {(searchIndex?.learningTopics ?? []).map((item) => (
-                      <CommandItem
-                        key={item.id}
-                        value={`${item.title} ${item.subtitle} topic ${item.id}`}
-                        onSelect={() => {
-                          setFocus({
-                            kind: "learning-topic",
-                            id: item.id,
-                            pathId: item.pathId,
-                          });
-                          router.push(learningMapPath(item.pathId));
-                          setSearchOpen(false);
-                        }}
-                      >
-                        <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                        <CommandShortcut className="tracking-normal">
-                          {item.subtitle}
-                        </CommandShortcut>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </>
-              ) : (
-                <>
-                  <CommandGroup heading="Go to">
-                    {(
-                      [
-                        ["applications", "Applications"],
-                        ["leads", "Leads"],
-                        ["wishlist", "Wishlist"],
-                        ["companies", "Companies"],
-                        ["resumes", "Resumes"],
-                        ["cover-letters", "Cover letters"],
-                        ["archive", "Archive"],
-                      ] as const
-                    ).map(([id, label]) => (
-                      <CommandItem
-                        key={id}
-                        value={label}
-                        onSelect={() => {
-                          router.push(screenPath(id));
-                          setSearchOpen(false);
-                        }}
-                      >
-                        {label}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                  <CommandGroup heading="Applications">
-                    {(searchIndex?.applications ?? []).map((item) => (
-                      <CommandItem
-                        key={item.id}
-                        value={`${item.subtitle} ${item.title} ${item.id}`}
-                        onSelect={() => {
-                          setFocus({ kind: "application", id: item.id });
-                          router.push(screenPath(item.archived ? "archive" : "applications"));
-                          setSearchOpen(false);
-                        }}
-                      >
-                        {item.subtitle} · {item.title}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                  <CommandGroup heading="Leads">
-                    {(searchIndex?.leads ?? []).map((item) => (
-                      <CommandItem
-                        key={item.id}
-                        value={`${item.subtitle} ${item.title} ${item.id}`}
-                        onSelect={() => {
-                          setFocus({ kind: "lead", id: item.id });
-                          router.push(screenPath(item.archived ? "archive" : "leads"));
-                          setSearchOpen(false);
-                        }}
-                      >
-                        {item.subtitle} · {item.title}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                  <CommandGroup heading="Wishlist">
-                    {(searchIndex?.wishlists ?? []).map((item) => (
-                      <CommandItem
-                        key={item.id}
-                        value={`${item.subtitle} ${item.title} ${item.id}`}
-                        onSelect={() => {
-                          setFocus({ kind: "wishlist", id: item.id });
-                          router.push(screenPath(item.archived ? "archive" : "wishlist"));
-                          setSearchOpen(false);
-                        }}
-                      >
+    <SidebarProvider className="h-svh overflow-hidden">
+      <AppSidebar
+        mode={mode}
+        screen={screen}
+        applicationCount={summaryQuery.data?.counts.applications ?? 0}
+        leadCount={summaryQuery.data?.counts.leads ?? 0}
+        wishlistCount={summaryQuery.data?.counts.wishlists ?? 0}
+        countsPending={summaryQuery.isPending}
+        user={user}
+      />
+      <SidebarInset className="min-h-0 overflow-hidden">
+        <Header onSearch={() => setSearchOpen(true)} />
+        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      </SidebarInset>
+      <CommandDialog
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        title="Quick search"
+        className="sm:max-w-xl"
+      >
+        <CommandPalette className="min-h-80">
+          <CommandInput
+            placeholder={
+              mode === "learning"
+                ? "Search maps, modules, topics..."
+                : "Search applications, leads, wishlist, companies..."
+            }
+          />
+          <CommandList className="max-h-96">
+            <CommandEmpty>No matches.</CommandEmpty>
+            {mode === "learning" ? (
+              <>
+                <CommandGroup heading="Go to">
+                  {(
+                    [
+                      ["learning", "Overview"],
+                      ["learning-today", "Today"],
+                      ["learning-maps", "Maps"],
+                      ["learning-journal", "Journal"],
+                      ["learning-resources", "Resources"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <CommandItem
+                      key={id}
+                      value={label}
+                      onSelect={() => {
+                        router.push(screenPath(id));
+                        setSearchOpen(false);
+                      }}
+                    >
+                      {label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+                <CommandGroup heading="Maps">
+                  {(searchIndex?.learningPaths ?? []).map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`${item.title} ${item.subtitle} map ${item.id}`}
+                      onSelect={() => {
+                        router.push(learningMapPath(item.pathId));
+                        setSearchOpen(false);
+                      }}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                      <CommandShortcut className="tracking-normal capitalize">
                         {item.subtitle}
-                        {item.title ? ` · ${item.title}` : ""}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                  <CommandGroup heading="Companies">
-                    {(searchIndex?.companies ?? []).map((company) => (
-                      <CommandItem
-                        key={company.id}
-                        value={`${company.name} ${company.id}`}
-                        onSelect={() => {
-                          setFocus({ kind: "company", id: company.id });
-                          router.push(screenPath("companies"));
-                          setSearchOpen(false);
-                        }}
-                      >
-                        {company.name}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </>
-              )}
-            </CommandList>
-          </CommandPalette>
-        </CommandDialog>
-      </SidebarProvider>
-    </WorkspaceFocusContext.Provider>
+                      </CommandShortcut>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+                <CommandGroup heading="Modules">
+                  {(searchIndex?.learningModules ?? []).map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`${item.title} ${item.subtitle} module ${item.id}`}
+                      onSelect={() => {
+                        setFocus({
+                          kind: "learning-module",
+                          id: item.id,
+                          pathId: item.pathId,
+                        });
+                        router.push(learningMapPath(item.pathId));
+                        setSearchOpen(false);
+                      }}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                      <CommandShortcut className="tracking-normal">{item.subtitle}</CommandShortcut>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+                <CommandGroup heading="Topics">
+                  {(searchIndex?.learningTopics ?? []).map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`${item.title} ${item.subtitle} topic ${item.id}`}
+                      onSelect={() => {
+                        setFocus({
+                          kind: "learning-topic",
+                          id: item.id,
+                          pathId: item.pathId,
+                        });
+                        router.push(learningMapPath(item.pathId));
+                        setSearchOpen(false);
+                      }}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                      <CommandShortcut className="tracking-normal">{item.subtitle}</CommandShortcut>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            ) : (
+              <>
+                <CommandGroup heading="Go to">
+                  {(
+                    [
+                      ["applications", "Applications"],
+                      ["leads", "Leads"],
+                      ["wishlist", "Wishlist"],
+                      ["companies", "Companies"],
+                      ["resumes", "Resumes"],
+                      ["cover-letters", "Cover letters"],
+                      ["archive", "Archive"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <CommandItem
+                      key={id}
+                      value={label}
+                      onSelect={() => {
+                        router.push(screenPath(id));
+                        setSearchOpen(false);
+                      }}
+                    >
+                      {label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+                <CommandGroup heading="Applications">
+                  {(searchIndex?.applications ?? []).map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`${item.subtitle} ${item.title} ${item.id}`}
+                      onSelect={() => {
+                        setFocus({ kind: "application", id: item.id });
+                        router.push(screenPath(item.archived ? "archive" : "applications"));
+                        setSearchOpen(false);
+                      }}
+                    >
+                      {item.subtitle} · {item.title}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+                <CommandGroup heading="Leads">
+                  {(searchIndex?.leads ?? []).map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`${item.subtitle} ${item.title} ${item.id}`}
+                      onSelect={() => {
+                        setFocus({ kind: "lead", id: item.id });
+                        router.push(screenPath(item.archived ? "archive" : "leads"));
+                        setSearchOpen(false);
+                      }}
+                    >
+                      {item.subtitle} · {item.title}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+                <CommandGroup heading="Wishlist">
+                  {(searchIndex?.wishlists ?? []).map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`${item.subtitle} ${item.title} ${item.id}`}
+                      onSelect={() => {
+                        setFocus({ kind: "wishlist", id: item.id });
+                        router.push(screenPath(item.archived ? "archive" : "wishlist"));
+                        setSearchOpen(false);
+                      }}
+                    >
+                      {item.subtitle}
+                      {item.title ? ` · ${item.title}` : ""}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+                <CommandGroup heading="Companies">
+                  {(searchIndex?.companies ?? []).map((company) => (
+                    <CommandItem
+                      key={company.id}
+                      value={`${company.name} ${company.id}`}
+                      onSelect={() => {
+                        setFocus({ kind: "company", id: company.id });
+                        router.push(screenPath("companies"));
+                        setSearchOpen(false);
+                      }}
+                    >
+                      {company.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+          </CommandList>
+        </CommandPalette>
+      </CommandDialog>
+    </SidebarProvider>
   );
 }

@@ -3,8 +3,33 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
+
+function StatusIcon({ status }: { status: SaveStatus }) {
+  const showSpinner = status === "saving";
+  const showCheck = status === "saved";
+
+  if (!showSpinner && !showCheck) return null;
+
+  return (
+    <span className="relative size-4 shrink-0" aria-hidden>
+      <LoaderCircle
+        className={cn(
+          "absolute inset-0 size-4 animate-spin transition-[opacity,filter,scale] duration-300 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
+          showSpinner ? "scale-100 opacity-100 blur-0" : "scale-[0.25] opacity-0 blur-[4px]",
+        )}
+      />
+      <Check
+        className={cn(
+          "size-4 transition-[opacity,filter,scale] duration-300 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
+          showCheck ? "scale-100 opacity-100 blur-0" : "scale-[0.25] opacity-0 blur-[4px]",
+        )}
+      />
+    </span>
+  );
+}
 
 export function SaveButton({
   onSave,
@@ -77,9 +102,15 @@ export function SaveButton({
       onClick={() => void handleClick()}
       aria-live="polite"
     >
-      {status === "saving" ? <LoaderCircle className="animate-spin" /> : null}
-      {status === "saved" ? <Check /> : null}
-      {label}
+      <StatusIcon status={status} />
+      <span
+        className={cn(
+          "transition-[filter,opacity] duration-200 ease-out motion-reduce:transition-none",
+          status === "saving" ? "opacity-80" : "opacity-100",
+        )}
+      >
+        {label}
+      </span>
     </Button>
   );
 }

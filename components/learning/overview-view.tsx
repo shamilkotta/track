@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelectField } from "@/components/workspace-fields";
 import { ListPageSkeleton } from "@/components/workspace-skeletons";
-import { useWorkspaceFocus } from "@/components/workspace-shell";
+import { useWorkspaceFocus } from "@/components/workspace-focus";
 import { useLearningMutations, useLearningOverviewQuery } from "@/hooks/use-learning";
 import {
   learningMapPath,

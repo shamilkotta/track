@@ -5,7 +5,7 @@ import { WishlistView } from "@/components/wishlist-workspace";
 import { ActionErrorBanner, failMessage } from "@/components/workspace/action-error";
 import { WorkspacePageHeader } from "@/components/workspace/page-header";
 import { ListPageSkeleton } from "@/components/workspace-skeletons";
-import { useWorkspaceFocus } from "@/components/workspace-shell";
+import { useWorkspaceFocus } from "@/components/workspace-focus";
 import {
   mutateCreateCompany,
   useApplicationsQuery,

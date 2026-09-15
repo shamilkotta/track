@@ -849,6 +849,7 @@ export function LeadsView({
                 }
 
                 const collapsed = isCollapsed(group.companyId);
+                const focus = pickMostUrgentNextStep(group.items);
                 return [
                   <CompanyGroupHeaderRow
                     key={`group-${group.companyId}`}
@@ -867,6 +868,8 @@ export function LeadsView({
                       );
                     }}
                     colSpan={7}
+                    nextStepDate={focus?.nextStepDate}
+                    nextStepLabel={focus?.nextStepLabel}
                   />,
                   ...(collapsed ? [] : group.items.map((item) => renderRow(item, true))),
                 ];

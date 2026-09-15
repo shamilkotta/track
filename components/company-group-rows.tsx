@@ -59,6 +59,42 @@ export function CompanyGroupHeaderRow({
 }) {
   const allSelected = selectedCount === count;
   const hasNextStep = Boolean(nextStepDate || nextStepLabel);
+  // Tables: checkbox | leading cols | Next step | Priority
+  const leadingColSpan = colSpan - 3;
+
+  const toggleButton = (
+    <button
+      type="button"
+      className="flex w-full min-w-0 items-center gap-2 text-left transition-transform duration-150 ease-out active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100"
+      onClick={onToggle}
+    >
+      <span className="relative size-4 shrink-0" aria-hidden>
+        <ChevronRight
+          className={cn(
+            "absolute inset-0 size-4 text-muted-foreground transition-[opacity,filter,scale] duration-300 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
+            collapsed ? "scale-100 opacity-100 blur-0" : "scale-[0.25] opacity-0 blur-[4px]",
+          )}
+        />
+        <ChevronDown
+          className={cn(
+            "size-4 text-muted-foreground transition-[opacity,filter,scale] duration-300 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
+            collapsed ? "scale-[0.25] opacity-0 blur-[4px]" : "scale-100 opacity-100 blur-0",
+          )}
+        />
+      </span>
+      {company && <CompanyMark logo={company.logo} color={company.color} />}
+      <span className="truncate font-medium">{company?.name ?? "Unknown company"}</span>
+      <Badge variant="secondary" className="shrink-0">
+        {count} {label}
+      </Badge>
+    </button>
+  );
+
+  const nextStep = hasNextStep ? (
+    <NextStepCell nextStepDate={nextStepDate ?? ""} nextStepLabel={nextStepLabel ?? ""} />
+  ) : (
+    <span className="text-muted-foreground">—</span>
+  );
 
   return (
     <TableRow className="bg-muted/40 hover:bg-muted/50">
@@ -70,38 +106,19 @@ export function CompanyGroupHeaderRow({
           aria-label={`Select all ${company?.name ?? "company"} ${label}`}
         />
       </TableCell>
-      <TableCell colSpan={colSpan - 1}>
-        <button
-          type="button"
-          className="flex w-full min-w-0 items-center gap-2 text-left transition-transform duration-150 ease-out active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100"
-          onClick={onToggle}
-        >
-          <span className="relative size-4 shrink-0" aria-hidden>
-            <ChevronRight
-              className={cn(
-                "absolute inset-0 size-4 text-muted-foreground transition-[opacity,filter,scale] duration-300 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
-                collapsed ? "scale-100 opacity-100 blur-0" : "scale-[0.25] opacity-0 blur-[4px]",
-              )}
-            />
-            <ChevronDown
-              className={cn(
-                "size-4 text-muted-foreground transition-[opacity,filter,scale] duration-300 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
-                collapsed ? "scale-[0.25] opacity-0 blur-[4px]" : "scale-100 opacity-100 blur-0",
-              )}
-            />
-          </span>
-          {company && <CompanyMark logo={company.logo} color={company.color} />}
-          <span className="truncate font-medium">{company?.name ?? "Unknown company"}</span>
-          <Badge variant="secondary" className="shrink-0">
-            {count} {label}
-          </Badge>
-          {hasNextStep ? (
-            <span className="ml-auto min-w-0 max-w-50 shrink">
-              <NextStepCell nextStepDate={nextStepDate ?? ""} nextStepLabel={nextStepLabel ?? ""} />
-            </span>
-          ) : null}
-        </button>
+      {/* Mobile: company + next step in one cell (other columns are hidden) */}
+      <TableCell className="md:hidden" colSpan={colSpan - 1}>
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="min-w-0 flex-1">{toggleButton}</div>
+          {hasNextStep ? <div className="min-w-0 max-w-50 shrink">{nextStep}</div> : null}
+        </div>
       </TableCell>
+      {/* Desktop: align next step under the Next step column */}
+      <TableCell className="hidden md:table-cell" colSpan={leadingColSpan}>
+        {toggleButton}
+      </TableCell>
+      <TableCell className="hidden max-w-45 md:table-cell">{nextStep}</TableCell>
+      <TableCell className="hidden md:table-cell" />
     </TableRow>
   );
 }

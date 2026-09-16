@@ -616,17 +616,7 @@ export function WishlistDetailDrawer({
                     <WishlistFields
                       companies={companies}
                       values={draft}
-                      setValues={(patch) => {
-                        setValues(patch);
-                        const immediateKeys = ["status", "priority"] as const;
-                        const immediate: Partial<Wishlist> = {};
-                        for (const key of immediateKeys) {
-                          if (key in patch) {
-                            Object.assign(immediate, { [key]: patch[key] });
-                          }
-                        }
-                        if (Object.keys(immediate).length > 0) patchImmediate(immediate);
-                      }}
+                      setValues={setValues}
                       onCreateCompany={onCreateCompany}
                     />
                   </div>

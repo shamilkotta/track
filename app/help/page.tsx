@@ -17,7 +17,7 @@ const topics = [
   },
   {
     title: "Applications",
-    body: "Create an entry with company, role, and resume. Status, priority, and reply update immediately. Save writes the rest of the form.",
+    body: "Create an entry with company, role, and resume. Change fields in the detail sheet, then click Save.",
   },
   {
     title: "Learning maps",
@@ -29,7 +29,7 @@ const topics = [
   },
   {
     title: "Archive",
-    body: "Rejected and withdrawn roles move here automatically. You can also archive a selection from the table, then restore it later.",
+    body: "Archive a selection from the table when you want it out of the active list, then restore it later.",
   },
 ];
 

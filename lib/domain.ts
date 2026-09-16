@@ -5,6 +5,7 @@ export const stages = [
   "Interview",
   "Offer",
   "Rejected",
+  "Failed",
   "Withdrawn",
 ] as const;
 export const priorities = ["High", "Medium", "Low"] as const;
@@ -30,7 +31,7 @@ export const currencies = ["USD", "EUR", "GBP", "CAD", "INR"] as const;
 export const reminderTimes = ["None", "09:00 AM", "12:00 PM", "05:00 PM"] as const;
 export const sortKeys = ["recent", "company", "stage", "priority"] as const;
 export const companyColors = ["bg-foreground text-background", "bg-muted text-foreground"] as const;
-export const closedStages = ["Rejected", "Withdrawn"] as const;
+export const closedStages = ["Rejected", "Failed", "Withdrawn"] as const;
 export const leadPlatforms = ["Twitter DM", "LinkedIn DM", "Cold email", "Email", "Other"] as const;
 export const leadStatuses = [
   "Draft",

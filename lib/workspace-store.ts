@@ -15,9 +15,6 @@ import {
 import {
   companyColorForIndex,
   companyInitial,
-  isClosedLeadStatus,
-  isClosedStage,
-  isClosedWishlistStatus,
   isCurrency,
   isJobType,
   isLeadPlatform,
@@ -610,11 +607,7 @@ function applicationValues(userId: string, record: Record<string, unknown>, curr
   const stage = isStage(stageRaw) ? stageRaw : (current?.stage ?? "Applied");
   const archivedInput = record.archived;
   const archived =
-    typeof archivedInput === "boolean"
-      ? archivedInput
-      : current
-        ? current.archived
-        : isClosedStage(stage);
+    typeof archivedInput === "boolean" ? archivedInput : (current?.archived ?? false);
   const tagsValue = record.tags;
   const tags = isStringArray(tagsValue)
     ? tagsValue
@@ -683,7 +676,7 @@ function applicationValues(userId: string, record: Record<string, unknown>, curr
     contactUrl: stringField(record, "contactUrl", current?.contactUrl ?? ""),
     contactNotes: stringField(record, "contactNotes", current?.contactNotes ?? ""),
     tags: tagsToJson(tags),
-    archived: archived || isClosedStage(stage),
+    archived,
     userId,
   };
 }
@@ -785,11 +778,7 @@ function leadValues(userId: string, record: Record<string, unknown>, current?: L
   const status = isLeadStatus(statusRaw) ? statusRaw : (current?.status ?? "Draft");
   const archivedInput = record.archived;
   const archived =
-    typeof archivedInput === "boolean"
-      ? archivedInput
-      : current
-        ? current.archived
-        : isClosedLeadStatus(status);
+    typeof archivedInput === "boolean" ? archivedInput : (current?.archived ?? false);
   const tagsValue = record.tags;
   const tags = isStringArray(tagsValue)
     ? tagsValue
@@ -828,7 +817,7 @@ function leadValues(userId: string, record: Record<string, unknown>, current?: L
     coverLetterId: nullableId(record.coverLetterId, current?.coverLetterId ?? null),
     notes: stringField(record, "notes", current?.notes ?? ""),
     tags: tagsToJson(tags),
-    archived: archived || isClosedLeadStatus(status),
+    archived,
     userId,
   };
 }
@@ -975,11 +964,7 @@ function wishlistValues(userId: string, record: Record<string, unknown>, current
   const status = isWishlistStatus(statusRaw) ? statusRaw : (current?.status ?? "Interested");
   const archivedInput = record.archived;
   const archived =
-    typeof archivedInput === "boolean"
-      ? archivedInput
-      : current
-        ? current.archived
-        : isClosedWishlistStatus(status);
+    typeof archivedInput === "boolean" ? archivedInput : (current?.archived ?? false);
   const tagsValue = record.tags;
   const tags = isStringArray(tagsValue)
     ? tagsValue
@@ -1010,7 +995,7 @@ function wishlistValues(userId: string, record: Record<string, unknown>, current
     notes: stringField(record, "notes", current?.notes ?? ""),
     contacts: contactsToJson(contacts),
     tags: tagsToJson(tags),
-    archived: archived || isClosedWishlistStatus(status),
+    archived,
     userId,
   };
 }

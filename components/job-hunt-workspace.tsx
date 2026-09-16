@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
@@ -341,26 +342,7 @@ function DetailDrawer({
                       resumes={resumes}
                       coverLetters={coverLetters}
                       values={draft}
-                      setValues={(patch) => {
-                        setValues(patch);
-                        const immediateKeys = [
-                          "stage",
-                          "priority",
-                          "workMode",
-                          "resumeId",
-                          "coverLetterId",
-                          "replyStatus",
-                          "source",
-                          "jobType",
-                        ] as const;
-                        const immediate: Partial<Application> = {};
-                        for (const key of immediateKeys) {
-                          if (key in patch) {
-                            Object.assign(immediate, { [key]: patch[key] });
-                          }
-                        }
-                        if (Object.keys(immediate).length > 0) patchImmediate(immediate);
-                      }}
+                      setValues={setValues}
                       onCreateCompany={onCreateCompany}
                       onUploadResume={onUploadResume}
                       onCreateCoverText={onCreateCoverText}
@@ -567,13 +549,12 @@ export function ApplicationsView({
                 <DropdownMenuRadioItem value="compact">Compact</DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => setGroupByCompany(!groupByCompanyEnabled)}
-                className="justify-between"
+              <DropdownMenuCheckboxItem
+                checked={groupByCompanyEnabled}
+                onCheckedChange={(checked) => setGroupByCompany(checked === true)}
               >
                 Group by company
-                {groupByCompanyEnabled && <Badge variant="secondary">On</Badge>}
-              </DropdownMenuItem>
+              </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button onClick={onAdd}>

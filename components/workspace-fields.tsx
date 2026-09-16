@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import {
   currencies,
   isCurrency,
+  isClosedStage,
   isJobType,
   isLeadPlatform,
   isLeadStatus,
@@ -98,11 +99,7 @@ export function CompanyMark({
 
 export function StageBadge({ stage }: { stage: Stage }) {
   const variant =
-    stage === "Offer"
-      ? "default"
-      : stage === "Rejected" || stage === "Withdrawn"
-        ? "outline"
-        : "secondary";
+    stage === "Offer" ? "default" : isClosedStage(stage) ? "outline" : "secondary";
   return <Badge variant={variant}>{stage}</Badge>;
 }
 

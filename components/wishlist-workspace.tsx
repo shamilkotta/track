@@ -999,7 +999,27 @@ export function WishlistView({
       <Table>
         <TableHeader className="hidden md:table-header-group">
           <TableRow>
-            <TableHead className="w-10 pl-4 pr-0" />
+            <TableHead className="w-10 pl-4 pr-0">
+              <Checkbox
+                className="after:inset-0"
+                checked={
+                  filtered.length > 0 && filtered.every((item) => selected.includes(item.id))
+                    ? true
+                    : selected.some((id) => filtered.some((item) => item.id === id))
+                      ? "indeterminate"
+                      : false
+                }
+                onCheckedChange={(checked) => {
+                  const ids = filtered.map((item) => item.id);
+                  setSelected((prev) =>
+                    checked === true
+                      ? [...new Set([...prev, ...ids])]
+                      : prev.filter((id) => !ids.includes(id)),
+                  );
+                }}
+                aria-label="Select all wishlist items"
+              />
+            </TableHead>
             <TableHead>Company</TableHead>
             <TableHead>Contacts</TableHead>
             <TableHead>Activity</TableHead>

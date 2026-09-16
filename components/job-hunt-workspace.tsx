@@ -110,6 +110,7 @@ import {
   stages,
   valuesFromApplication,
   workModes,
+  countsAsActiveApplication,
   type Application,
   type ApplicationFormValues,
   type ApplicationListItem,
@@ -139,7 +140,7 @@ function isDensity(value: string | null): value is Density {
 }
 
 function computeStats(applications: ApplicationListItem[], companies: Company[]) {
-  const active = applications.filter((item) => !item.archived);
+  const active = applications.filter(countsAsActiveApplication);
   const inProgress = active.filter(
     (item) => item.stage === "Screening" || item.stage === "Interview" || item.stage === "Offer",
   );
@@ -153,7 +154,7 @@ function computeStats(applications: ApplicationListItem[], companies: Company[])
     {
       label: "Active applications",
       value: String(active.length),
-      hint: `${applications.length} total including archive`,
+      hint: `${applications.length} total including closed & archive`,
     },
     {
       label: "In progress",
@@ -777,7 +778,27 @@ export function ApplicationsView({
       <Table>
         <TableHeader className="hidden md:table-header-group">
           <TableRow>
-            <TableHead className="w-10 pl-4 pr-0" />
+            <TableHead className="w-10 pl-4 pr-0">
+              <Checkbox
+                className="after:inset-0"
+                checked={
+                  filtered.length > 0 && filtered.every((item) => selected.includes(item.id))
+                    ? true
+                    : selected.some((id) => filtered.some((item) => item.id === id))
+                      ? "indeterminate"
+                      : false
+                }
+                onCheckedChange={(checked) => {
+                  const ids = filtered.map((item) => item.id);
+                  setSelected((prev) =>
+                    checked === true
+                      ? [...new Set([...prev, ...ids])]
+                      : prev.filter((id) => !ids.includes(id)),
+                  );
+                }}
+                aria-label="Select all applications"
+              />
+            </TableHead>
             <TableHead>Company / role</TableHead>
             <TableHead>Stage</TableHead>
             <TableHead>Applied</TableHead>

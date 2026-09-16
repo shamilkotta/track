@@ -781,6 +781,11 @@ export function isClosedStage(value: Stage): boolean {
   return closedStages.some((s) => s === value);
 }
 
+export function countsAsActiveApplication(item: { archived: boolean; stage: string }): boolean {
+  if (item.archived) return false;
+  return !(isStage(item.stage) && isClosedStage(item.stage));
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

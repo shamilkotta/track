@@ -205,6 +205,7 @@ export function mapApplication(row: ApplicationRow): Application {
     location: row.location,
     workMode: isWorkMode(row.workMode) ? row.workMode : "Remote",
     stage: isStage(row.stage) ? row.stage : "Applied",
+    closedReason: row.closedReason ?? "",
     priority: isPriority(row.priority) ? row.priority : "Medium",
     replyStatus: isReplyStatus(row.replyStatus) ? row.replyStatus : "No reply yet",
     appliedDate: row.appliedDate,

@@ -19,6 +19,7 @@ import {
   isJobType,
   isLeadPlatform,
   isLeadStatus,
+  isClosedStage,
   isPriority,
   isReminderTime,
   isReplyStatus,
@@ -642,6 +643,9 @@ function applicationValues(userId: string, record: Record<string, unknown>, curr
       ? stringField(record, "workMode", current?.workMode ?? "Remote")
       : (current?.workMode ?? "Remote"),
     stage,
+    closedReason: isClosedStage(stage)
+      ? stringField(record, "closedReason", current?.closedReason ?? "")
+      : "",
     priority: isPriority(stringField(record, "priority", current?.priority ?? "Medium"))
       ? stringField(record, "priority", current?.priority ?? "Medium")
       : (current?.priority ?? "Medium"),

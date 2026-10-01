@@ -313,6 +313,7 @@ function parseApplication(value: unknown): Application | null {
     location: requiredString(value, "location"),
     workMode: isWorkMode(value.workMode) ? value.workMode : "Remote",
     stage: isStage(value.stage) ? value.stage : "Applied",
+    closedReason: requiredString(value, "closedReason"),
     priority: isPriority(value.priority) ? value.priority : "Medium",
     replyStatus: isReplyStatus(value.replyStatus) ? value.replyStatus : "No reply yet",
     appliedDate: requiredString(value, "appliedDate"),

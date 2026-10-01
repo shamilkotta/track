@@ -260,6 +260,7 @@ export type Application = {
   location: string;
   workMode: WorkMode;
   stage: Stage;
+  closedReason: string;
   priority: Priority;
   replyStatus: ReplyStatus;
   appliedDate: string;
@@ -956,6 +957,7 @@ export function emptyFormValues(): ApplicationFormValues {
     location: "",
     workMode: "Remote",
     stage: "Applied",
+    closedReason: "",
     priority: "Medium",
     replyStatus: "No reply yet",
     appliedDate: new Date().toISOString().slice(0, 10),
@@ -1007,6 +1009,7 @@ export function formValuesToApplicationPatch(
     location: draft.location.trim(),
     workMode: draft.workMode,
     stage: draft.stage,
+    closedReason: isClosedStage(draft.stage) ? draft.closedReason.trim() : "",
     priority: draft.priority,
     replyStatus: draft.replyStatus,
     appliedDate: draft.appliedDate,

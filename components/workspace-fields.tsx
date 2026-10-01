@@ -708,7 +708,12 @@ export function ApplicationFields({
             <FieldLabel>Status</FieldLabel>
             <NativeSelectField
               value={values.stage}
-              onChange={(stage: Stage) => setValues({ stage })}
+              onChange={(stage: Stage) =>
+                setValues({
+                  stage,
+                  closedReason: isClosedStage(stage) ? values.closedReason : "",
+                })
+              }
               options={stages}
               guard={isStage}
             />
@@ -722,6 +727,22 @@ export function ApplicationFields({
               guard={isPriority}
             />
           </Field>
+          {isClosedStage(values.stage) ? (
+            <Field className="sm:col-span-2">
+              <FieldLabel>Reason</FieldLabel>
+              <Textarea
+                value={values.closedReason}
+                onChange={(e) => setValues({ closedReason: e.target.value })}
+                placeholder={
+                  values.stage === "Withdrawn"
+                    ? "Why did you withdraw?"
+                    : values.stage === "Failed"
+                      ? "What went wrong?"
+                      : "Why was this rejected?"
+                }
+              />
+            </Field>
+          ) : null}
           <Field>
             <FieldLabel>Reply status</FieldLabel>
             <NativeSelectField

@@ -146,6 +146,7 @@ export const applications = sqliteTable(
     location: text("location").notNull().default(""),
     workMode: text("work_mode").notNull(),
     stage: text("stage").notNull(),
+    closedReason: text("closed_reason").notNull().default(""),
     priority: text("priority").notNull(),
     replyStatus: text("reply_status").notNull(),
     appliedDate: text("applied_date").notNull().default(""),

@@ -5,6 +5,8 @@ import { ArrowDownUp, Filter, Plus, Search, SlidersHorizontal, X } from "lucide-
 import {
   CompanyGroupHeaderRow,
   GroupedItemIndent,
+  MobileMetaBadges,
+  MobileRowMeta,
   useCollapsedCompanyGroups,
 } from "@/components/company-group-rows";
 import {
@@ -540,7 +542,7 @@ export function LeadsView({
             DMs, cold emails, and outreach threads with a clear next step.
           </p>
         </div>
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button variant="outline" size="icon" />}>
               <SlidersHorizontal />
@@ -568,7 +570,7 @@ export function LeadsView({
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={() => setModal(true)}>
+          <Button className="hidden md:inline-flex" onClick={() => setModal(true)}>
             <Plus /> New lead
           </Button>
         </div>
@@ -788,7 +790,10 @@ export function LeadsView({
                           aria-label={`Select ${item.personName}`}
                         />
                       </TableCell>
-                      <TableCell className="cursor-pointer" onClick={() => setActiveId(item.id)}>
+                      <TableCell
+                        className="cursor-pointer whitespace-normal"
+                        onClick={() => setActiveId(item.id)}
+                      >
                         {grouped ? (
                           <GroupedItemIndent>
                             <div className="min-w-0">
@@ -796,10 +801,26 @@ export function LeadsView({
                               <p className="truncate text-xs text-muted-foreground">
                                 {item.personRole || item.platform}
                               </p>
+                              <MobileRowMeta>
+                                <MobileMetaBadges>
+                                  <LeadStatusBadge status={item.status} />
+                                  <PriorityBadge priority={item.priority} />
+                                </MobileMetaBadges>
+                                <p>
+                                  {item.platform}
+                                  {item.sentDate
+                                    ? ` · Sent ${formatDisplayDate(item.sentDate)}`
+                                    : ""}
+                                </p>
+                                <NextStepCell
+                                  nextStepDate={item.nextStepDate}
+                                  nextStepLabel={item.nextStepLabel}
+                                />
+                              </MobileRowMeta>
                             </div>
                           </GroupedItemIndent>
                         ) : (
-                          <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex min-w-0 items-start gap-3">
                             {company && <CompanyMark logo={company.logo} color={company.color} />}
                             <div className="min-w-0">
                               <p className="truncate text-sm font-medium">{company?.name}</p>
@@ -807,6 +828,22 @@ export function LeadsView({
                                 {item.personName}
                                 {item.personRole ? ` · ${item.personRole}` : ""}
                               </p>
+                              <MobileRowMeta>
+                                <MobileMetaBadges>
+                                  <LeadStatusBadge status={item.status} />
+                                  <PriorityBadge priority={item.priority} />
+                                </MobileMetaBadges>
+                                <p>
+                                  {item.platform}
+                                  {item.sentDate
+                                    ? ` · Sent ${formatDisplayDate(item.sentDate)}`
+                                    : ""}
+                                </p>
+                                <NextStepCell
+                                  nextStepDate={item.nextStepDate}
+                                  nextStepLabel={item.nextStepLabel}
+                                />
+                              </MobileRowMeta>
                             </div>
                           </div>
                         )}
@@ -900,8 +937,11 @@ export function LeadsView({
                         aria-label={`Select ${item.personName}`}
                       />
                     </TableCell>
-                    <TableCell className="cursor-pointer" onClick={() => setActiveId(item.id)}>
-                      <div className="flex min-w-0 items-center gap-3">
+                    <TableCell
+                      className="cursor-pointer whitespace-normal"
+                      onClick={() => setActiveId(item.id)}
+                    >
+                      <div className="flex min-w-0 items-start gap-3">
                         {company && <CompanyMark logo={company.logo} color={company.color} />}
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium">{company?.name}</p>
@@ -909,6 +949,20 @@ export function LeadsView({
                             {item.personName}
                             {item.personRole ? ` · ${item.personRole}` : ""}
                           </p>
+                          <MobileRowMeta>
+                            <MobileMetaBadges>
+                              <LeadStatusBadge status={item.status} />
+                              <PriorityBadge priority={item.priority} />
+                            </MobileMetaBadges>
+                            <p>
+                              {item.platform}
+                              {item.sentDate ? ` · Sent ${formatDisplayDate(item.sentDate)}` : ""}
+                            </p>
+                            <NextStepCell
+                              nextStepDate={item.nextStepDate}
+                              nextStepLabel={item.nextStepLabel}
+                            />
+                          </MobileRowMeta>
                         </div>
                       </div>
                     </TableCell>

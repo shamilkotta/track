@@ -133,6 +133,30 @@ export function GroupedItemIndent({
   return <div className={cn("flex min-w-0 items-center gap-3 pl-6", className)}>{children}</div>;
 }
 
+/** Stacks desktop-only column data under the primary cell on small screens. */
+export function MobileRowMeta({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "mt-1.5 flex flex-col gap-1 text-xs text-muted-foreground md:hidden",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function MobileMetaBadges({ children }: { children: ReactNode }) {
+  return <div className="flex min-w-0 flex-wrap items-center gap-1.5">{children}</div>;
+}
+
 export function CompanyActivityBadges({
   applicationCount,
   leadCount,

@@ -20,6 +20,8 @@ import {
   CompanyActivityList,
   CompanyGroupHeaderRow,
   GroupedItemIndent,
+  MobileMetaBadges,
+  MobileRowMeta,
   useCollapsedCompanyGroups,
 } from "@/components/company-group-rows";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -530,7 +532,7 @@ export function ApplicationsView({
             Active applications, response rate, and the next dated follow-up.
           </p>
         </div>
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button variant="outline" size="icon" />}>
               <SlidersHorizontal />
@@ -558,7 +560,7 @@ export function ApplicationsView({
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={onAdd}>
+          <Button className="hidden md:inline-flex" onClick={onAdd}>
             <Plus /> New application
           </Button>
         </div>
@@ -832,34 +834,47 @@ export function ApplicationsView({
                           aria-label={`Select ${company?.name ?? "application"}`}
                         />
                       </TableCell>
-                      <TableCell className="cursor-pointer" onClick={() => setActiveId(item.id)}>
+                      <TableCell
+                        className="cursor-pointer whitespace-normal"
+                        onClick={() => setActiveId(item.id)}
+                      >
                         {grouped ? (
                           <GroupedItemIndent>
                             <div className="min-w-0">
                               <p className="truncate text-sm font-medium">{item.role}</p>
-                              <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
-                                <p className="truncate text-xs text-muted-foreground">
-                                  {item.location || item.workMode}
-                                </p>
-                                <span className="shrink-0 md:hidden">
+                              <p className="truncate text-xs text-muted-foreground">
+                                {item.location || item.workMode}
+                              </p>
+                              <MobileRowMeta>
+                                <MobileMetaBadges>
                                   <StageBadge stage={item.stage} />
-                                </span>
-                              </div>
+                                  <PriorityBadge priority={item.priority} />
+                                </MobileMetaBadges>
+                                <p>Applied {formatDisplayDate(item.appliedDate)}</p>
+                                <NextStepCell
+                                  nextStepDate={item.nextStepDate}
+                                  nextStepLabel={item.nextStepLabel}
+                                />
+                              </MobileRowMeta>
                             </div>
                           </GroupedItemIndent>
                         ) : (
-                          <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex min-w-0 items-start gap-3">
                             {company && <CompanyMark logo={company.logo} color={company.color} />}
                             <div className="min-w-0">
                               <p className="truncate text-sm font-medium">{company?.name}</p>
-                              <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
-                                <p className="truncate text-xs text-muted-foreground">
-                                  {item.role}
-                                </p>
-                                <span className="shrink-0 md:hidden">
+                              <p className="truncate text-xs text-muted-foreground">{item.role}</p>
+                              <MobileRowMeta>
+                                <MobileMetaBadges>
                                   <StageBadge stage={item.stage} />
-                                </span>
-                              </div>
+                                  <PriorityBadge priority={item.priority} />
+                                </MobileMetaBadges>
+                                <p>Applied {formatDisplayDate(item.appliedDate)}</p>
+                                <NextStepCell
+                                  nextStepDate={item.nextStepDate}
+                                  nextStepLabel={item.nextStepLabel}
+                                />
+                              </MobileRowMeta>
                             </div>
                           </div>
                         )}
@@ -946,17 +961,26 @@ export function ApplicationsView({
                         aria-label={`Select ${company?.name ?? "application"}`}
                       />
                     </TableCell>
-                    <TableCell className="cursor-pointer" onClick={() => setActiveId(item.id)}>
-                      <div className="flex min-w-0 items-center gap-3">
+                    <TableCell
+                      className="cursor-pointer whitespace-normal"
+                      onClick={() => setActiveId(item.id)}
+                    >
+                      <div className="flex min-w-0 items-start gap-3">
                         {company && <CompanyMark logo={company.logo} color={company.color} />}
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium">{company?.name}</p>
-                          <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
-                            <p className="truncate text-xs text-muted-foreground">{item.role}</p>
-                            <span className="shrink-0 md:hidden">
+                          <p className="truncate text-xs text-muted-foreground">{item.role}</p>
+                          <MobileRowMeta>
+                            <MobileMetaBadges>
                               <StageBadge stage={item.stage} />
-                            </span>
-                          </div>
+                              <PriorityBadge priority={item.priority} />
+                            </MobileMetaBadges>
+                            <p>Applied {formatDisplayDate(item.appliedDate)}</p>
+                            <NextStepCell
+                              nextStepDate={item.nextStepDate}
+                              nextStepLabel={item.nextStepLabel}
+                            />
+                          </MobileRowMeta>
                         </div>
                       </div>
                     </TableCell>
@@ -1193,7 +1217,7 @@ export function CompaniesView({
       </div>
       <div className="px-4 pb-8 md:px-7">
         <Table>
-          <TableHeader>
+          <TableHeader className="hidden md:table-header-group">
             <TableRow>
               <TableHead>Company</TableHead>
               <TableHead>Activity</TableHead>
@@ -1204,26 +1228,51 @@ export function CompaniesView({
           <TableBody>
             {companies.map((c) => {
               const activity = activityByCompany.get(c.id);
+              const websiteHost = c.website
+                ? c.website.replace(/^https?:\/\//, "").replace(/\/$/, "")
+                : null;
               return (
                 <TableRow key={c.id} className="cursor-pointer" onClick={() => setActiveId(c.id)}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
+                  <TableCell className="whitespace-normal">
+                    <div className="flex min-w-0 items-start gap-3">
                       <CompanyMark logo={c.logo} color={c.color} />
-                      <span className="font-medium">{c.name}</span>
+                      <div className="min-w-0">
+                        <span className="font-medium">{c.name}</span>
+                        <MobileRowMeta>
+                          <CompanyActivityBadges
+                            applicationCount={activity?.applications.length ?? 0}
+                            leadCount={activity?.leads.length ?? 0}
+                          />
+                          {c.location ? <p>{c.location}</p> : null}
+                          {c.website ? (
+                            <a
+                              href={c.website}
+                              className="truncate text-muted-foreground hover:text-foreground"
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              {websiteHost}
+                            </a>
+                          ) : null}
+                        </MobileRowMeta>
+                      </div>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     <CompanyActivityBadges
                       applicationCount={activity?.applications.length ?? 0}
                       leadCount={activity?.leads.length ?? 0}
                     />
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{c.location || "—"}</TableCell>
-                  <TableCell>
+                  <TableCell className="hidden text-muted-foreground md:table-cell">
+                    {c.location || "—"}
+                  </TableCell>
+                  <TableCell className="hidden max-w-[220px] md:table-cell">
                     {c.website ? (
                       <a
                         href={c.website}
-                        className="text-muted-foreground hover:text-foreground"
+                        className="block truncate text-muted-foreground hover:text-foreground"
                         target="_blank"
                         rel="noreferrer"
                         onClick={(event) => event.stopPropagation()}

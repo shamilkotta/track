@@ -2,7 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { ArrowDownUp, Filter, Plus, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
-import { CompanyActivityBadges } from "@/components/company-group-rows";
+import {
+  CompanyActivityBadges,
+  MobileMetaBadges,
+  MobileRowMeta,
+} from "@/components/company-group-rows";
 import {
   CompanyMark,
   CompanyPicker,
@@ -836,7 +840,7 @@ export function WishlistView({
             Contacts, notes, and next steps before an application exists.
           </p>
         </div>
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button variant="outline" size="icon" />}>
               <SlidersHorizontal />
@@ -857,7 +861,7 @@ export function WishlistView({
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={() => setModal(true)}>
+          <Button className="hidden md:inline-flex" onClick={() => setModal(true)}>
             <Plus /> New wishlist
           </Button>
         </div>
@@ -1052,14 +1056,35 @@ export function WishlistView({
                     aria-label={`Select ${company?.name ?? "wishlist item"}`}
                   />
                 </TableCell>
-                <TableCell className="cursor-pointer" onClick={() => setActiveId(item.id)}>
-                  <div className="flex min-w-0 items-center gap-3">
+                <TableCell
+                  className="cursor-pointer whitespace-normal"
+                  onClick={() => setActiveId(item.id)}
+                >
+                  <div className="flex min-w-0 items-start gap-3">
                     {company && <CompanyMark logo={company.logo} color={company.color} />}
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{company?.name}</p>
                       <p className="truncate text-xs text-muted-foreground">
                         {item.interest || "No interest noted"}
                       </p>
+                      <MobileRowMeta>
+                        <MobileMetaBadges>
+                          <WishlistStatusBadge status={item.status} />
+                          <PriorityBadge priority={item.priority} />
+                        </MobileMetaBadges>
+                        <CompanyActivityBadges
+                          applicationCount={activity?.applications.length ?? 0}
+                          leadCount={activity?.leads.length ?? 0}
+                        />
+                        <p>
+                          {contactSummary(item)}
+                          {lastSent ? ` · Last lead ${formatDisplayDate(lastSent)}` : ""}
+                        </p>
+                        <NextStepCell
+                          nextStepDate={item.nextStepDate}
+                          nextStepLabel={item.nextStepLabel}
+                        />
+                      </MobileRowMeta>
                     </div>
                   </div>
                 </TableCell>

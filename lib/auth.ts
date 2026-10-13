@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth/minimal";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { drizzle } from "drizzle-orm/d1";
 import { getEnv, type AppEnv } from "@/lib/env";
+import { sendAppEmail } from "@/lib/email";
 import * as schema from "@/lib/db/schema";
 
 const cliSecret = "trackr-cli-placeholder-secret-do-not-use";
@@ -18,8 +19,11 @@ function cliEnv(): AppEnv {
   return {
     DB: missingBinding<AppEnv["DB"]>("DB"),
     FILES: missingBinding<AppEnv["FILES"]>("FILES"),
+    EMAIL: missingBinding<AppEnv["EMAIL"]>("EMAIL"),
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? cliSecret,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL ?? "http://localhost:5173",
+    EMAIL_FROM: process.env.EMAIL_FROM ?? "",
+    EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME ?? "",
   };
 }
 
@@ -54,7 +58,24 @@ function createAuth() {
       enabled: true,
       minPasswordLength: 8,
       maxPasswordLength: 256,
-      autoSignIn: true,
+      requireEmailVerification: true,
+      customSyntheticUser: ({ coreFields, additionalFields, id }) => ({
+        ...coreFields,
+        ...additionalFields,
+        id,
+      }),
+    },
+    emailVerification: {
+      sendOnSignUp: true,
+      autoSignInAfterVerification: true,
+      sendVerificationEmail: async ({ user, url }) => {
+        await sendAppEmail({
+          to: user.email,
+          subject: "Verify your Trackr email",
+          text: `Hi ${user.name},\n\nVerify your email to finish setting up Trackr:\n${url}\n\nIf you did not create an account, you can ignore this email.`,
+          html: `<p>Hi ${user.name},</p><p><a href="${url}">Verify your email</a> to finish setting up Trackr.</p><p>If you did not create an account, you can ignore this email.</p>`,
+        });
+      },
     },
     user: {
       additionalFields: {
@@ -83,6 +104,7 @@ function createAuth() {
       customRules: {
         "/sign-in/email": { window: 60, max: 5 },
         "/sign-up/email": { window: 60, max: 3 },
+        "/send-verification-email": { window: 60, max: 3 },
       },
     },
     trustedOrigins: (request) => {

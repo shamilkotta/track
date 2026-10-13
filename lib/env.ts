@@ -28,5 +28,11 @@ export function getEnv(): AppEnv {
   if (typeof workerEnv.BETTER_AUTH_URL !== "string" || workerEnv.BETTER_AUTH_URL.length === 0) {
     throw new Error("BETTER_AUTH_URL is missing");
   }
+  if (!workerEnv.EMAIL) {
+    throw new Error("EMAIL binding is missing");
+  }
+  if (typeof workerEnv.EMAIL_FROM !== "string" || workerEnv.EMAIL_FROM.length === 0) {
+    throw new Error("EMAIL_FROM is missing");
+  }
   return workerEnv;
 }

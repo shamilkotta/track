@@ -9,7 +9,13 @@
   },
   "vars": {
     "BETTER_AUTH_URL": "https://trackr.shamilkotta.workers.dev",
+    "EMAIL_FROM_NAME": "Trackr",
   },
+  "send_email": [
+    {
+      "name": "EMAIL",
+    },
+  ],
   "d1_databases": [
     {
       "binding": "DB",

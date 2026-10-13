@@ -98,7 +98,7 @@ export function CompanyGroupHeaderRow({
 
   return (
     <TableRow className="bg-muted/40 hover:bg-muted/50">
-      <TableCell className="w-10 pl-4 pr-0">
+      <TableCell className="w-10 align-top pl-4 pr-0 md:align-middle">
         <Checkbox
           className="after:inset-0"
           checked={allSelected}

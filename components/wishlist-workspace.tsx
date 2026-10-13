@@ -1044,7 +1044,7 @@ export function WishlistView({
                 data-state={activeId === item.id ? "selected" : undefined}
                 className={density === "compact" ? "[&>td]:py-1.5" : undefined}
               >
-                <TableCell className="w-10 pl-4 pr-0">
+                <TableCell className="w-10 align-top pl-4 pr-0 md:align-middle">
                   <Checkbox
                     className="after:inset-0"
                     checked={selected.includes(item.id)}

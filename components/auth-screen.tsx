@@ -6,25 +6,44 @@ import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { sendVerificationEmail, signIn, signUp } from "@/lib/auth-client";
-import { useRouter } from "nlite/navigation";
+import {
+  requestPasswordReset,
+  resetPassword,
+  sendVerificationEmail,
+  signIn,
+  signUp,
+} from "@/lib/auth-client";
+import { useRouter, useSearchParams } from "nlite/navigation";
 
 function callbackURL() {
   return `${window.location.origin}/job/applications`;
 }
 
-export function AuthScreen({ mode }: { mode: "sign-in" | "sign-up" }) {
+function resetRedirectURL() {
+  return `${window.location.origin}/reset-password`;
+}
+
+type AuthMode = "sign-in" | "sign-up" | "forgot-password" | "reset-password";
+
+export function AuthScreen({ mode }: { mode: AuthMode }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [checkEmail, setCheckEmail] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const [resendPending, setResendPending] = useState(false);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
   const isSignUp = mode === "sign-up";
+  const isForgot = mode === "forgot-password";
+  const isReset = mode === "reset-password";
+  const resetToken = searchParams.get("token");
+  const resetTokenError = searchParams.get("error");
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -32,6 +51,40 @@ export function AuthScreen({ mode }: { mode: "sign-in" | "sign-up" }) {
     setError(null);
     setResendMessage(null);
     try {
+      if (isForgot) {
+        const result = await requestPasswordReset({
+          email: email.trim(),
+          redirectTo: resetRedirectURL(),
+        });
+        if (result.error) {
+          setError(result.error.message ?? "Could not send reset email");
+          return;
+        }
+        setResetSent(true);
+        return;
+      }
+
+      if (isReset) {
+        if (!resetToken) {
+          setError("This reset link is invalid or expired.");
+          return;
+        }
+        if (password !== confirmPassword) {
+          setError("Passwords do not match.");
+          return;
+        }
+        const result = await resetPassword({
+          newPassword: password,
+          token: resetToken,
+        });
+        if (result.error) {
+          setError(result.error.message ?? "Could not reset password");
+          return;
+        }
+        router.push("/sign-in");
+        return;
+      }
+
       const result = isSignUp
         ? await signUp.email({
             name: name.trim(),
@@ -92,11 +145,19 @@ export function AuthScreen({ mode }: { mode: "sign-in" | "sign-up" }) {
     }
   }
 
+  const headerLabel = isForgot
+    ? "Forgot password"
+    : isReset
+      ? "Reset password"
+      : isSignUp
+        ? "Create workspace"
+        : "Sign in";
+
   return (
     <div className="flex min-h-svh flex-col bg-background">
       <header className="flex items-baseline justify-between px-6 py-5 md:px-10">
         <BrandMark />
-        <p className="text-sm text-muted-foreground">{isSignUp ? "Create workspace" : "Sign in"}</p>
+        <p className="text-sm text-muted-foreground">{headerLabel}</p>
       </header>
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 pb-16">
         {checkEmail ? (
@@ -123,13 +184,58 @@ export function AuthScreen({ mode }: { mode: "sign-in" | "sign-up" }) {
               </Button>
             </div>
           </>
+        ) : resetSent ? (
+          <>
+            <h1>Check your email</h1>
+            <p className="track-page-lede">
+              If an account exists for {email.trim() || "that address"}, we sent a password reset
+              link. Open it to choose a new password.
+            </p>
+            <div className="mt-8 flex flex-col gap-3">
+              <Button type="button" size="lg" onClick={() => router.push("/sign-in")}>
+                Back to sign in
+              </Button>
+            </div>
+          </>
+        ) : isReset && (!resetToken || resetTokenError) ? (
+          <>
+            <h1>Reset link invalid</h1>
+            <p className="track-page-lede">
+              This password reset link is invalid or has expired. Request a new one to continue.
+            </p>
+            <div className="mt-8 flex flex-col gap-3">
+              <Button type="button" size="lg" onClick={() => router.push("/forgot-password")}>
+                Request a new link
+              </Button>
+              <Button
+                type="button"
+                size="lg"
+                variant="outline"
+                onClick={() => router.push("/sign-in")}
+              >
+                Back to sign in
+              </Button>
+            </div>
+          </>
         ) : (
           <>
-            <h1>{isSignUp ? "Start tracking your search" : "Continue your search"}</h1>
+            <h1>
+              {isForgot
+                ? "Reset your password"
+                : isReset
+                  ? "Choose a new password"
+                  : isSignUp
+                    ? "Start tracking your search"
+                    : "Continue your search"}
+            </h1>
             <p className="track-page-lede">
-              {isSignUp
-                ? "Applications, follow-ups, and next steps in one place."
-                : "Sign in to open your job search workspace."}
+              {isForgot
+                ? "Enter your email and we’ll send a reset link if an account exists."
+                : isReset
+                  ? "Pick a new password for your Trackr account."
+                  : isSignUp
+                    ? "Applications, follow-ups, and next steps in one place."
+                    : "Sign in to open your job search workspace."}
             </p>
             <form className="mt-8 flex flex-col gap-4" onSubmit={(event) => void onSubmit(event)}>
               {isSignUp && (
@@ -153,40 +259,89 @@ export function AuthScreen({ mode }: { mode: "sign-in" | "sign-up" }) {
                   </Field>
                 </>
               )}
-              <Field>
-                <FieldLabel>Email</FieldLabel>
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Password</FieldLabel>
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete={isSignUp ? "new-password" : "current-password"}
-                  minLength={8}
-                  required
-                />
-              </Field>
+              {!isReset && (
+                <Field>
+                  <FieldLabel>Email</FieldLabel>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
+                    required
+                  />
+                </Field>
+              )}
+              {!isForgot && (
+                <Field>
+                  <FieldLabel>{isReset ? "New password" : "Password"}</FieldLabel>
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete={isSignUp || isReset ? "new-password" : "current-password"}
+                    minLength={8}
+                    required
+                  />
+                </Field>
+              )}
+              {isReset && (
+                <Field>
+                  <FieldLabel>Confirm password</FieldLabel>
+                  <Input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+                </Field>
+              )}
               {error && <p className="text-sm text-destructive">{error}</p>}
               <Button type="submit" size="lg" disabled={pending}>
-                {pending ? "Working…" : isSignUp ? "Create account" : "Sign in"}
+                {pending
+                  ? "Working…"
+                  : isForgot
+                    ? "Send reset link"
+                    : isReset
+                      ? "Update password"
+                      : isSignUp
+                        ? "Create account"
+                        : "Sign in"}
               </Button>
             </form>
+            {mode === "sign-in" && (
+              <p className="mt-4 text-sm text-muted-foreground">
+                <Link
+                  href="/forgot-password"
+                  className="text-foreground underline-offset-4 hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </p>
+            )}
             <p className="mt-8 text-sm text-muted-foreground">
-              {isSignUp ? "Already have an account?" : "Need an account?"}{" "}
-              <Link
-                href={isSignUp ? "/sign-in" : "/sign-up"}
-                className="text-foreground underline-offset-4 hover:underline"
-              >
-                {isSignUp ? "Sign in" : "Sign up"}
-              </Link>
+              {isForgot || isReset ? (
+                <>
+                  Remembered your password?{" "}
+                  <Link
+                    href="/sign-in"
+                    className="text-foreground underline-offset-4 hover:underline"
+                  >
+                    Sign in
+                  </Link>
+                </>
+              ) : (
+                <>
+                  {isSignUp ? "Already have an account?" : "Need an account?"}{" "}
+                  <Link
+                    href={isSignUp ? "/sign-in" : "/sign-up"}
+                    className="text-foreground underline-offset-4 hover:underline"
+                  >
+                    {isSignUp ? "Sign in" : "Sign up"}
+                  </Link>
+                </>
+              )}
             </p>
           </>
         )}

@@ -59,6 +59,15 @@ function createAuth() {
       minPasswordLength: 8,
       maxPasswordLength: 256,
       requireEmailVerification: true,
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: async ({ user, url }) => {
+        await sendAppEmail({
+          to: user.email,
+          subject: "Reset your Trackr password",
+          text: `Hi ${user.name},\n\nReset your Trackr password:\n${url}\n\nIf you did not request this, you can ignore this email.`,
+          html: `<p>Hi ${user.name},</p><p><a href="${url}">Reset your password</a> for Trackr.</p><p>If you did not request this, you can ignore this email.</p>`,
+        });
+      },
       customSyntheticUser: ({ coreFields, additionalFields, id }) => ({
         ...coreFields,
         ...additionalFields,
@@ -105,6 +114,8 @@ function createAuth() {
         "/sign-in/email": { window: 60, max: 5 },
         "/sign-up/email": { window: 60, max: 3 },
         "/send-verification-email": { window: 60, max: 3 },
+        "/request-password-reset": { window: 60, max: 3 },
+        "/reset-password": { window: 60, max: 5 },
       },
     },
     trustedOrigins: (request) => {

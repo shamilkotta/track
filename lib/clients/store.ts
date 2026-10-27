@@ -291,6 +291,66 @@ async function draftRow(userId: string, draftId: string) {
   return row;
 }
 
+// ---------- agent draft reads (rev 4) ----------
+
+// one version as client-hunter sees it. body_sha256 is the stored value; the column
+// is NOT NULL, but a missing one is recomputed with the same helper the approval
+// flow and webhook use so they always agree.
+async function agentDraftVersion(lead: LeadRow, row: DraftRow, latestVersion: number) {
+  return {
+    draft_id: row.id,
+    lead_id: row.leadId,
+    kind: row.kind,
+    version: row.version,
+    subject: row.subject,
+    body: row.body,
+    body_sha256: row.bodySha256 || (await sha256Hex(row.body)),
+    to: lead.contactEmail || null,
+    channel: lead.contactChannel,
+    author: row.author,
+    status: row.status,
+    created_at: row.createdAt.toISOString(),
+    approved_at: iso(row.approvedAt),
+    is_latest: row.version === latestVersion,
+  };
+}
+
+async function agentDraftVersions(lead: LeadRow, rows: DraftRow[]) {
+  const latest = new Map<string, number>();
+  for (const row of rows) latest.set(row.kind, Math.max(latest.get(row.kind) ?? 0, row.version));
+  const ordered = [...rows].sort(
+    (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.version - b.version,
+  );
+  return Promise.all(ordered.map((row) => agentDraftVersion(lead, row, latest.get(row.kind)!)));
+}
+
+export async function listDraftsForAgent(userId: string, leadId: string, kind: string | null) {
+  if (!leadId) bad("lead_id is required");
+  if (kind !== null && !isClientDraftKind(kind)) bad("kind must be first, followup or reply");
+  const lead = await leadRow(userId, { leadId });
+  const rows = await db()
+    .select()
+    .from(clientDrafts)
+    .where(
+      kind
+        ? and(eq(clientDrafts.leadId, lead.id), eq(clientDrafts.kind, kind))
+        : eq(clientDrafts.leadId, lead.id),
+    )
+    .all();
+  return { lead_id: lead.id, drafts: await agentDraftVersions(lead, rows) };
+}
+
+export async function draftChainForAgent(userId: string, draftId: string) {
+  const { draft, lead } = await draftRow(userId, draftId);
+  const rows = await db()
+    .select()
+    .from(clientDrafts)
+    .where(and(eq(clientDrafts.leadId, lead.id), eq(clientDrafts.kind, draft.kind)))
+    .all();
+  const versions = await agentDraftVersions(lead, rows);
+  return { draft: versions.find((version) => version.draft_id === draft.id)!, versions };
+}
+
 export async function loadBoard(userId: string, now = new Date()): Promise<ClientBoard> {
   const database = db();
   const leadRows = await database

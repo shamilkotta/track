@@ -62,6 +62,7 @@ export type Screen =
   | "resumes"
   | "cover-letters"
   | "archive"
+  | "clients"
   | "learning"
   | "learning-today"
   | "learning-maps"
@@ -523,6 +524,7 @@ export const screenTitles: Record<Screen, string> = {
   resumes: "Resumes",
   "cover-letters": "Cover letters",
   archive: "Archive",
+  clients: "Clients",
   learning: "Overview",
   "learning-today": "Today",
   "learning-maps": "Maps",
@@ -620,6 +622,7 @@ export function isScreen(value: unknown): value is Screen {
     value === "resumes" ||
     value === "cover-letters" ||
     value === "archive" ||
+    value === "clients" ||
     value === "learning" ||
     value === "learning-today" ||
     value === "learning-maps" ||
@@ -661,6 +664,8 @@ const jobScreens = [
 
 export function screenPath(screen: Screen) {
   switch (screen) {
+    case "clients":
+      return "/clients";
     case "learning":
       return "/learning";
     case "learning-today":
@@ -682,6 +687,7 @@ export function learningMapPath(id: string) {
 
 export function screenFromPathname(pathname: string): Screen {
   const parts = pathname.split("/").filter(Boolean);
+  if (parts[0] === "clients") return "clients";
   if (parts[0] === "learning") {
     if (!parts[1]) return "learning";
     if (parts[1] === "today") return "learning-today";

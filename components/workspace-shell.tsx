@@ -12,6 +12,7 @@ import {
   FileText,
   FolderOpen,
   GraduationCap,
+  Handshake,
   Heart,
   Inbox,
   LayoutDashboard,
@@ -217,6 +218,15 @@ function AppSidebar({
                       <Heart />
                       Wishlist
                       <SidebarMenuBadge>{badge(wishlistCount)}</SidebarMenuBadge>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={screen === "clients"}
+                      onClick={() => navigate(screenPath("clients"))}
+                    >
+                      <Handshake />
+                      Clients
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </SidebarMenu>
@@ -556,6 +566,7 @@ function WorkspaceShellFrame({
                       ["applications", "Applications"],
                       ["leads", "Leads"],
                       ["wishlist", "Wishlist"],
+                      ["clients", "Clients"],
                       ["companies", "Companies"],
                       ["resumes", "Resumes"],
                       ["cover-letters", "Cover letters"],

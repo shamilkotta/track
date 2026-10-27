@@ -1,7 +1,5 @@
-"use client";
-
-import ClientsPage from "@/components/workspace/clients-page";
+import { redirect } from "nlite/navigation";
 
 export default function Page() {
-  return <ClientsPage />;
+  redirect("/clients/inbox");
 }

@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -12,6 +14,8 @@ import {
 } from "react";
 import { ArrowDown, ArrowUp, Lock, Plus, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { usePathname, useRouter } from "nlite/navigation";
+import { useWorkspaceFocus } from "@/components/workspace-focus";
 import {
   contactLabel,
   DraftBody,
@@ -64,16 +68,16 @@ import {
   archiveLeads,
   clientDeliveryStatuses,
   clientPaymentStatuses,
+  clientViewFromPathname,
   clientViews,
   dropReasonLabels,
   formatMoney,
   inboxItems,
-  isClientView,
   latestDraft,
   pendingDraft,
   replyLeads,
   statusLabels,
-  viewCounts,
+  viewForLead,
   waitingLeads,
   type ClientBoard,
   type ClientDraft,
@@ -83,6 +87,7 @@ import {
   type ClientTask,
   type ClientView,
 } from "@/lib/clients/domain";
+import { screenPath, screenTitles } from "@/lib/domain";
 import { cn } from "@/lib/utils";
 
 const UNDO_MS = 4000;
@@ -110,23 +115,6 @@ function usePrefersReducedMotion() {
     () => window.matchMedia(REDUCED_QUERY).matches,
     () => false,
   );
-}
-
-// active view lives in the url (?view=replies)
-const VIEW_EVENT = "clients:view";
-
-function subscribeView(onChange: () => void) {
-  window.addEventListener("popstate", onChange);
-  window.addEventListener(VIEW_EVENT, onChange);
-  return () => {
-    window.removeEventListener("popstate", onChange);
-    window.removeEventListener(VIEW_EVENT, onChange);
-  };
-}
-
-function readViewFromUrl(): ClientView {
-  const value = new URLSearchParams(window.location.search).get("view");
-  return isClientView(value) ? value : "inbox";
 }
 
 function isTypingTarget(target: EventTarget | null) {
@@ -304,69 +292,6 @@ function StatsStrip({ stats, reduced }: { stats: ClientStats; reduced: boolean }
   );
 }
 
-// ---------- segmented control ----------
-
-function ViewTabs({
-  view,
-  counts,
-  onChange,
-}: {
-  view: ClientView;
-  counts: Record<ClientView, number | null>;
-  onChange: (view: ClientView) => void;
-}) {
-  const listRef = useRef<HTMLDivElement>(null);
-  const [indicator, setIndicator] = useState<{ x: number; w: number } | null>(null);
-  useLayoutEffect(() => {
-    const list = listRef.current;
-    const active = list?.querySelector<HTMLElement>(`[data-view="${view}"]`);
-    if (list && active) setIndicator({ x: active.offsetLeft, w: active.offsetWidth });
-  }, [view, counts]);
-  return (
-    <div
-      ref={listRef}
-      role="tablist"
-      tabIndex={-1}
-      aria-label="clients views"
-      className="clients-tabs"
-      onKeyDown={(event) => {
-        if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
-        const index = clientViews.indexOf(view);
-        const next =
-          clientViews[(index + (event.key === "ArrowRight" ? 1 : -1) + 5) % clientViews.length];
-        onChange(next);
-        listRef.current?.querySelector<HTMLElement>(`[data-view="${next}"]`)?.focus();
-      }}
-    >
-      {indicator ? (
-        <span
-          className="clients-tab-indicator"
-          style={{ transform: `translateX(${indicator.x}px)`, width: indicator.w }}
-          aria-hidden
-        />
-      ) : null}
-      {clientViews.map((id, index) => (
-        <button
-          key={id}
-          type="button"
-          role="tab"
-          id={`clients-tab-${id}`}
-          data-view={id}
-          aria-selected={view === id}
-          aria-controls="clients-view"
-          tabIndex={view === id ? 0 : -1}
-          className="clients-tab"
-          onClick={() => onChange(id)}
-          title={`${viewLabels[id]} (${index + 1})`}
-        >
-          {viewLabels[id]}
-          {counts[id] !== null ? <span className="clients-num">{counts[id]}</span> : null}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 // ---------- shared draft actions card ----------
 
 type DraftActions = {
@@ -417,6 +342,7 @@ function LeadCard({
           data-selected={selected}
           data-exiting={exiting}
           data-testid="lead-card"
+          data-lead={lead.id}
           aria-label={`${lead.business}${draft ? `, draft v${draft.version}` : ""}`}
           onFocus={onFocus}
         >
@@ -563,7 +489,7 @@ function WaitingView({
       </TableHeader>
       <TableBody>
         {queued.map((lead) => (
-          <TableRow key={lead.id} data-testid="waiting-row">
+          <TableRow key={lead.id} data-testid="waiting-row" data-lead={lead.id}>
             <TableCell className="max-w-[10rem] font-medium">
               <span className="block truncate">{lead.business}</span>
               <NotDelivered events={lead.undeliveredEvents} onRetry={onRetry} />
@@ -580,7 +506,7 @@ function WaitingView({
           const due = relativeDue(followupSent ? lead.coldDueAt : lead.followupDueAt, now);
           const ready = latestDraft(lead, ["followup"]);
           return (
-            <TableRow key={lead.id} data-testid="waiting-row">
+            <TableRow key={lead.id} data-testid="waiting-row" data-lead={lead.id}>
               <TableCell className="max-w-[10rem] font-medium">
                 <span className="block truncate">{lead.business}</span>
                 <NotDelivered events={lead.undeliveredEvents} onRetry={onRetry} />
@@ -931,7 +857,12 @@ function ProjectCard({
   };
 
   return (
-    <article className="clients-card p-4" data-testid="project-card" aria-label={lead.business}>
+    <article
+      className="clients-card p-4"
+      data-testid="project-card"
+      data-lead={lead.id}
+      aria-label={lead.business}
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="break-words">
           {lead.business}
@@ -1114,6 +1045,7 @@ function ArchiveView({
               key={lead.id}
               className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2"
               data-testid="archive-row"
+              data-lead={lead.id}
             >
               <span className="flex min-w-0 flex-1 items-center gap-1.5 font-medium">
                 {lead.doNotContact ? (
@@ -1185,11 +1117,23 @@ function ShortcutSheet({
 
 // ---------- main ----------
 
-export function ClientsWorkspace() {
+// The clients layout owns the board, undo queue, toast and shortcuts so they survive
+// navigation between /clients/* pages; each page renders its view through this context.
+const ClientsViewContext = createContext<((view: ClientView) => ReactNode) | null>(null);
+
+export function ClientsView({ view }: { view: ClientView }) {
+  const render = useContext(ClientsViewContext);
+  if (!render) throw new Error("ClientsView must be rendered inside ClientsFrame");
+  return render(view);
+}
+
+export function ClientsFrame({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const board = useClientBoardQuery();
   const reduced = usePrefersReducedMotion();
-  const view = useSyncExternalStore(subscribeView, readViewFromUrl, (): ClientView => "inbox");
+  const router = useRouter();
+  const view = clientViewFromPathname(usePathname());
+  const { focus, setFocus, consumeFocus } = useWorkspaceFocus();
   const [actionError, setActionError] = useState<string | null>(null);
   const [selected, setSelected] = useState(0);
   const [panels, setPanels] = useState<Record<string, CardPanel>>({});
@@ -1208,14 +1152,13 @@ export function ClientsWorkspace() {
   );
   const undoQueue = useUndoQueue(fail);
 
-  const setView = useCallback((next: ClientView) => {
-    setSelected(0);
-    const url = new URL(window.location.href);
-    if (next === "inbox") url.searchParams.delete("view");
-    else url.searchParams.set("view", next);
-    window.history.replaceState(window.history.state, "", url);
-    window.dispatchEvent(new Event(VIEW_EVENT));
-  }, []);
+  const setView = useCallback(
+    (next: ClientView) => {
+      setSelected(0);
+      router.push(screenPath(`clients-${next}`));
+    },
+    [router],
+  );
 
   const data: ClientBoard | undefined = board.data;
   const leads = useMemo(() => data?.leads ?? [], [data]);
@@ -1223,7 +1166,6 @@ export function ClientsWorkspace() {
     () => leads.filter((lead) => !undoQueue.hidden.has(lead.id)),
     [leads, undoQueue.hidden],
   );
-  const counts = useMemo(() => viewCounts(visible), [visible]);
   const inbox = useMemo(() => inboxItems(leads), [leads]);
   const replies = useMemo(() => replyLeads(leads), [leads]);
   const shownInbox = inbox.filter((item) => !undoQueue.hidden.has(item.lead.id));
@@ -1258,6 +1200,32 @@ export function ClientsWorkspace() {
       target.focus();
     });
   };
+
+  // a lead picked in the command palette (or a "follow-up draft ready" link):
+  // select it once its page and the board are rendered
+  const focusLeadId = focus?.kind === "client-lead" && data ? focus.id : null;
+  useEffect(() => {
+    if (!focusLeadId) return;
+    const target = leads.find((lead) => lead.id === focusLeadId);
+    // wait until we're on the page that shows this lead
+    if (target && viewForLead(target) !== view) return;
+    consumeFocus("client-lead");
+    if (!target) return;
+    requestAnimationFrame(() => {
+      const inboxIndex = inbox
+        .filter((item) => !undoQueue.hidden.has(item.lead.id))
+        .findIndex((item) => item.lead.id === focusLeadId);
+      if (view === "inbox" && inboxIndex >= 0) {
+        setSelected(inboxIndex);
+        focusCardAt(inboxIndex);
+        return;
+      }
+      if (view === "replies") setReplyLeadId(focusLeadId);
+      listRef.current
+        ?.querySelector<HTMLElement>(`[data-lead="${focusLeadId}"]`)
+        ?.scrollIntoView({ block: "center" });
+    });
+  });
 
   const actions: DraftActions = {
     approve: (lead, draft) => {
@@ -1383,7 +1351,7 @@ export function ClientsWorkspace() {
     return () => window.removeEventListener("keydown", onKey);
   }, [setView, undoQueue]);
 
-  const body = () => {
+  const body = (view: ClientView) => {
     if (board.isPending) return <CardSkeletons />;
     if (!data) return null;
     switch (view) {
@@ -1406,10 +1374,8 @@ export function ClientsWorkspace() {
             leads={visible}
             onRetry={actions.retry}
             onOpenFollowup={(leadId) => {
+              setFocus({ kind: "client-lead", id: leadId });
               setView("inbox");
-              const index = shownInbox.findIndex((item) => item.lead.id === leadId);
-              setSelected(Math.max(0, index));
-              focusCardAt(Math.max(0, index));
             }}
           />
         );
@@ -1470,13 +1436,10 @@ export function ClientsWorkspace() {
     <div className="clients-root pb-24">
       <ActionErrorBanner error={actionError} onDismiss={() => setActionError(null)} />
       <WorkspacePageHeader
-        title="Clients"
+        title={screenTitles[`clients-${view}`]}
         description="Review client-hunter's drafts, follow replies, and track paying clients."
       />
       {data ? <StatsStrip stats={data.stats} reduced={reduced} /> : null}
-      <div className="px-4 pt-3 md:px-7">
-        <ViewTabs view={view} counts={counts} onChange={setView} />
-      </div>
       {board.isError ? (
         <div
           className="mx-4 mt-3 flex items-center justify-between gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive md:mx-7"
@@ -1488,19 +1451,18 @@ export function ClientsWorkspace() {
           </Button>
         </div>
       ) : null}
-      <div
+      <section
         ref={listRef}
         id="clients-view"
-        role="tabpanel"
-        aria-labelledby={`clients-tab-${view}`}
+        aria-label={viewLabels[view]}
         key={view}
         className={cn(
           "clients-view-body px-4 pt-4 md:px-7",
           view === "inbox" && "max-w-[calc(720px+3.5rem)]",
         )}
       >
-        {body()}
-      </div>
+        <ClientsViewContext.Provider value={body}>{children}</ClientsViewContext.Provider>
+      </section>
       <div aria-live="polite" aria-atomic="true">
         {undoQueue.pending ? (
           <div className="clients-toast" data-leaving={undoQueue.leaving} data-testid="undo-toast">

@@ -9,7 +9,8 @@ export type WorkspaceFocus =
   | { kind: "wishlist"; id: string }
   | { kind: "learning-path"; id: string }
   | { kind: "learning-module"; id: string; pathId: string }
-  | { kind: "learning-topic"; id: string; pathId: string };
+  | { kind: "learning-topic"; id: string; pathId: string }
+  | { kind: "client-lead"; id: string };
 
 type WorkspaceFocusContextValue = {
   focus: WorkspaceFocus | null;

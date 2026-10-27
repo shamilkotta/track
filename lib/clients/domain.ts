@@ -327,6 +327,32 @@ export function archiveLeads(leads: ClientLeadDetail[]) {
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
+// the one page a lead shows up on (inbox wins while a draft waits on shamil)
+export function viewForLead(lead: ClientLeadDetail): ClientView {
+  if (inboxItems([lead]).length > 0) return "inbox";
+  switch (lead.status) {
+    case "new":
+    case "draft_ready":
+      return "inbox";
+    case "approved":
+    case "waiting":
+      return "waiting";
+    case "replied":
+    case "in_talks":
+      return "replies";
+    case "won":
+      return "active";
+    case "cold":
+    case "dropped":
+      return "archive";
+  }
+}
+
+export function clientViewFromPathname(pathname: string): ClientView {
+  const segment = pathname.split("/").filter(Boolean)[1];
+  return isClientView(segment) ? segment : "inbox";
+}
+
 export function viewCounts(leads: ClientLeadDetail[]): Record<ClientView, number | null> {
   const { queued, out } = waitingLeads(leads);
   return {

@@ -62,14 +62,18 @@ export type Screen =
   | "resumes"
   | "cover-letters"
   | "archive"
-  | "clients"
   | "learning"
   | "learning-today"
   | "learning-maps"
   | "learning-journal"
-  | "learning-resources";
+  | "learning-resources"
+  | "clients-inbox"
+  | "clients-waiting"
+  | "clients-replies"
+  | "clients-active"
+  | "clients-archive";
 
-export type ProductMode = "job" | "learning";
+export type ProductMode = "job" | "learning" | "clients";
 
 export const learningPathStatuses = ["draft", "active", "paused", "completed"] as const;
 export const learningItemKinds = [
@@ -524,12 +528,16 @@ export const screenTitles: Record<Screen, string> = {
   resumes: "Resumes",
   "cover-letters": "Cover letters",
   archive: "Archive",
-  clients: "Clients",
   learning: "Overview",
   "learning-today": "Today",
   "learning-maps": "Maps",
   "learning-journal": "Journal",
   "learning-resources": "Resources",
+  "clients-inbox": "Inbox",
+  "clients-waiting": "Waiting",
+  "clients-replies": "Replies",
+  "clients-active": "Active",
+  "clients-archive": "Archive",
 };
 
 export const sortLabels: Record<SortKey, string> = {
@@ -622,12 +630,16 @@ export function isScreen(value: unknown): value is Screen {
     value === "resumes" ||
     value === "cover-letters" ||
     value === "archive" ||
-    value === "clients" ||
     value === "learning" ||
     value === "learning-today" ||
     value === "learning-maps" ||
     value === "learning-journal" ||
-    value === "learning-resources"
+    value === "learning-resources" ||
+    value === "clients-inbox" ||
+    value === "clients-waiting" ||
+    value === "clients-replies" ||
+    value === "clients-active" ||
+    value === "clients-archive"
   );
 }
 
@@ -649,6 +661,7 @@ export function isLearningPathColor(value: unknown): value is LearningPathColor 
 
 export function productModeFromPathname(pathname: string): ProductMode {
   if (pathname === "/learning" || pathname.startsWith("/learning/")) return "learning";
+  if (pathname === "/clients" || pathname.startsWith("/clients/")) return "clients";
   return "job";
 }
 
@@ -662,10 +675,26 @@ const jobScreens = [
   "archive",
 ] as const;
 
+const clientScreens = [
+  "clients-inbox",
+  "clients-waiting",
+  "clients-replies",
+  "clients-active",
+  "clients-archive",
+] as const;
+
 export function screenPath(screen: Screen) {
   switch (screen) {
-    case "clients":
-      return "/clients";
+    case "clients-inbox":
+      return "/clients/inbox";
+    case "clients-waiting":
+      return "/clients/waiting";
+    case "clients-replies":
+      return "/clients/replies";
+    case "clients-active":
+      return "/clients/active";
+    case "clients-archive":
+      return "/clients/archive";
     case "learning":
       return "/learning";
     case "learning-today":
@@ -687,7 +716,12 @@ export function learningMapPath(id: string) {
 
 export function screenFromPathname(pathname: string): Screen {
   const parts = pathname.split("/").filter(Boolean);
-  if (parts[0] === "clients") return "clients";
+  if (parts[0] === "clients") {
+    const segment = parts[1];
+    return segment && clientScreens.some((screen) => screen === `clients-${segment}`)
+      ? (`clients-${segment}` as Screen)
+      : "clients-inbox";
+  }
   if (parts[0] === "learning") {
     if (!parts[1]) return "learning";
     if (parts[1] === "today") return "learning-today";

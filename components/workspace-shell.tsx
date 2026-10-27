@@ -14,15 +14,18 @@ import {
   GraduationCap,
   Handshake,
   Heart,
+  Hourglass,
   Inbox,
   LayoutDashboard,
   Library,
   LogOut,
   Mail,
   MoreHorizontal,
+  MessageSquareReply,
   NotebookPen,
   Route,
   Settings2,
+  Sparkles,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -64,8 +67,10 @@ import {
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkspaceFocus, WorkspaceFocusProvider } from "@/components/workspace-focus";
+import { useClientBoardQuery } from "@/hooks/use-clients";
 import { useWorkspaceSummary } from "@/hooks/use-workspace";
 import { signOut } from "@/lib/auth-client";
+import { viewCounts, viewForLead } from "@/lib/clients/domain";
 import {
   learningMapPath,
   productModeFromPathname,
@@ -103,7 +108,112 @@ const modeOptions: Array<{
     icon: GraduationCap,
     home: "learning",
   },
+  {
+    id: "clients",
+    label: "Clients",
+    description: "Leads, drafts, replies, projects",
+    icon: Handshake,
+    home: "clients-inbox",
+  },
 ];
+
+// Pipeline badges count only what is waiting on shamil (pending drafts). The board
+// query runs only in clients mode, so job search and learning never fetch it.
+function ClientsSidebar({
+  screen,
+  navigate,
+}: {
+  screen: Screen;
+  navigate: (path: string) => void;
+}) {
+  const board = useClientBoardQuery();
+  const counts = board.data ? viewCounts(board.data.leads) : null;
+  const badge = (count: number | null | undefined) =>
+    board.isPending ? <Skeleton className="h-4 w-5 rounded-full" /> : count ? count : null;
+  const item = (id: Screen, Icon: typeof Inbox, label: string, count?: number | null) => (
+    <SidebarMenuItem key={id}>
+      <SidebarMenuButton isActive={screen === id} onClick={() => navigate(screenPath(id))}>
+        <Icon />
+        {label}
+        {count !== undefined ? <SidebarMenuBadge>{badge(count)}</SidebarMenuBadge> : null}
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+  return (
+    <>
+      <SidebarGroup>
+        <SidebarGroupLabel>Pipeline</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {item("clients-inbox", Inbox, "Inbox", counts?.inbox)}
+            {item("clients-waiting", Hourglass, "Waiting")}
+            {item("clients-replies", MessageSquareReply, "Replies", counts?.replies)}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+      <SidebarGroup>
+        <SidebarGroupLabel>Clients</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {item("clients-active", Sparkles, "Active")}
+            {item("clients-archive", Archive, "Archive")}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    </>
+  );
+}
+
+const clientPages = [
+  ["clients-inbox", "Inbox"],
+  ["clients-waiting", "Waiting"],
+  ["clients-replies", "Replies"],
+  ["clients-active", "Active"],
+  ["clients-archive", "Archive"],
+] as const;
+
+function ClientsPalette({ close }: { close: () => void }) {
+  const router = useRouter();
+  const { setFocus } = useWorkspaceFocus();
+  const board = useClientBoardQuery();
+  return (
+    <>
+      <CommandGroup heading="Go to">
+        {clientPages.map(([id, label]) => (
+          <CommandItem
+            key={id}
+            value={`clients ${label}`}
+            onSelect={() => {
+              router.push(screenPath(id));
+              close();
+            }}
+          >
+            {label}
+          </CommandItem>
+        ))}
+      </CommandGroup>
+      <CommandGroup heading="Leads">
+        {(board.data?.leads ?? []).map((lead) => {
+          const view = viewForLead(lead);
+          return (
+            <CommandItem
+              key={lead.id}
+              value={`${lead.business} ${lead.contactName} ${lead.region} ${lead.id}`}
+              onSelect={() => {
+                setFocus({ kind: "client-lead", id: lead.id });
+                router.push(screenPath(`clients-${view}`));
+                close();
+              }}
+            >
+              <span className="min-w-0 flex-1 truncate">{lead.business}</span>
+              <CommandShortcut className="tracking-normal">{view}</CommandShortcut>
+            </CommandItem>
+          );
+        })}
+      </CommandGroup>
+    </>
+  );
+}
 
 function ModeSwitcher({ mode }: { mode: ProductMode }) {
   const router = useRouter();
@@ -220,15 +330,6 @@ function AppSidebar({
                       <SidebarMenuBadge>{badge(wishlistCount)}</SidebarMenuBadge>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={screen === "clients"}
-                      onClick={() => navigate(screenPath("clients"))}
-                    >
-                      <Handshake />
-                      Clients
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -258,6 +359,8 @@ function AppSidebar({
               </SidebarGroupContent>
             </SidebarGroup>
           </>
+        ) : mode === "clients" ? (
+          <ClientsSidebar screen={screen} navigate={navigate} />
         ) : (
           <>
             <SidebarGroup>
@@ -471,12 +574,16 @@ function WorkspaceShellFrame({
             placeholder={
               mode === "learning"
                 ? "Search maps, modules, topics..."
-                : "Search applications, leads, wishlist, companies..."
+                : mode === "clients"
+                  ? "Search leads, clients..."
+                  : "Search applications, leads, wishlist, companies..."
             }
           />
           <CommandList className="max-h-96">
             <CommandEmpty>No matches.</CommandEmpty>
-            {mode === "learning" ? (
+            {mode === "clients" ? (
+              <ClientsPalette close={() => setSearchOpen(false)} />
+            ) : mode === "learning" ? (
               <>
                 <CommandGroup heading="Go to">
                   {(
@@ -566,7 +673,6 @@ function WorkspaceShellFrame({
                       ["applications", "Applications"],
                       ["leads", "Leads"],
                       ["wishlist", "Wishlist"],
-                      ["clients", "Clients"],
                       ["companies", "Companies"],
                       ["resumes", "Resumes"],
                       ["cover-letters", "Cover letters"],

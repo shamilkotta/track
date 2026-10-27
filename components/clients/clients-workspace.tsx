@@ -101,6 +101,19 @@ const viewLabels: Record<ClientView, string> = {
   archive: "archive",
 };
 
+// rev 3: one subtitle per page
+const viewSubtitles: Record<ClientView, string> = {
+  inbox: "drafts waiting for your call",
+  waiting: "sent, waiting on a reply",
+  replies: "people who wrote back",
+  active: "paying clients and their work",
+  archive: "dropped, lost, and done",
+};
+
+// inbox, waiting and archive share one centred content width; replies and active
+// use the full width (replies is two-pane)
+const narrowViews: ReadonlySet<ClientView> = new Set(["inbox", "waiting", "archive"]);
+
 const REDUCED_QUERY = "(prefers-reduced-motion: reduce)";
 
 function subscribeReducedMotion(onChange: () => void) {
@@ -332,7 +345,7 @@ function LeadCard({
   const pending = draft?.status === "pending";
   const followup = draft?.kind === "followup";
   return (
-    <li className="clients-collapse list-none" data-gone={gone}>
+    <li className="clients-collapse list-none" data-gone={gone} aria-hidden={gone} inert={gone}>
       <div>
         <div
           className="clients-card mb-3 p-4"
@@ -437,13 +450,9 @@ function LeadCard({
 
 // ---------- views ----------
 
-function CardSkeletons({ narrow }: { narrow: boolean }) {
+function CardSkeletons() {
   return (
-    <div
-      className={cn("space-y-3", narrow && "max-w-[720px]")}
-      aria-busy="true"
-      aria-label="loading"
-    >
+    <div className="space-y-3" aria-busy="true" aria-label="loading">
       {[0, 1, 2].map((index) => (
         <div key={index} className="clients-card space-y-3 p-4">
           <div className="clients-skeleton h-4 w-40 rounded" />
@@ -614,7 +623,7 @@ function DealBlock({
   return (
     <section className="clients-card mb-3 p-4" aria-label="deal">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h3>{lead.status === "in_talks" ? "in talks" : "deal"}</h3>
+        <h3>in talks</h3>
         <label className="text-xs text-muted-foreground">
           currency{" "}
           <select
@@ -659,7 +668,7 @@ function DealBlock({
           value={lead.paymentStatus}
           onChange={(value) => onDeal({ payment_status: value })}
         />
-        {lead.agreedPrice !== null && lead.status === "in_talks" ? (
+        {lead.agreedPrice !== null ? (
           <Button size="sm" className="ml-auto" onClick={onWon}>
             mark won
           </Button>
@@ -678,6 +687,7 @@ function RepliesView({
   onNote,
   onDeal,
   onWon,
+  onStartTalks,
 }: {
   leads: ClientLeadDetail[];
   selectedId: string | null;
@@ -687,6 +697,7 @@ function RepliesView({
   onNote: (lead: ClientLeadDetail, body: string) => Promise<void>;
   onDeal: (lead: ClientLeadDetail, deal: Record<string, unknown>) => void;
   onWon: (lead: ClientLeadDetail) => void;
+  onStartTalks: (lead: ClientLeadDetail) => void;
 }) {
   if (leads.length === 0) return <Empty>no replies yet.</Empty>;
   const lead = leads.find((item) => item.id === selectedId) ?? null;
@@ -723,31 +734,33 @@ function RepliesView({
             <div className="mb-3">
               <LeadHeading lead={lead} />
             </div>
-            {lead.status === "in_talks" || lead.status === "replied" ? (
-              <DealBlock
-                lead={lead}
-                onDeal={(deal) => onDeal(lead, deal)}
-                onWon={() => onWon(lead)}
-              />
-            ) : null}
-            <ol className="mb-3 space-y-3" aria-label="thread">
+            <ol className="mb-4 space-y-4" aria-label="thread">
               {lead.messages.map((message) => (
                 <li key={message.id} data-testid="reply-message">
-                  <blockquote className="border-l-2 pl-3 text-sm break-words whitespace-pre-wrap">
-                    {message.body}
-                  </blockquote>
-                  <p className="mt-0.5 pl-3 text-xs text-muted-foreground">
+                  <p className="mb-1 text-xs text-muted-foreground">
                     {message.direction === "in" ? "they wrote" : "we wrote"} ·{" "}
                     {formatDay(message.receivedAt)}
                   </p>
+                  <blockquote
+                    className="clients-quote text-[15px] leading-6 break-words whitespace-pre-wrap"
+                    data-direction={message.direction}
+                  >
+                    {message.body}
+                  </blockquote>
                   {message.summary ? (
-                    <p className="mt-2 text-sm text-muted-foreground" data-testid="reply-summary">
-                      {message.summary}
-                    </p>
+                    <div className="mt-2" data-testid="reply-summary">
+                      <p className="text-[11px] font-medium text-muted-foreground">
+                        client-hunter's summary
+                      </p>
+                      <p className="text-xs leading-5 text-muted-foreground">{message.summary}</p>
+                    </div>
                   ) : null}
                 </li>
               ))}
             </ol>
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+              {lead.onHold ? "with you" : "client-hunter's draft reply"}
+            </p>
             {lead.onHold ? (
               <HoldNote lead={lead} onNote={onNote} />
             ) : draft ? (
@@ -772,6 +785,21 @@ function RepliesView({
                 </Button>
               </>
             )}
+            {lead.status === "in_talks" ? (
+              <div className="mt-4">
+                <DealBlock
+                  lead={lead}
+                  onDeal={(deal) => onDeal(lead, deal)}
+                  onWon={() => onWon(lead)}
+                />
+              </div>
+            ) : lead.status === "replied" ? (
+              <div className="mt-4">
+                <Button size="sm" variant="outline" onClick={() => onStartTalks(lead)}>
+                  start talks
+                </Button>
+              </div>
+            ) : null}
             <div className="mt-2">
               <NotDelivered
                 events={lead.undeliveredEvents}
@@ -889,7 +917,11 @@ function ProjectCard({
       ) : null}
       <ul className="mt-3 space-y-1.5" aria-label="checklist">
         {tasks.map((task, index) => (
-          <li key={task.id} className="flex items-start gap-2 text-sm" data-testid="task">
+          <li
+            key={task.id}
+            className="clients-row flex items-start gap-2 text-sm"
+            data-testid="task"
+          >
             <Checkbox
               className="mt-0.5"
               checked={task.done}
@@ -909,7 +941,7 @@ function ProjectCard({
               {task.text}
             </span>
             {task.blocked ? <Badge variant="outline">blocked</Badge> : null}
-            <span className="flex shrink-0">
+            <span className="clients-row-controls flex shrink-0" data-testid="task-controls">
               <Button
                 size="icon-xs"
                 variant="ghost"
@@ -983,24 +1015,30 @@ function ProjectCard({
           <Plus />
         </Button>
       </form>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Segmented
-          label="payment status"
-          options={clientPaymentStatuses}
-          value={lead.paymentStatus}
-          onChange={(value) => void deal({ payment_status: value })}
-        />
-        <Segmented
-          label="delivery status"
-          options={clientDeliveryStatuses}
-          value={lead.deliveryStatus}
-          onChange={(value) =>
-            void deal({
-              delivery_status: value,
-              delivered_at: value === "delivered" ? new Date().toISOString() : null,
-            })
-          }
-        />
+      <div className="mt-3 flex flex-wrap items-start gap-x-6 gap-y-3">
+        <div className="space-y-1" data-testid="payment-group">
+          <p className="text-xs text-muted-foreground">payment</p>
+          <Segmented
+            label="payment status"
+            options={clientPaymentStatuses}
+            value={lead.paymentStatus}
+            onChange={(value) => void deal({ payment_status: value })}
+          />
+        </div>
+        <div className="space-y-1" data-testid="delivery-group">
+          <p className="text-xs text-muted-foreground">delivery</p>
+          <Segmented
+            label="delivery status"
+            options={clientDeliveryStatuses}
+            value={lead.deliveryStatus}
+            onChange={(value) =>
+              void deal({
+                delivery_status: value,
+                delivered_at: value === "delivered" ? new Date().toISOString() : null,
+              })
+            }
+          />
+        </div>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
         started {formatDay(lead.startedAt)} · delivered {formatDay(lead.deliveredAt)}
@@ -1123,12 +1161,30 @@ function ShortcutSheet({
 
 // The clients layout owns the board, undo queue, toast and shortcuts so they survive
 // navigation between /clients/* pages; each page renders its view through this context.
-const ClientsViewContext = createContext<((view: ClientView) => ReactNode) | null>(null);
+// The page's own ClientsView carries the enter animation and reports itself as the
+// shown view before paint, so the header and the body only change together, when the
+// next page has actually rendered. Until then the previous page stays on screen.
+type ClientsViewContextValue = {
+  render: (view: ClientView) => ReactNode;
+  onShown: (view: ClientView) => void;
+};
+const ClientsViewContext = createContext<ClientsViewContextValue | null>(null);
 
 export function ClientsView({ view }: { view: ClientView }) {
-  const render = useContext(ClientsViewContext);
-  if (!render) throw new Error("ClientsView must be rendered inside ClientsFrame");
-  return render(view);
+  const context = useContext(ClientsViewContext);
+  const onShown = context?.onShown;
+  useLayoutEffect(() => {
+    onShown?.(view);
+  }, [onShown, view]);
+  if (!context) throw new Error("ClientsView must be rendered inside ClientsFrame");
+  return (
+    <div
+      className={cn("clients-view-body", narrowViews.has(view) && "mx-auto w-full max-w-[960px]")}
+      data-view={view}
+    >
+      {context.render(view)}
+    </div>
+  );
 }
 
 export function ClientsFrame({ children }: { children: ReactNode }) {
@@ -1136,7 +1192,9 @@ export function ClientsFrame({ children }: { children: ReactNode }) {
   const board = useClientBoardQuery();
   const reduced = usePrefersReducedMotion();
   const router = useRouter();
-  const view = clientViewFromPathname(usePathname());
+  const pathView = clientViewFromPathname(usePathname());
+  const [shownView, setShownView] = useState<ClientView | null>(null);
+  const view = shownView ?? pathView;
   const { focus, setFocus, consumeFocus } = useWorkspaceFocus();
   const [actionError, setActionError] = useState<string | null>(null);
   const [selected, setSelected] = useState(0);
@@ -1198,7 +1256,9 @@ export function ClientsFrame({ children }: { children: ReactNode }) {
 
   const focusCardAt = (index: number) => {
     requestAnimationFrame(() => {
-      const cards = listRef.current?.querySelectorAll<HTMLElement>("[data-card]");
+      const cards = listRef.current?.querySelectorAll<HTMLElement>(
+        '.clients-collapse:not([data-gone="true"]) [data-card]',
+      );
       if (!cards || cards.length === 0) return;
       const target = cards[Math.max(0, Math.min(index, cards.length - 1))];
       target.focus();
@@ -1266,7 +1326,7 @@ export function ClientsFrame({ children }: { children: ReactNode }) {
     cardKey: lead.id,
     selected: view === "inbox" ? index === selected : false,
     exiting: undoQueue.exiting.has(lead.id),
-    gone: undoQueue.exiting.has(lead.id),
+    gone: undoQueue.exiting.has(lead.id) || undoQueue.hidden.has(lead.id),
     panel: panels[lead.id] ?? null,
     setPanel: (panel) => setPanels((current) => ({ ...current, [lead.id]: panel })),
     actions,
@@ -1360,7 +1420,7 @@ export function ClientsFrame({ children }: { children: ReactNode }) {
   }, [setView, undoQueue]);
 
   const body = (view: ClientView) => {
-    if (board.isPending) return <CardSkeletons narrow={view === "inbox"} />;
+    if (board.isPending) return <CardSkeletons />;
     if (!data) return null;
     switch (view) {
       case "inbox":
@@ -1368,12 +1428,13 @@ export function ClientsFrame({ children }: { children: ReactNode }) {
           inbox.every((item) => !undoQueue.exiting.has(item.lead.id)) ? (
           <Empty>nothing to review. client-hunter's next batch lands here.</Empty>
         ) : (
-          <ul aria-label="inbox" className="max-w-[720px]">
-            {inbox
-              .filter((item) => !undoQueue.hidden.has(item.lead.id))
-              .map((item, index) => (
-                <LeadCard key={item.lead.id} {...cardProps(item.lead, item.draft, index)} />
-              ))}
+          <ul aria-label="inbox">
+            {inbox.map((item) => {
+              // collapsed (approved/dropped, undo pending) cards stay mounted at zero
+              // height so undo plays the collapse in reverse; they don't count for j/k
+              const index = shownInbox.indexOf(item);
+              return <LeadCard key={item.lead.id} {...cardProps(item.lead, item.draft, index)} />;
+            })}
           </ul>
         );
       case "waiting":
@@ -1401,6 +1462,9 @@ export function ClientsFrame({ children }: { children: ReactNode }) {
             }
             onWon={(lead) =>
               void run(() => leadActionRequest(lead.id, "won")).catch(() => undefined)
+            }
+            onStartTalks={(lead) =>
+              void run(() => leadActionRequest(lead.id, "in_talks")).catch(() => undefined)
             }
           />
         );
@@ -1445,7 +1509,7 @@ export function ClientsFrame({ children }: { children: ReactNode }) {
       <ActionErrorBanner error={actionError} onDismiss={() => setActionError(null)} />
       <WorkspacePageHeader
         title={screenTitles[`clients-${view}`]}
-        description="Review client-hunter's drafts, follow replies, and track paying clients."
+        description={viewSubtitles[view]}
       />
       {data ? <StatsStrip stats={data.stats} reduced={reduced} /> : null}
       {board.isError ? (
@@ -1463,10 +1527,11 @@ export function ClientsFrame({ children }: { children: ReactNode }) {
         ref={listRef}
         id="clients-view"
         aria-label={viewLabels[view]}
-        key={view}
-        className={cn("clients-view-body px-4 pt-4 md:px-7")}
+        className="px-4 pt-4 md:px-7"
       >
-        <ClientsViewContext.Provider value={body}>{children}</ClientsViewContext.Provider>
+        <ClientsViewContext.Provider value={{ render: body, onShown: setShownView }}>
+          {children}
+        </ClientsViewContext.Provider>
       </section>
       <div aria-live="polite" aria-atomic="true">
         {undoQueue.pending ? (

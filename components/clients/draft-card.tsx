@@ -72,6 +72,17 @@ function submitOnModEnter(event: KeyboardEvent, submit: () => void, cancel: () =
   }
 }
 
+// Focus into a panel while it is still opening. preventScroll keeps the browser from
+// scrolling the panel's clipped (overflow: hidden) box to the target mid-animation,
+// which would push the content up over the card's buttons; once the panel has opened,
+// bring it into view if it ends below the fold.
+const PANEL_MS = 200;
+function focusInPanel(target: HTMLElement | null) {
+  if (!target) return;
+  target.focus({ preventScroll: true });
+  window.setTimeout(() => target.scrollIntoView({ block: "nearest" }), PANEL_MS + 20);
+}
+
 function Panel({ open, children }: { open: boolean; children: ReactNode }) {
   return (
     <div className="clients-panel" data-open={open} aria-hidden={!open} inert={!open}>
@@ -217,7 +228,7 @@ export function RevisePanel({
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (!open) return;
-    const frame = requestAnimationFrame(() => ref.current?.focus());
+    const frame = requestAnimationFrame(() => focusInPanel(ref.current));
     return () => cancelAnimationFrame(frame);
   }, [open]);
   const submit = () => {
@@ -268,7 +279,7 @@ export function DropPanel({
   const otherRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (!open) return;
-    const frame = requestAnimationFrame(() => firstRef.current?.focus());
+    const frame = requestAnimationFrame(() => focusInPanel(firstRef.current));
     return () => cancelAnimationFrame(frame);
   }, [open]);
   const reset = () => {
@@ -304,7 +315,7 @@ export function DropPanel({
               onClick={() => {
                 if (reason === "other") {
                   setShowOther(true);
-                  requestAnimationFrame(() => otherRef.current?.focus());
+                  requestAnimationFrame(() => focusInPanel(otherRef.current));
                 } else submit(reason, "");
               }}
             >

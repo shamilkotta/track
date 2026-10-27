@@ -2,3 +2,10 @@ BETTER_AUTH_SECRET=
 BETTER_AUTH_URL=http://localhost:5173
 EMAIL_FROM=trackr@shamilkotta.me
 EMAIL_FROM_NAME=Trackr
+
+# clients tab (agent API + outgoing webhook). Set real values with `wrangler secret put`.
+CLIENTS_WEBHOOK_URL=
+CLIENTS_WEBHOOK_KEY=
+AGENT_API_KEY=
+# better-auth user id that owns client leads written via /api/agent/*
+OWNER_USER_ID=

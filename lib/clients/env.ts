@@ -6,8 +6,6 @@ import { getEnv } from "@/lib/env";
 type ClientsSecrets = {
   CLIENTS_WEBHOOK_URL?: string;
   CLIENTS_WEBHOOK_KEY?: string;
-  AGENT_API_KEY?: string;
-  OWNER_USER_ID?: string;
 };
 
 function secrets(): ClientsSecrets {
@@ -23,12 +21,4 @@ export function webhookConfig() {
   const url = nonEmpty(env.CLIENTS_WEBHOOK_URL);
   const key = nonEmpty(env.CLIENTS_WEBHOOK_KEY);
   return url && key ? { url, key } : null;
-}
-
-export function agentApiKey() {
-  return nonEmpty(secrets().AGENT_API_KEY);
-}
-
-export function ownerUserId() {
-  return nonEmpty(secrets().OWNER_USER_ID);
 }

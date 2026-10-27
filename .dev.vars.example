@@ -3,9 +3,7 @@ BETTER_AUTH_URL=http://localhost:5173
 EMAIL_FROM=trackr@shamilkotta.me
 EMAIL_FROM_NAME=Trackr
 
-# clients tab (agent API + outgoing webhook). Set real values with `wrangler secret put`.
+# clients tab outgoing webhook to client-hunter. Set real values with `wrangler secret put`.
+# The agent API (/api/agent/*) uses per-user keys from Settings → API keys.
 CLIENTS_WEBHOOK_URL=
 CLIENTS_WEBHOOK_KEY=
-AGENT_API_KEY=
-# legacy: AGENT_API_KEY is honoured only while OWNER_USER_ID is also set. Prefer a user API key from Settings.
-OWNER_USER_ID=

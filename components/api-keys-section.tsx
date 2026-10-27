@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, KeyRound } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -126,7 +126,7 @@ export function ApiKeysSection() {
               </div>
               <Button
                 size="sm"
-                variant="destructive"
+                variant="outline"
                 disabled={revoke.isPending && revoke.variables === row.id}
                 onClick={() => setRevoking(row)}
               >
@@ -173,11 +173,23 @@ function CreateKeyDialog({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
+
+  function copy(value: string) {
+    void navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      window.clearTimeout(copiedTimer.current);
+      copiedTimer.current = window.setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   function close(next: boolean) {
     if (next || pending) return;
     onOpenChange(false);
     // reset after the close animation so the revealed key doesn't flash back to the form
+    window.clearTimeout(copiedTimer.current);
     window.setTimeout(() => {
       setName("");
       setSecret(null);
@@ -224,13 +236,13 @@ function CreateKeyDialog({
               />
               <Button
                 variant="outline"
-                size="icon"
+                size={copied ? "default" : "icon"}
                 aria-label={copied ? "Copied" : "Copy key"}
-                onClick={() => {
-                  void navigator.clipboard.writeText(secret).then(() => setCopied(true));
-                }}
+                onClick={() => copy(secret)}
               >
                 {copied ? <Check /> : <Copy />}
+                {/* kept mounted so screen readers pick up the change */}
+                <span aria-live="polite">{copied ? "Copied" : ""}</span>
               </Button>
             </div>
             <DialogFooter>

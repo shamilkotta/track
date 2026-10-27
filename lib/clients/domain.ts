@@ -295,6 +295,13 @@ export function inboxItems(leads: ClientLeadDetail[]): InboxItem[] {
   );
 }
 
+// leads client-hunter has found but not drafted yet; shown under the inbox drafts
+export function newLeads(leads: ClientLeadDetail[]) {
+  return leads
+    .filter((lead) => lead.status === "new" && !lead.doNotContact)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 export function waitingLeads(leads: ClientLeadDetail[]) {
   const queued = leads.filter((lead) => lead.status === "approved");
   const out = leads

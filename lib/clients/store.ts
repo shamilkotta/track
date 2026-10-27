@@ -34,7 +34,12 @@ import {
   type ClientNoteAuthor,
   type ClientStats,
 } from "@/lib/clients/domain";
-import { addBusinessDaysIst, istDayStart } from "@/lib/clients/time";
+import {
+  addBusinessDaysIst,
+  FOLLOWUP_BUSINESS_DAYS,
+  followupDueAtIst,
+  istDayStart,
+} from "@/lib/clients/time";
 import { deliverEvent } from "@/lib/clients/webhook";
 
 type LeadRow = typeof clientLeads.$inferSelect;
@@ -42,7 +47,6 @@ type LeadInsert = typeof clientLeads.$inferInsert;
 type DraftRow = typeof clientDrafts.$inferSelect;
 type EventRow = typeof clientEvents.$inferSelect;
 
-export const FOLLOWUP_BUSINESS_DAYS = 5;
 export const MAX_DELIVERY_ATTEMPTS = 7; // the first try plus 6 cron retries
 
 // ---------- small helpers ----------
@@ -639,9 +643,7 @@ export async function upsertLead(userId: string, body: Record<string, unknown>) 
   const timing: Partial<LeadInsert> = {};
   if (firstSentAt !== undefined) {
     timing.firstSentAt = firstSentAt;
-    timing.followupDueAt = firstSentAt
-      ? addBusinessDaysIst(firstSentAt, FOLLOWUP_BUSINESS_DAYS)
-      : null;
+    timing.followupDueAt = firstSentAt ? followupDueAtIst(firstSentAt) : null;
   }
   if (followupSentAt !== undefined) timing.followupSentAt = followupSentAt;
 
@@ -809,7 +811,7 @@ export async function updateStatus(userId: string, body: Record<string, unknown>
       leadPatch = {
         status: "waiting",
         firstSentAt: at,
-        followupDueAt: addBusinessDaysIst(at, FOLLOWUP_BUSINESS_DAYS),
+        followupDueAt: followupDueAtIst(at),
       };
     } else if (kind === "followup") {
       if (lead.status !== "waiting" || lead.followupSentAt) conflict("illegal_transition");

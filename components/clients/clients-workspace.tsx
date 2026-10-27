@@ -72,8 +72,10 @@ import {
   clientViews,
   dropReasonLabels,
   formatMoney,
+  categoryLabels,
   inboxItems,
   latestDraft,
+  newLeads,
   pendingDraft,
   replyLeads,
   statusLabels,
@@ -1052,6 +1054,52 @@ function ProjectCard({
   );
 }
 
+function sourceHost(url: string) {
+  try {
+    return new URL(url).host.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+function NewLeadsList({ leads }: { leads: ClientLeadDetail[] }) {
+  if (leads.length === 0) return null;
+  return (
+    <section className="mt-8" aria-labelledby="clients-new-heading">
+      <p id="clients-new-heading" className="mb-1.5 text-xs font-medium text-muted-foreground">
+        new · <span className="clients-num">{leads.length}</span> found, no draft yet
+      </p>
+      <ul className="divide-y rounded-md border" aria-label="new leads">
+        {leads.map((lead) => (
+          <li
+            key={lead.id}
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2"
+            data-testid="new-lead-row"
+            data-lead={lead.id}
+          >
+            <span className="min-w-0 flex-1 truncate font-medium">{lead.business}</span>
+            <span className="text-xs text-muted-foreground">
+              {lead.category ? categoryLabels[lead.category] : "uncategorised"}
+            </span>
+            {lead.sourceUrl ? (
+              <a
+                className="max-w-[12rem] truncate text-xs text-muted-foreground underline-offset-2 hover:underline"
+                href={lead.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {sourceHost(lead.sourceUrl)}
+              </a>
+            ) : (
+              <span className="text-xs text-muted-foreground">no source</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function ArchiveView({
   leads,
   onRevive,
@@ -1229,6 +1277,7 @@ export function ClientsFrame({ children }: { children: ReactNode }) {
     [leads, undoQueue.hidden],
   );
   const inbox = useMemo(() => inboxItems(leads), [leads]);
+  const found = useMemo(() => newLeads(visible), [visible]);
   const replies = useMemo(() => replyLeads(leads), [leads]);
   const shownInbox = inbox.filter((item) => !undoQueue.hidden.has(item.lead.id));
   const shownReplies = replies.filter((lead) => !undoQueue.hidden.has(lead.id));
@@ -1424,18 +1473,25 @@ export function ClientsFrame({ children }: { children: ReactNode }) {
     if (!data) return null;
     switch (view) {
       case "inbox":
-        return shownInbox.length === 0 &&
-          inbox.every((item) => !undoQueue.exiting.has(item.lead.id)) ? (
-          <Empty>nothing to review. client-hunter's next batch lands here.</Empty>
-        ) : (
-          <ul aria-label="inbox">
-            {inbox.map((item) => {
-              // collapsed (approved/dropped, undo pending) cards stay mounted at zero
-              // height so undo plays the collapse in reverse; they don't count for j/k
-              const index = shownInbox.indexOf(item);
-              return <LeadCard key={item.lead.id} {...cardProps(item.lead, item.draft, index)} />;
-            })}
-          </ul>
+        return (
+          <>
+            {shownInbox.length === 0 &&
+            inbox.every((item) => !undoQueue.exiting.has(item.lead.id)) ? (
+              <Empty>nothing to review. client-hunter's next batch lands here.</Empty>
+            ) : (
+              <ul aria-label="inbox">
+                {inbox.map((item) => {
+                  // collapsed (approved/dropped, undo pending) cards stay mounted at zero
+                  // height so undo plays the collapse in reverse; they don't count for j/k
+                  const index = shownInbox.indexOf(item);
+                  return (
+                    <LeadCard key={item.lead.id} {...cardProps(item.lead, item.draft, index)} />
+                  );
+                })}
+              </ul>
+            )}
+            <NewLeadsList leads={found} />
+          </>
         );
       case "waiting":
         return (

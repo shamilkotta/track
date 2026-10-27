@@ -1507,22 +1507,34 @@ export function ClientsFrame({ children }: { children: ReactNode }) {
   return (
     <div className="clients-root pb-24">
       <ActionErrorBanner error={actionError} onDismiss={() => setActionError(null)} />
-      <WorkspacePageHeader
-        title={screenTitles[`clients-${view}`]}
-        description={viewSubtitles[view]}
-      />
-      {data ? <StatsStrip stats={data.stats} reduced={reduced} /> : null}
-      {board.isError ? (
-        <div
-          className="mx-4 mt-3 flex items-center justify-between gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive md:mx-7"
-          role="alert"
-        >
-          <span>couldn't load clients.</span>
-          <Button size="xs" variant="ghost" onClick={() => void board.refetch()}>
-            retry
-          </Button>
-        </div>
-      ) : null}
+      {/* the header, stats and load error share the view's column: on inbox, waiting
+          and archive that is the centred 960px list column. These children carry the
+          same px-4/md:px-7 inset as the view section, so the wrapper is 960px plus that
+          inset on both sides and their content edge lands on the list's left edge. */}
+      <div
+        className={cn(
+          narrowViews.has(view) &&
+            "mx-auto w-full max-w-[calc(960px+2rem)] md:max-w-[calc(960px+3.5rem)]",
+        )}
+        data-testid="clients-head"
+      >
+        <WorkspacePageHeader
+          title={screenTitles[`clients-${view}`]}
+          description={viewSubtitles[view]}
+        />
+        {data ? <StatsStrip stats={data.stats} reduced={reduced} /> : null}
+        {board.isError ? (
+          <div
+            className="mx-4 mt-3 flex items-center justify-between gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive md:mx-7"
+            role="alert"
+          >
+            <span>couldn't load clients.</span>
+            <Button size="xs" variant="ghost" onClick={() => void board.refetch()}>
+              retry
+            </Button>
+          </div>
+        ) : null}
+      </div>
       <section
         ref={listRef}
         id="clients-view"

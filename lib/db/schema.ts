@@ -1,5 +1,20 @@
-import { relations } from "drizzle-orm";
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { relations, sql } from "drizzle-orm";
+import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+  clientCategories,
+  clientContactChannels,
+  clientDeliveryStatuses,
+  clientDraftAuthors,
+  clientDraftKinds,
+  clientDraftStatuses,
+  clientDropReasons,
+  clientEmailConfidences,
+  clientEventActions,
+  clientLeadStatuses,
+  clientMessageDirections,
+  clientNoteAuthors,
+  clientPaymentStatuses,
+} from "../clients/domain";
 
 export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
@@ -512,3 +527,177 @@ export const learningJournalEntriesRelations = relations(learningJournalEntries,
     references: [learningPaths.id],
   }),
 }));
+
+// ---------------------------------------------------------------------------
+// clients tab (client-hunter leads). Everything is namespaced client_* so it never
+// collides with the job-search `leads` table above. Status-like columns are text
+// enums in TypeScript and CHECK constraints in SQLite, so an illegal value can't be
+// written by either the app or a stray SQL statement.
+
+function inList(column: string, values: readonly string[]) {
+  return sql.raw(`${column} in (${values.map((value) => `'${value}'`).join(", ")})`);
+}
+
+function inListOrNull(column: string, values: readonly string[]) {
+  return sql.raw(
+    `${column} is null or ${column} in (${values.map((value) => `'${value}'`).join(", ")})`,
+  );
+}
+
+export const clientLeads = sqliteTable(
+  "client_leads",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    externalRef: text("external_ref").notNull(),
+    business: text("business").notNull(),
+    contactName: text("contact_name").notNull().default(""),
+    region: text("region").notNull().default(""),
+    category: text("category", { enum: clientCategories }),
+    siteUrl: text("site_url").notNull().default(""),
+    hookUrl: text("hook_url").notNull().default(""),
+    need: text("need").notNull().default(""),
+    contactEmail: text("contact_email").notNull().default(""),
+    contactChannel: text("contact_channel", { enum: clientContactChannels })
+      .notNull()
+      .default("email"),
+    emailConfidence: text("email_confidence", { enum: clientEmailConfidences }),
+    sourceUrl: text("source_url").notNull().default(""),
+    status: text("status", { enum: clientLeadStatuses }).notNull().default("new"),
+    onHold: integer("on_hold", { mode: "boolean" }).notNull().default(false),
+    doNotContact: integer("do_not_contact", { mode: "boolean" }).notNull().default(false),
+    dropReason: text("drop_reason", { enum: clientDropReasons }),
+    dropNote: text("drop_note").notNull().default(""),
+    firstSentAt: integer("first_sent_at", { mode: "timestamp_ms" }),
+    followupSentAt: integer("followup_sent_at", { mode: "timestamp_ms" }),
+    followupDueAt: integer("followup_due_at", { mode: "timestamp_ms" }),
+    coldAt: integer("cold_at", { mode: "timestamp_ms" }),
+    // money in minor units (pence/cents); the APIs speak major units
+    budgetStated: integer("budget_stated"),
+    quotedPrice: integer("quoted_price"),
+    agreedPrice: integer("agreed_price"),
+    currency: text("currency").notNull().default("GBP"),
+    paymentStatus: text("payment_status", { enum: clientPaymentStatuses }),
+    deliveryStatus: text("delivery_status", { enum: clientDeliveryStatuses }),
+    previewUrl: text("preview_url").notNull().default(""),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }),
+    deliveredAt: integer("delivered_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("client_leads_user_external_ref_uidx").on(table.userId, table.externalRef),
+    index("client_leads_user_status_idx").on(table.userId, table.status),
+    check("client_leads_status_chk", inList("status", clientLeadStatuses)),
+    check("client_leads_category_chk", inListOrNull("category", clientCategories)),
+    check("client_leads_channel_chk", inList("contact_channel", clientContactChannels)),
+    check("client_leads_confidence_chk", inListOrNull("email_confidence", clientEmailConfidences)),
+    check("client_leads_drop_reason_chk", inListOrNull("drop_reason", clientDropReasons)),
+    check("client_leads_payment_chk", inListOrNull("payment_status", clientPaymentStatuses)),
+    check("client_leads_delivery_chk", inListOrNull("delivery_status", clientDeliveryStatuses)),
+    // a do-not-contact lead is always a dropped lead
+    check("client_leads_dnc_chk", sql`do_not_contact = 0 or status = 'dropped'`),
+  ],
+);
+
+export const clientDrafts = sqliteTable(
+  "client_drafts",
+  {
+    id: text("id").primaryKey(),
+    leadId: text("lead_id")
+      .notNull()
+      .references(() => clientLeads.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: clientDraftKinds }).notNull(),
+    version: integer("version").notNull(),
+    subject: text("subject").notNull().default(""),
+    body: text("body").notNull(),
+    bodySha256: text("body_sha256").notNull(),
+    author: text("author", { enum: clientDraftAuthors }).notNull(),
+    status: text("status", { enum: clientDraftStatuses }).notNull().default("pending"),
+    approvedAt: integer("approved_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("client_drafts_lead_kind_version_uidx").on(table.leadId, table.kind, table.version),
+    check("client_drafts_kind_chk", inList("kind", clientDraftKinds)),
+    check("client_drafts_author_chk", inList("author", clientDraftAuthors)),
+    check("client_drafts_status_chk", inList("status", clientDraftStatuses)),
+  ],
+);
+
+export const clientMessages = sqliteTable(
+  "client_messages",
+  {
+    id: text("id").primaryKey(),
+    leadId: text("lead_id")
+      .notNull()
+      .references(() => clientLeads.id, { onDelete: "cascade" }),
+    direction: text("direction", { enum: clientMessageDirections }).notNull(),
+    body: text("body").notNull(),
+    summary: text("summary").notNull().default(""),
+    receivedAt: integer("received_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("client_messages_lead_idx").on(table.leadId),
+    check("client_messages_direction_chk", inList("direction", clientMessageDirections)),
+  ],
+);
+
+export const clientTasks = sqliteTable(
+  "client_tasks",
+  {
+    id: text("id").primaryKey(),
+    leadId: text("lead_id")
+      .notNull()
+      .references(() => clientLeads.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    done: integer("done", { mode: "boolean" }).notNull().default(false),
+    blocked: integer("blocked", { mode: "boolean" }).notNull().default(false),
+    position: integer("position").notNull(),
+  },
+  (table) => [index("client_tasks_lead_idx").on(table.leadId)],
+);
+
+export const clientNotes = sqliteTable(
+  "client_notes",
+  {
+    id: text("id").primaryKey(),
+    leadId: text("lead_id")
+      .notNull()
+      .references(() => clientLeads.id, { onDelete: "cascade" }),
+    author: text("author", { enum: clientNoteAuthors }).notNull(),
+    body: text("body").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("client_notes_lead_idx").on(table.leadId),
+    check("client_notes_author_chk", inList("author", clientNoteAuthors)),
+  ],
+);
+
+// outbox for the client-hunter webhook
+export const clientEvents = sqliteTable(
+  "client_events",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    leadId: text("lead_id")
+      .notNull()
+      .references(() => clientLeads.id, { onDelete: "cascade" }),
+    action: text("action", { enum: clientEventActions }).notNull(),
+    payloadJson: text("payload_json").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    deliveredAt: integer("delivered_at", { mode: "timestamp_ms" }),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+  },
+  (table) => [
+    index("client_events_user_created_idx").on(table.userId, table.createdAt),
+    index("client_events_undelivered_idx").on(table.deliveredAt),
+    check("client_events_action_chk", inList("action", clientEventActions)),
+  ],
+);

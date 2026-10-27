@@ -26,13 +26,23 @@ export function addBusinessDaysIst(at: Date, days: number) {
 
 export const FOLLOWUP_BUSINESS_DAYS = 5;
 
-// Follow-up due for a first send at `sentAt`. A send that lands on an IST weekend is
-// treated as sent on the following Monday (same time of day), so Sat/Sun sends get
-// the same 5 working days as a Monday send.
-export function followupDueAtIst(sentAt: Date) {
+// 5 business days after a send. A send that lands on an IST weekend is treated as
+// sent on the following Monday (same time of day), so Sat/Sun sends get the same
+// 5 working days as a Monday send.
+function businessDueAfterSendIst(sentAt: Date) {
   let anchor = sentAt.getTime();
   while (isWeekendIst(new Date(anchor))) anchor += DAY_MS;
   return addBusinessDaysIst(new Date(anchor), FOLLOWUP_BUSINESS_DAYS);
+}
+
+// when the follow-up is due, from the first send
+export function followupDueAtIst(firstSentAt: Date) {
+  return businessDueAfterSendIst(firstSentAt);
+}
+
+// when a lead goes cold, from the follow-up send
+export function coldDueAtIst(followupSentAt: Date) {
+  return businessDueAfterSendIst(followupSentAt);
 }
 
 // Midnight IST at the start of the IST calendar day containing `at`, shifted by `days`.

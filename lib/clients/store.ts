@@ -34,12 +34,7 @@ import {
   type ClientNoteAuthor,
   type ClientStats,
 } from "@/lib/clients/domain";
-import {
-  addBusinessDaysIst,
-  FOLLOWUP_BUSINESS_DAYS,
-  followupDueAtIst,
-  istDayStart,
-} from "@/lib/clients/time";
+import { coldDueAtIst, followupDueAtIst, istDayStart } from "@/lib/clients/time";
 import { deliverEvent } from "@/lib/clients/webhook";
 
 type LeadRow = typeof clientLeads.$inferSelect;
@@ -133,7 +128,7 @@ function boolField(body: Record<string, unknown>, key: string): boolean | undefi
 // ---------- mapping ----------
 
 function coldDueAt(row: LeadRow) {
-  return row.followupSentAt ? addBusinessDaysIst(row.followupSentAt, FOLLOWUP_BUSINESS_DAYS) : null;
+  return row.followupSentAt ? coldDueAtIst(row.followupSentAt) : null;
 }
 
 export function mapLead(row: LeadRow): ClientLead {

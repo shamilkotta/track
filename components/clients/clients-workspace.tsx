@@ -437,9 +437,13 @@ function LeadCard({
 
 // ---------- views ----------
 
-function CardSkeletons() {
+function CardSkeletons({ narrow }: { narrow: boolean }) {
   return (
-    <div className="space-y-3" aria-busy="true" aria-label="loading">
+    <div
+      className={cn("space-y-3", narrow && "max-w-[720px]")}
+      aria-busy="true"
+      aria-label="loading"
+    >
       {[0, 1, 2].map((index) => (
         <div key={index} className="clients-card space-y-3 p-4">
           <div className="clients-skeleton h-4 w-40 rounded" />
@@ -1285,9 +1289,13 @@ export function ClientsFrame({ children }: { children: ReactNode }) {
       if (document.querySelector("[role=dialog]") && event.key !== "?") return;
       const state = stateRef.current;
       const key = event.key;
-      if (/^[1-5]$/.test(key)) {
+      // digit row or numpad, by physical key, so layouts whose digit row doesn't
+      // type "1".."5" without shift still switch pages
+      const digit =
+        /^(?:Digit|Numpad)([1-5])$/.exec(event.code)?.[1] ?? (/^[1-5]$/.test(key) ? key : null);
+      if (digit) {
         event.preventDefault();
-        setView(clientViews[Number(key) - 1]);
+        setView(clientViews[Number(digit) - 1]);
         return;
       }
       if (key === "?") {
@@ -1352,7 +1360,7 @@ export function ClientsFrame({ children }: { children: ReactNode }) {
   }, [setView, undoQueue]);
 
   const body = (view: ClientView) => {
-    if (board.isPending) return <CardSkeletons />;
+    if (board.isPending) return <CardSkeletons narrow={view === "inbox"} />;
     if (!data) return null;
     switch (view) {
       case "inbox":
@@ -1360,7 +1368,7 @@ export function ClientsFrame({ children }: { children: ReactNode }) {
           inbox.every((item) => !undoQueue.exiting.has(item.lead.id)) ? (
           <Empty>nothing to review. client-hunter's next batch lands here.</Empty>
         ) : (
-          <ul aria-label="inbox">
+          <ul aria-label="inbox" className="max-w-[720px]">
             {inbox
               .filter((item) => !undoQueue.hidden.has(item.lead.id))
               .map((item, index) => (
@@ -1456,10 +1464,7 @@ export function ClientsFrame({ children }: { children: ReactNode }) {
         id="clients-view"
         aria-label={viewLabels[view]}
         key={view}
-        className={cn(
-          "clients-view-body px-4 pt-4 md:px-7",
-          view === "inbox" && "max-w-[calc(720px+3.5rem)]",
-        )}
+        className={cn("clients-view-body px-4 pt-4 md:px-7")}
       >
         <ClientsViewContext.Provider value={body}>{children}</ClientsViewContext.Provider>
       </section>

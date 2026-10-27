@@ -25,6 +25,10 @@
       "migrations_pattern": "drizzle/*.sql",
     },
   ],
+  // clients tab: */15 retries undelivered client-hunter webhooks, 03:30 UTC = 09:00 IST cold sweep
+  "triggers": {
+    "crons": ["*/15 * * * *", "30 3 * * *"],
+  },
   "r2_buckets": [
     {
       "binding": "FILES",

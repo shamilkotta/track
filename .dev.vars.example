@@ -7,5 +7,5 @@ EMAIL_FROM_NAME=Trackr
 CLIENTS_WEBHOOK_URL=
 CLIENTS_WEBHOOK_KEY=
 AGENT_API_KEY=
-# better-auth user id that owns client leads written via /api/agent/*
+# legacy: AGENT_API_KEY is honoured only while OWNER_USER_ID is also set. Prefer a user API key from Settings.
 OWNER_USER_ID=

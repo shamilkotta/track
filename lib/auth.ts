@@ -1,9 +1,12 @@
 import { betterAuth } from "better-auth/minimal";
+import { apiKey } from "@better-auth/api-key";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { drizzle } from "drizzle-orm/d1";
 import { getEnv, type AppEnv } from "@/lib/env";
 import { sendAppEmail } from "@/lib/email";
 import * as schema from "@/lib/db/schema";
+
+export const AGENT_KEY_PREFIX = "trk_";
 
 const cliSecret = "trackr-cli-placeholder-secret-do-not-use";
 
@@ -131,6 +134,19 @@ function createAuth() {
       }
       return [...origins];
     },
+    plugins: [
+      apiKey({
+        // agent API keys (client-hunter). Verified by lib/clients/agent-auth.ts, which
+        // reads Bearer or x-api-key itself; keys are never turned into sessions.
+        defaultPrefix: AGENT_KEY_PREFIX,
+        startingCharactersConfig: { charactersLength: AGENT_KEY_PREFIX.length + 4 },
+        requireName: true,
+        maximumNameLength: 64,
+        enableSessionForAPIKeys: false,
+        // the plugin defaults to 10 requests a day per key, far below what the agent sends
+        rateLimit: { enabled: false },
+      }),
+    ],
     advanced: {
       database: {
         generateId: "uuid",

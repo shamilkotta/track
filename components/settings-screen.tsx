@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "nlite/navigation";
+import { ApiKeysSection } from "@/components/api-keys-section";
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -111,6 +112,8 @@ export function SettingsScreen({ user }: { user: WorkspaceUser }) {
 
       {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
       {message && <p className="mt-4 text-sm text-muted-foreground">{message}</p>}
+
+      <ApiKeysSection />
 
       <div className="mt-auto flex gap-2 pt-12">
         <Button size="lg" variant="outline" onClick={() => router.push("/job/applications")}>

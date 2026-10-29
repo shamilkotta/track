@@ -418,6 +418,7 @@ function ListRow({ ctx, row, section }: { ctx: ViewContext; row: Row; section: s
           className="clients-row-item"
           data-selected={selected}
           data-lead={lead.id}
+          data-section={section}
           data-testid="lead-row"
           aria-current={selected || undefined}
           onClick={() => ctx.select(lead.id)}

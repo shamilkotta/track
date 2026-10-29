@@ -1,6 +1,6 @@
 BETTER_AUTH_SECRET=
 BETTER_AUTH_URL=http://localhost:5173
-EMAIL_FROM=trackr@shamilkotta.me
+EMAIL_FROM=
 EMAIL_FROM_NAME=Trackr
 
 # clients tab outgoing webhook to client-hunter. Set real values with `wrangler secret put`.

@@ -76,6 +76,12 @@ export function contactLabel(lead: ClientLeadDetail) {
   return `via ${lead.contactChannel}${lead.contactEmail ? ` · ${lead.contactEmail}` : ""}`;
 }
 
+// "part_paid" -> "Part paid": display only, stored values stay as they are
+export function humanize(value: string) {
+  const text = value.replace(/_/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 export function preview(text: string) {
   return text.replace(/\s+/g, " ").trim();
 }
@@ -175,7 +181,7 @@ export function Segmented<T extends string>({
           aria-pressed={value === option}
           onClick={() => onChange(option)}
         >
-          {option.replace("_", " ")}
+          {humanize(option)}
         </button>
       ))}
     </fieldset>
@@ -523,7 +529,7 @@ export function DropPanel({
                 } else submit(reason, "");
               }}
             >
-              {dropReasonLabels[reason]}
+              {humanize(dropReasonLabels[reason])}
             </Button>
           ))}
           <Button size="xs" variant="ghost" onKeyDown={escape} onClick={cancel}>
@@ -616,7 +622,7 @@ export function StageSteps({ lead }: { lead: ClientLeadDetail }) {
             aria-current={index === at ? "step" : undefined}
           >
             {index < at ? <Check className="size-3" aria-hidden /> : null}
-            {statusLabels[stage]}
+            {humanize(statusLabels[stage])}
           </span>
         </li>
       ))}

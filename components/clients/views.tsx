@@ -19,6 +19,7 @@ import {
   DropPanel,
   EmailCard,
   formatDay,
+  humanize,
   LeadHeader,
   money,
   MoneyField,
@@ -129,7 +130,7 @@ export function buildSections(
       return [
         {
           id: "archive",
-          title: archiveFilter === "all" ? "Archived" : archiveFilter,
+          title: archiveFilter === "all" ? "Archived" : humanize(archiveFilter),
           rows: rows(
             archiveLeads(shown).filter(
               (lead) => archiveFilter === "all" || lead.status === archiveFilter,
@@ -280,7 +281,7 @@ function ListHead({ ctx, total }: { ctx: ViewContext; total: number }) {
               aria-pressed={ctx.archiveFilter === id}
               onClick={() => ctx.setArchiveFilter(id)}
             >
-              {id}
+              {humanize(id)}
             </button>
           ))}
         </fieldset>
@@ -323,8 +324,8 @@ function rowSummary(
         side: ago(draft?.createdAt ?? lead.updatedAt, now.getTime()),
         line: draft ? (
           <>
-            {draft.kind === "followup" ? <Chip>follow-up</Chip> : null}
-            {draft.status === "revision_requested" ? <Chip tone="amber">revising</Chip> : null}
+            {draft.kind === "followup" ? <Chip>Follow-up</Chip> : null}
+            {draft.status === "revision_requested" ? <Chip tone="amber">Revising</Chip> : null}
             {draft.version > 1 && draft.status === "pending" ? <Chip>v{draft.version}</Chip> : null}
             <span className="truncate">{draft.subject || preview(draft.body)}</span>
           </>
@@ -344,7 +345,7 @@ function rowSummary(
       return {
         side: formatDay(lead.followupSentAt ?? lead.firstSentAt),
         line: ready ? (
-          <Chip tone="accent">follow-up draft ready</Chip>
+          <Chip tone="accent">Follow-up draft ready</Chip>
         ) : (
           <span className={cn(due.overdue && "clients-amber")}>
             {lead.followupSentAt ? `followed up · cold ${due.text}` : `follow-up ${due.text}`}
@@ -359,9 +360,9 @@ function rowSummary(
         side: ago(last?.receivedAt ?? lead.updatedAt, now.getTime()),
         line: (
           <>
-            {lead.status === "in_talks" ? <Chip tone="green">in talks</Chip> : null}
-            {lead.onHold ? <Chip tone="amber">with you</Chip> : null}
-            {draft ? <Chip tone="accent">reply ready</Chip> : null}
+            {lead.status === "in_talks" ? <Chip tone="green">In talks</Chip> : null}
+            {lead.onHold ? <Chip tone="amber">With you</Chip> : null}
+            {draft ? <Chip tone="accent">Reply ready</Chip> : null}
             <span className="truncate">
               {last
                 ? `${last.direction === "out" ? "You: " : ""}${preview(last.summary || last.body)}`
@@ -379,7 +380,7 @@ function rowSummary(
         line: (
           <>
             <Chip tone={lead.paymentStatus === "paid" ? "green" : "neutral"}>
-              {(lead.paymentStatus ?? "unpaid").replace("_", " ")}
+              {humanize(lead.paymentStatus ?? "unpaid")}
             </Chip>
             {lead.tasks.length ? (
               <span className="clients-num">
@@ -1013,7 +1014,7 @@ function Checklist({
             >
               {task.text}
             </span>
-            {task.blocked ? <Chip tone="amber">blocked</Chip> : null}
+            {task.blocked ? <Chip tone="amber">Blocked</Chip> : null}
             <span className="clients-row-controls flex shrink-0" data-testid="task-controls">
               <Button
                 size="icon-xs"
@@ -1109,7 +1110,7 @@ function ArchiveDetail({ ctx, lead }: { ctx: ViewContext; lead: ClientLeadDetail
             {lead.dropReason === "other" && lead.dropNote
               ? lead.dropNote
               : lead.dropReason
-                ? dropReasonLabels[lead.dropReason]
+                ? humanize(dropReasonLabels[lead.dropReason])
                 : "no reason"}
           </span>
         ) : (
@@ -1118,7 +1119,7 @@ function ArchiveDetail({ ctx, lead }: { ctx: ViewContext; lead: ClientLeadDetail
             {formatDay(lead.coldAt)}
           </span>
         )}
-        {lead.doNotContact ? <Chip tone="amber">do not contact</Chip> : null}
+        {lead.doNotContact ? <Chip tone="amber">Do not contact</Chip> : null}
         {lead.status === "cold" ? (
           <Button
             size="sm"
